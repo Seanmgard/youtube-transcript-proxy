@@ -49,7 +49,7 @@ export default function SignUp() {
       // Get the Supabase client - properly awaited
       const supabase = await createClient();
       
-      // Use direct Supabase auth
+      // Use direct Supabase auth with email confirmation disabled
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -57,6 +57,8 @@ export default function SignUp() {
           data: {
             first_name: firstName,
           },
+          // No email verification needed
+          emailRedirectTo: undefined
         },
       })
       
@@ -83,13 +85,11 @@ export default function SignUp() {
         
         toast({
           title: 'Account created successfully',
-          description: 'Please check your email to confirm your account.',
+          description: 'You can now sign in with your new account.',
         })
         
-        // Add a delay before redirecting
-        setTimeout(() => {
-          router.push('/sign-in')
-        }, 1000)
+        // Redirect to sign-in page immediately
+        router.push('/auth/sign-in')
       }
     } catch (error: any) {
       toast({

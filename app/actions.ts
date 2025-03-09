@@ -30,14 +30,12 @@ export const signUpAction = async (formData: FormData) => {
   }
 
   try {
-    // For development, we'll sign up without email confirmation
-    const isDevelopment = process.env.NODE_ENV === 'development';
-    
+    // Skip email verification for all environments
     const { data: authData, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${origin}/auth/callback`,
+        // Skip email verification by not providing emailRedirectTo
         data: {
           first_name: firstName,
           last_name: lastName,
@@ -76,17 +74,12 @@ export const signUpAction = async (formData: FormData) => {
       }
     }
 
-    if (isDevelopment) {
-      // In development, redirect to dashboard
-      return redirect('/dashboard');
-    } else {
-      // In production, show email verification message
-      return encodedRedirect(
-        "success",
-        "/sign-up",
-        "Thanks for signing up! Please check your email for a verification link."
-      );
-    }
+    // Redirect to sign-in page after successful sign-up
+    return encodedRedirect(
+      "success",
+      "/auth/sign-in",
+      "Account created successfully. Please sign in with your new credentials."
+    );
   } catch (error: any) {
     console.error('Unexpected error during sign up:', error);
     return encodedRedirect(

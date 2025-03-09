@@ -12,6 +12,9 @@ export async function createServerSupabaseClient() {
     {
       auth: {
         persistSession: false, // Don't persist the session on the server
+        flowType: 'pkce',
+        // Disable email verification by default
+        emailVerificationRequired: false
       },
       cookies: cookieOptions,
     }
