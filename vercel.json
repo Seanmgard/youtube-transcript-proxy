@@ -26,5 +26,11 @@
   ],
   "env": {
     "NEXT_PUBLIC_SITE_URL": "https://quizlabai.com"
+  },
+  "analytics": {
+    "enabled": true,
+    "speedInsights": {
+      "enabled": true
+    }
   }
 } 

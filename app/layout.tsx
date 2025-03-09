@@ -3,6 +3,8 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { MainHeader } from "@/app/components/shared/MainHeader";
 import { Providers } from "@/app/providers";
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 // Use the NEXT_PUBLIC_SITE_URL environment variable if available, otherwise fall back to Vercel URL or localhost
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
@@ -33,6 +35,8 @@ export default function RootLayout({
             </div>
           </main>
           <Toaster />
+          <Analytics />
+          <SpeedInsights />
         </Providers>
       </body>
     </html>
