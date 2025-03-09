@@ -71,6 +71,26 @@ QuizLabAI is an intelligent quiz generation platform that transforms learning ma
 
 The project can be deployed on Vercel or any other Next.js-compatible hosting platform.
 
+### Domain Setup
+
+To connect your custom domain (e.g., quizlabai.com) to your deployed application:
+
+1. **Deploy to Vercel**:
+   ```bash
+   npm run deploy
+   ```
+   This will run the deployment helper script that guides you through the process.
+
+2. **Configure DNS in Porkbun**:
+   - Add an A record for the apex domain (quizlabai.com) pointing to Vercel's IP (76.76.21.21)
+   - Add a CNAME record for the www subdomain (www.quizlabai.com) pointing to cname.vercel-dns.com
+
+3. **Update Environment Variables**:
+   - Set `NEXT_PUBLIC_SITE_URL` to your domain (https://quizlabai.com)
+   - Update Supabase redirect URLs to include your domain
+
+For detailed instructions, refer to the [DOMAIN_SETUP_GUIDE.md](DOMAIN_SETUP_GUIDE.md) file.
+
 ## License
 
 [MIT](LICENSE)

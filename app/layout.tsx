@@ -4,12 +4,15 @@ import { Toaster } from "@/components/ui/toaster";
 import { MainHeader } from "@/app/components/shared/MainHeader";
 import { Providers } from "@/app/providers";
 
-const defaultUrl = process.env.VERCEL_URL
+// Use the NEXT_PUBLIC_SITE_URL environment variable if available, otherwise fall back to Vercel URL or localhost
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+  ? process.env.NEXT_PUBLIC_SITE_URL
+  : process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
   : "http://localhost:3000";
 
 export const metadata = {
-  metadataBase: new URL(defaultUrl),
+  metadataBase: new URL(siteUrl),
   title: "QuizLab AI",
   description: "Transform your study materials into interactive quizzes with AI",
 };
