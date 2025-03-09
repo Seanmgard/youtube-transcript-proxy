@@ -505,25 +505,11 @@ export default function SubscriptionPage() {
   
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Manage Subscription</h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            View and manage your subscription plan.
-          </p>
-        </div>
-        
-        <Button 
-          variant="outline" 
-          onClick={() => {
-            // Force a complete page refresh
-            window.location.reload();
-          }}
-          className="flex items-center"
-        >
-          <Loader2 className="h-4 w-4 mr-2" />
-          Refresh Page
-        </Button>
+      <div>
+        <h1 className="text-3xl font-bold mb-2">Manage Subscription</h1>
+        <p className="text-gray-600 dark:text-gray-400">
+          View and manage your subscription plan.
+        </p>
       </div>
       
       {/* Display current subscription status */}
@@ -694,7 +680,7 @@ export default function SubscriptionPage() {
                 Payment successful! If your subscription status hasn't updated yet:
               </p>
               <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                It may take a few moments for our system to process your payment. You can try refreshing the page or clicking the button below.
+                It may take a few moments for our system to process your payment. Your subscription status will update automatically.
               </p>
             </div>
           </div>
@@ -702,38 +688,14 @@ export default function SubscriptionPage() {
             <Button 
               variant="outline" 
               onClick={() => {
-                setRefreshing(true);
-                fetchSubscription(true).finally(() => {
-                  setRefreshing(false);
-                  // Clear the URL parameters
-                  if (window.history.replaceState) {
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                  }
-                });
+                // Clear the URL parameters
+                if (window.history.replaceState) {
+                  window.history.replaceState({}, document.title, window.location.pathname);
+                }
               }}
-              disabled={isLoading || refreshing}
               className="bg-white dark:bg-gray-800"
             >
-              {isLoading || refreshing ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  Refresh Status
-                </>
-              )}
-            </Button>
-            <Button 
-              variant="default" 
-              onClick={() => {
-                // Force a complete page refresh
-                window.location.href = window.location.pathname;
-              }}
-              className="bg-primary"
-            >
-              Reload Page
+              Close
             </Button>
           </div>
         </div>
