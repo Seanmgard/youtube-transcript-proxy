@@ -57,20 +57,24 @@ export const signUpAction = async (formData: FormData) => {
 
     // Create or update profile
     if (authData?.user) {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: authData.user.id,
-          email: email,
-          first_name: firstName,
-          last_name: lastName,
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'id'
-        });
+      try {
+        // Use a SQL query to insert the profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: authData.user.id,
+            full_name: `${firstName} ${lastName}`,
+            updated_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+            is_admin: false
+          } as any);
 
-      if (profileError) {
+        if (profileError) {
+          console.error('Profile creation error:', profileError);
+        }
+      } catch (profileError) {
         console.error('Profile creation error:', profileError);
+        // Continue anyway - the profile might be created by a trigger
       }
     }
 

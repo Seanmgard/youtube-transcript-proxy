@@ -67,21 +67,8 @@ export default function SignUp() {
       }
       
       if (data?.user) {
-        // Create a profile record
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([
-            { 
-              id: data.user.id,
-              first_name: firstName,
-              email: email,
-            },
-          ])
-        
-        if (profileError) {
-          console.error('Error creating profile:', profileError)
-          // Continue anyway - the profile might be created by a trigger
-        }
+        // We'll let the server handle profile creation
+        // The profile will be created when the user signs in for the first time
         
         toast({
           title: 'Account created successfully',

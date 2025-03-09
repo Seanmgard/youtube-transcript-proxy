@@ -19,8 +19,7 @@ export const createClient = () => {
         autoRefreshToken: true,
         detectSessionInUrl: true,
         flowType: 'pkce',
-        // Disable email confirmation by default
-        emailVerificationRequired: false
+        // Email verification is controlled by Supabase project settings
       }
     }
   );

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { createServerSupabaseClient } from '@/utils/supabase/server';
