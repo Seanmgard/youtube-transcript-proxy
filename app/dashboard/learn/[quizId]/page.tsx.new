@@ -1,0 +1,197 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Loader2, ArrowLeft, ThumbsUp, ThumbsDown, RotateCcw, ChevronLeft, ChevronRight, Check, X, CheckCircle, XCircle } from 'lucide-react';
+import { Button } from '@/app/components/ui/button';
+import Link from 'next/link';
+import { Quiz, Question, LearningProgress, QuestionStat } from '@/lib/types';
+import { useToast } from '@/app/components/ui/use-toast';
+import { Progress } from "@/app/components/ui/progress";
+import { v4 as uuidv4 } from 'uuid';
+import { useSupabase } from '@/utils/supabase/client';
+import { useRouter, useParams } from 'next/navigation';
+import { useAuth } from '@/app/providers/AuthProvider';
+
+export default function LearnQuizPage() {
+  // Use the useParams hook to get route parameters in a client component
+  const params = useParams();
+  const quizId = params.quizId as string;
+  
+  const [user, setUser] = useState<any>(null);
+  const [contentLoading, setContentLoading] = useState(true);
+  const [savingProgress, setSavingProgress] = useState(false);
+  const [quiz, setQuiz] = useState<Quiz | null>(null);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [showAnswer, setShowAnswer] = useState(false);
+  const [learningProgress, setLearningProgress] = useState<LearningProgress | null>(null);
+  const [questionStats, setQuestionStats] = useState<Record<string, QuestionStat>>({});
+  const [flipped, setFlipped] = useState(false);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const { supabase, loading: supabaseLoading, error: supabaseError } = useSupabase();
+  const { toast } = useToast();
+  const router = useRouter();
+  const { user: authUser } = useAuth();
+  
+  // Combine loading states
+  const isLoading = contentLoading || supabaseLoading;
+
+  useEffect(() => {
+    const fetchQuizAndProgress = async () => {
+      // Wait for supabase to be initialized
+      if (!supabase) return;
+      
+      try {
+        // Use the user from AuthProvider if available, otherwise get from Supabase
+        let currentUser = authUser;
+        
+        if (!currentUser) {
+          const { data: { user }, error: userError } = await supabase.auth.getUser();
+          
+          if (userError) {
+            console.error("User authentication error:", userError);
+            toast({
+              title: "Authentication error",
+              description: "Please sign in again to continue",
+              variant: "destructive",
+            });
+            router.push('/auth/sign-in');
+            return;
+          }
+          
+          currentUser = user;
+        }
+        
+        if (!currentUser) {
+          console.log("No authenticated user found");
+          toast({
+            title: "Not signed in",
+            description: "Please sign in to view this quiz",
+            variant: "destructive",
+          });
+          router.push('/auth/sign-in');
+          return;
+        }
+        
+        setUser(currentUser);
+        console.log("Current user:", currentUser);
+        console.log("Quiz ID:", quizId);
+
+        // Fetch quiz
+        const { data: quizData, error: quizError } = await supabase
+          .from('quizzes')
+          .select('*')
+          .eq('id', quizId)
+          .eq('user_id', currentUser.id)
+          .single();
+
+        if (quizError) {
+          console.error("Error fetching quiz:", quizError);
+          
+          // Check if the quiz was not found
+          if (quizError.code === 'PGRST116') {
+            toast({
+              title: "Quiz not found",
+              description: "This quiz may have been deleted or you don't have access to it",
+              variant: "destructive",
+            });
+            
+            // Redirect back to the learn page
+            router.push('/dashboard/learn');
+            return;
+          }
+          
+          toast({
+            title: "Error loading quiz",
+            description: quizError.message || "Could not find the requested quiz",
+            variant: "destructive",
+          });
+          router.push('/dashboard/learn');
+          return;
+        }
+        
+        console.log("Fetched quiz:", quizData);
+        
+        // Normalize quiz data to handle field name mismatches
+        const normalizedQuiz = {
+          id: quizData.id,
+          title: quizData.title,
+          user_id: quizData.user_id,
+          created_at: quizData.created_at,
+          pdf_url: quizData.pdf_url || '',
+          questions: (quizData.questions || []).map((q: any) => ({
+            ...q,
+            // Ensure both field naming conventions are available
+            id: q.id || `q-${uuidv4()}`,
+            quizId: quizId,
+            text: q.text || q.question || '',
+            correctAnswer: q.correctAnswer || q.answer || '',
+            type: q.type || 'open_ended',
+            options: q.options || [] // Ensure options field exists
+          })),
+          settings: quizData.settings || {
+            numberOfQuestions: quizData.questions?.length || 0,
+            difficulty: 'medium',
+            questionType: 'mixed'
+          }
+        };
+        
+        console.log("Normalized quiz:", normalizedQuiz);
+        console.log("Normalized questions:", normalizedQuiz.questions);
+        setQuiz(normalizedQuiz);
+
+        // Rest of your component logic...
+      } catch (error: any) {
+        console.error("Error:", error);
+        toast({
+          title: "Error",
+          description: error.message || "An unexpected error occurred",
+          variant: "destructive",
+        });
+      } finally {
+        setContentLoading(false);
+      }
+    };
+
+    fetchQuizAndProgress();
+  }, [quizId, supabase, toast, router, authUser]);
+
+  // Rest of your component...
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-[70vh]">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!quiz) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[70vh]">
+        <h2 className="text-2xl font-bold mb-4">Quiz not found</h2>
+        <p className="mb-6">The quiz you're looking for doesn't exist or you don't have access to it.</p>
+        <Link href="/dashboard/learn">
+          <Button>Back to Learn</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  // Rest of your component rendering...
+
+  return (
+    <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="flex items-center gap-2 mb-6">
+        <Link href="/dashboard/learn">
+          <Button variant="outline" size="icon">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </Link>
+        <h1 className="text-2xl font-bold">{quiz.title}</h1>
+      </div>
+
+      {/* Rest of your component UI... */}
+    </div>
+  );
+} 

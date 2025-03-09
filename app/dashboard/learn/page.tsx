@@ -1,0 +1,420 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Loader2, ArrowLeft, BookOpen, BarChart3, Clock, Calendar, Tag, FileText, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { Quiz, LearningProgress, Exam } from '@/lib/types';
+import { useToast } from '@/components/ui/use-toast';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { useRouter } from 'next/navigation';
+import { useSupabase } from '@/utils/supabase/client';
+import { useAuth } from '@/app/providers/AuthProvider';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+// Add a helper function to determine text color based on background color
+function getContrastColor(hexColor: string): string {
+  // Convert hex to RGB
+  const r = parseInt(hexColor.slice(1, 3), 16);
+  const g = parseInt(hexColor.slice(3, 5), 16);
+  const b = parseInt(hexColor.slice(5, 7), 16);
+  
+  // Calculate luminance
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  
+  // Return black or white based on luminance
+  return luminance > 0.5 ? '#000000' : '#FFFFFF';
+}
+
+export default function LearnPage() {
+  const [user, setUser] = useState<any>(null);
+  const [contentLoading, setContentLoading] = useState(true);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [learningProgress, setLearningProgress] = useState<Record<string, LearningProgress>>({});
+  const { supabase, loading: supabaseLoading, error: supabaseError } = useSupabase();
+  const { toast } = useToast();
+  const router = useRouter();
+  const { user: authUser } = useAuth();
+  
+  // Combine loading states
+  const isLoading = contentLoading || supabaseLoading;
+
+  // Add a function to clean up orphaned learning progress records
+  const cleanupOrphanedProgress = async () => {
+    try {
+      const response = await fetch('/api/cleanup-progress', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.cleaned > 0) {
+          console.log(`Cleaned up ${data.cleaned} orphaned learning progress records`);
+        }
+      } else {
+        console.error('Failed to clean up orphaned progress records');
+      }
+    } catch (error) {
+      console.error('Error cleaning up orphaned progress:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (!supabase) return;
+    
+    const fetchUserAndQuizzes = async () => {
+      try {
+        setContentLoading(true);
+        
+        // Use the user from AuthProvider if available, otherwise get from Supabase
+        let currentUser = authUser;
+        
+        if (!currentUser) {
+          const { data: { user }, error: userError } = await supabase.auth.getUser();
+          
+          if (userError) {
+            console.error("User authentication error:", userError);
+            toast({
+              title: "Authentication error",
+              description: "Please sign in again to continue",
+              variant: "destructive",
+            });
+            router.push('/auth/sign-in');
+            return;
+          }
+          
+          currentUser = user;
+        }
+        
+        if (!currentUser) {
+          console.log("No authenticated user found");
+          toast({
+            title: "Not signed in",
+            description: "Please sign in to view your quizzes",
+            variant: "destructive",
+          });
+          router.push('/auth/sign-in');
+          return;
+        }
+        
+        setUser(currentUser);
+        console.log("Current user:", currentUser);
+
+        // Fetch user's quizzes
+        console.log("Fetching quizzes for user ID:", currentUser.id);
+        const { data: quizzesData, error: quizzesError } = await supabase
+          .from('quizzes')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false });
+
+        if (quizzesError) {
+          console.error("Error fetching quizzes:", quizzesError);
+          toast({
+            title: "Error loading quizzes",
+            description: quizzesError.message,
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        console.log("Fetched quizzes:", quizzesData);
+        console.log("Number of quizzes found:", quizzesData?.length || 0);
+        
+        // Check if quizzes have the expected structure
+        if (quizzesData && quizzesData.length > 0) {
+          console.log("First quiz structure:", JSON.stringify(quizzesData[0], null, 2));
+          
+          // Normalize quiz data to handle field name mismatches
+          const normalizedQuizzes = quizzesData.map((quiz: any) => ({
+            id: quiz.id,
+            title: quiz.title,
+            user_id: quiz.user_id,
+            created_at: quiz.created_at,
+            pdf_url: quiz.pdf_url || '',
+            questions: quiz.questions || [],
+            settings: quiz.settings || {
+              numberOfQuestions: quiz.questions?.length || 0,
+              difficulty: 'medium',
+              questionType: 'mixed'
+            },
+            subject: quiz.subject || '',
+            color: quiz.color || ''
+          }));
+          
+          console.log("Normalized quizzes:", normalizedQuizzes);
+          setQuizzes(normalizedQuizzes);
+        } else {
+          setQuizzes([]);
+        }
+
+        // Fetch learning progress for each quiz
+        console.log("Fetching learning progress for user ID:", currentUser.id);
+        const { data: progressData, error: progressError } = await supabase
+          .from('learning_progress')
+          .select('*')
+          .eq('user_id', currentUser.id);
+
+        if (progressError) {
+          console.error('Error fetching learning progress:', progressError);
+          toast({
+            title: "Warning",
+            description: "Could not load learning progress data",
+            variant: "default",
+          });
+        } else {
+          console.log("Learning progress data:", progressData);
+          // Convert array to record for easier lookup
+          const progressRecord: Record<string, LearningProgress> = {};
+          
+          // Only include progress for quizzes that still exist
+          if (progressData) {
+            const quizIds = new Set(quizzesData?.map((q: any) => q.id) || []);
+            progressData.forEach((progress: any) => {
+              // Only add progress for quizzes that still exist
+              if (quizIds.has(progress.quiz_id)) {
+                progressRecord[progress.quiz_id] = progress;
+              } else {
+                console.log(`Skipping progress for deleted quiz: ${progress.quiz_id}`);
+                // Optionally clean up orphaned progress records
+                // This could be done in a separate function to avoid slowing down the page load
+              }
+            });
+          }
+          
+          setLearningProgress(progressRecord);
+        }
+
+        // Fetch exams
+        try {
+          console.log("Fetching exams for user ID:", currentUser.id);
+          const { data: examsData, error: examsError } = await supabase
+            .from('exams')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .order('created_at', { ascending: false });
+
+          if (examsError) {
+            console.error("Error fetching exams:", examsError);
+            toast({
+              title: "Warning",
+              description: "Could not load exam data",
+              variant: "default",
+            });
+          } else {
+            console.log("Fetched exams:", examsData);
+            setExams(examsData || []);
+          }
+        } catch (error) {
+          console.error('Error fetching exams:', error);
+          toast({
+            title: "Warning",
+            description: "Could not load exam data",
+            variant: "default",
+          });
+        }
+
+        // Clean up orphaned progress records
+        await cleanupOrphanedProgress();
+      } catch (error: any) {
+        console.error('Error fetching data:', error);
+        toast({
+          title: "Error loading data",
+          description: error.message || "There was a problem loading your quizzes.",
+          variant: "destructive",
+        });
+      } finally {
+        setContentLoading(false);
+      }
+    };
+
+    fetchUserAndQuizzes();
+  }, [supabase, toast, router, authUser]);
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-[70vh]">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 max-w-6xl mx-auto">
+      <div className="flex items-center gap-2 mb-6">
+        <Link href="/dashboard">
+          <Button variant="outline" size="icon">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </Link>
+        <h1 className="text-3xl font-bold">Learn</h1>
+      </div>
+
+      <Tabs defaultValue="quizzes" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="quizzes">Flashcards</TabsTrigger>
+          <TabsTrigger value="exams">Test Yourself</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="quizzes" className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+          <h2 className="text-xl font-semibold mb-6">Your Study Materials</h2>
+          
+          {quizzes.length === 0 ? (
+            <div className="text-center py-8">
+              <BookOpen className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-500 dark:text-gray-400">No quizzes available for learning yet.</p>
+              <p className="text-gray-500 dark:text-gray-400 mt-2">Generate a quiz from the dashboard to get started!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {quizzes.map((quiz) => {
+                const progress = learningProgress[quiz.id];
+                const masteryPercentage = progress?.mastery_percentage || 0;
+                const lastStudied = progress?.last_studied 
+                  ? new Date(progress.last_studied).toLocaleDateString() 
+                  : 'Never studied';
+                
+                return (
+                  <Card 
+                    key={quiz.id} 
+                    className={`hover:shadow-md transition-shadow ${
+                      quiz.subject && quiz.color ? 'border-l-4' : ''
+                    }`}
+                    style={quiz.subject && quiz.color ? {
+                      borderLeftColor: quiz.color,
+                      backgroundColor: `${quiz.color}20`, // Add 20% opacity to the color
+                    } : {}}
+                  >
+                    <CardHeader>
+                      <div className="mb-2 min-h-[28px]">
+                        {quiz.subject && (
+                          <div 
+                            className="inline-flex items-center px-3 py-1 rounded-md text-sm"
+                            style={{ 
+                              backgroundColor: quiz.color || '#E5E7EB', 
+                              color: quiz.color ? getContrastColor(quiz.color) : '#374151' 
+                            }}
+                          >
+                            <Tag className="h-3 w-3 mr-2" />
+                            {quiz.subject}
+                          </div>
+                        )}
+                      </div>
+                      <CardTitle className="line-clamp-1 text-lg">
+                        {quiz.title}
+                      </CardTitle>
+                      <CardDescription>
+                        Quiz details
+                      </CardDescription>
+                      <div className="flex flex-wrap gap-x-4 mt-1">
+                        <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
+                          <Calendar className="h-3.5 w-3.5 mr-1" />
+                          {new Date(quiz.created_at).toLocaleDateString()}
+                        </span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
+                          <Clock className="h-3.5 w-3.5 mr-1" />
+                          {quiz.questions?.length || 0} questions
+                        </span>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Cards Viewed</span>
+                          <span>{masteryPercentage}%</span>
+                        </div>
+                        <Progress 
+                          value={masteryPercentage} 
+                          className="h-2 bg-gray-200 dark:bg-gray-700" 
+                          style={{ "--progress-foreground": "rgb(21, 128, 61)" } as React.CSSProperties}
+                        />
+                        <p className="text-xs text-gray-500 mt-2">
+                          Last studied: {lastStudied}
+                        </p>
+                      </div>
+                    </CardContent>
+                    <CardFooter>
+                      <Link href={`/dashboard/learn/${quiz.id}`} className="w-full">
+                        <Button className="w-full">
+                          {progress ? 'Continue Learning' : 'Start Learning'}
+                        </Button>
+                      </Link>
+                    </CardFooter>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="exams" className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold">Your Exams</h2>
+            <Link href="/dashboard/learn/exams/create">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Exam
+              </Button>
+            </Link>
+          </div>
+          
+          {exams.length === 0 ? (
+            <div className="text-center py-8">
+              <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-500 dark:text-gray-400">No exams available yet.</p>
+              <p className="text-gray-500 dark:text-gray-400 mt-2">Create an exam by combining your quizzes!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {exams.map((exam) => (
+                <Card key={exam.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <CardTitle className="line-clamp-1 text-lg">{exam.title}</CardTitle>
+                    <CardDescription>
+                      {exam.description || 'No description'}
+                    </CardDescription>
+                    <div className="flex flex-wrap gap-x-4 mt-1">
+                      <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
+                        <Calendar className="h-3.5 w-3.5 mr-1" />
+                        {new Date(exam.created_at).toLocaleDateString()}
+                      </span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
+                        <FileText className="h-3.5 w-3.5 mr-1" />
+                        {exam.quiz_ids.length} quizzes
+                      </span>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-500">
+                      This exam combines {exam.quiz_ids.length} {exam.quiz_ids.length === 1 ? 'quiz' : 'quizzes'}.
+                    </p>
+                  </CardContent>
+                  <CardFooter>
+                    <Link href={`/dashboard/learn/exams/${exam.id}`} className="w-full">
+                      <Button className="w-full">
+                        Take Exam
+                      </Button>
+                    </Link>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+} 
