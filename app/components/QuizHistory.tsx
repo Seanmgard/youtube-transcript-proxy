@@ -1040,7 +1040,12 @@ export default function QuizHistory({ showAll = false, limit = 5 }: QuizHistoryP
                 <Button variant="outline" onClick={() => setEditingQuiz(null)}>
                   Cancel
                 </Button>
-                <Button onClick={saveQuiz} disabled={saving}>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={saveQuiz}
+                  disabled={saving}
+                >
                   {saving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1124,6 +1129,7 @@ export default function QuizHistory({ showAll = false, limit = 5 }: QuizHistoryP
               <>
                 <Button
                   variant="default"
+                  size="sm"
                   onClick={saveQuiz}
                   disabled={saving}
                 >
@@ -1141,6 +1147,7 @@ export default function QuizHistory({ showAll = false, limit = 5 }: QuizHistoryP
                 </Button>
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={cancelEditing}
                   disabled={saving}
                 >
@@ -1151,12 +1158,13 @@ export default function QuizHistory({ showAll = false, limit = 5 }: QuizHistoryP
               null
             ) : (
               <>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                <Button variant="outline" size="sm" onClick={() => setIsDialogOpen(false)}>
                   Close
                 </Button>
                 
                 <Button 
                   variant="outline"
+                  size="sm"
                   onClick={() => {
                     setCategorizingQuiz(selectedQuiz);
                     setEditingQuiz(null);
@@ -1168,6 +1176,7 @@ export default function QuizHistory({ showAll = false, limit = 5 }: QuizHistoryP
                 
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={() => {
                     startEditing(selectedQuiz!);
                     setCurrentQuestionIndex(0); // Reset the current question index
@@ -1180,6 +1189,7 @@ export default function QuizHistory({ showAll = false, limit = 5 }: QuizHistoryP
                 
                 <Button
                   variant="outline"
+                  size="sm"
                   className="text-red-500 hover:text-red-700 hover:bg-red-50"
                   onClick={() => openDeleteConfirmation(selectedQuiz!)}
                 >
