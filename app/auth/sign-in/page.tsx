@@ -55,6 +55,7 @@ export default function SignIn() {
       })
       
       if (error) {
+        console.error('Sign-in error:', error.message)
         throw error
       }
       
@@ -64,12 +65,17 @@ export default function SignIn() {
           description: 'Redirecting to dashboard...',
         })
         
+        // Force a session refresh to ensure cookies are properly set
+        await supabase.auth.refreshSession()
+        
         // Add a delay before redirecting to ensure cookies are set
         setTimeout(() => {
-          router.push('/dashboard')
-        }, 1000)
+          // Use window.location for a full page reload to ensure proper session handling
+          window.location.href = '/dashboard'
+        }, 1500)
       }
     } catch (error: any) {
+      console.error('Sign-in error details:', error)
       toast({
         title: 'Error signing in',
         description: error.message || 'An error occurred during sign in',

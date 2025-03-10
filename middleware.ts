@@ -4,7 +4,11 @@ import { createServerClient } from '@supabase/ssr';
 
 export async function middleware(request: NextRequest) {
   // Create a response object that we can modify
-  let response = NextResponse.next();
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
 
   // Create a Supabase client
   const supabase = createServerClient(
@@ -33,37 +37,66 @@ export async function middleware(request: NextRequest) {
           });
         },
       },
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+      },
     }
   );
 
-  // Define protected routes that require authentication
-  const protectedRoutes = [
-    '/dashboard',
-    '/dashboard/learn',
-    '/dashboard/history',
-    '/dashboard/subscription',
-    '/dashboard/suggest',
-  ];
+  try {
+    // Define protected routes that require authentication
+    const protectedRoutes = [
+      '/dashboard',
+      '/dashboard/learn',
+      '/dashboard/history',
+      '/dashboard/subscription',
+      '/dashboard/suggest',
+    ];
 
-  // Check if the current path is a protected route
-  const isProtectedRoute = protectedRoutes.some(route => 
-    request.nextUrl.pathname.startsWith(route)
-  );
+    // Define auth routes
+    const authRoutes = [
+      '/auth/sign-in',
+      '/auth/sign-up',
+      '/auth/forgot-password',
+    ];
 
-  // If it's a protected route, check if the user is authenticated
-  if (isProtectedRoute) {
-    // Use getUser() instead of getSession() for better security
+    // Check if the current path is a protected route
+    const isProtectedRoute = protectedRoutes.some(route => 
+      request.nextUrl.pathname.startsWith(route)
+    );
+
+    // Check if the current path is an auth route
+    const isAuthRoute = authRoutes.some(route => 
+      request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(route)
+    );
+
+    // Get the user session
     const { data: { user }, error } = await supabase.auth.getUser();
-    
-    if (error || !user) {
-      // Redirect to sign-in if not authenticated
+
+    // If it's a protected route and no user, redirect to sign-in
+    if (isProtectedRoute && (!user || error)) {
       const redirectUrl = new URL('/auth/sign-in', request.url);
       redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname);
       return NextResponse.redirect(redirectUrl);
     }
-  }
 
-  return response;
+    // If it's an auth route and user is logged in, redirect to dashboard
+    if (isAuthRoute && user && !error) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+
+    return response;
+  } catch (error) {
+    console.error('Middleware error:', error);
+    
+    // If there's an error and trying to access protected route, redirect to sign-in
+    if (request.nextUrl.pathname.startsWith('/dashboard')) {
+      return NextResponse.redirect(new URL('/auth/sign-in', request.url));
+    }
+    
+    return response;
+  }
 }
 
 // Only run middleware on specific paths

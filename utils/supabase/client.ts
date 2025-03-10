@@ -20,6 +20,21 @@ export const createClient = () => {
         detectSessionInUrl: true,
         flowType: 'pkce',
         // Email verification is controlled by Supabase project settings
+        storageKey: 'quizlab-auth-token',
+        storage: {
+          getItem: (key) => {
+            if (typeof window === 'undefined') return null;
+            return window.localStorage.getItem(key);
+          },
+          setItem: (key, value) => {
+            if (typeof window === 'undefined') return;
+            window.localStorage.setItem(key, value);
+          },
+          removeItem: (key) => {
+            if (typeof window === 'undefined') return;
+            window.localStorage.removeItem(key);
+          },
+        },
       }
     }
   );
@@ -27,18 +42,48 @@ export const createClient = () => {
   return supabaseClient;
 };
 
-// Function to refresh the session
-export const refreshSession = async () => {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.refreshSession();
-  
-  if (error) {
-    console.error('Error refreshing session:', error);
-    return { data, error };
+// Ensure user is authenticated, refreshing the session if needed
+export async function ensureAuthenticated() {
+  try {
+    const supabase = await createClient();
+    
+    // First check if we have a session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('Error getting session:', sessionError);
+      return { authenticated: false };
+    }
+    
+    if (session) {
+      return { authenticated: true, session };
+    }
+    
+    // If no session, try to refresh
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    
+    if (refreshError) {
+      console.error('Error refreshing session:', refreshError);
+      return { authenticated: false };
+    }
+    
+    return { authenticated: !!refreshData.session, session: refreshData.session };
+  } catch (error) {
+    console.error('Unexpected error in ensureAuthenticated:', error);
+    return { authenticated: false };
   }
-  
-  return { data, error: null };
-};
+}
+
+// Refresh the session
+export async function refreshSession() {
+  try {
+    const supabase = await createClient();
+    return await supabase.auth.refreshSession();
+  } catch (error) {
+    console.error('Error refreshing session:', error);
+    return { data: { session: null, user: null }, error };
+  }
+}
 
 // Function to get the current session
 export const getSession = async () => {
@@ -51,25 +96,6 @@ export const getSession = async () => {
   }
   
   return { session: data.session, error: null };
-};
-
-// Function to check if user is authenticated and refresh if needed
-export const ensureAuthenticated = async () => {
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!session) {
-    // Try to refresh the session
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    
-    if (refreshError || !refreshData.session) {
-      return { authenticated: false, user: null };
-    }
-    
-    return { authenticated: true, user: refreshData.session.user };
-  }
-  
-  return { authenticated: true, user: session.user };
 };
 
 // Add the useSupabase hook:

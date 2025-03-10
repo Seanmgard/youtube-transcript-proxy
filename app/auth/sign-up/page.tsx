@@ -49,7 +49,7 @@ export default function SignUp() {
       // Get the Supabase client - properly awaited
       const supabase = await createClient();
       
-      // Use direct Supabase auth with email confirmation disabled
+      // Use direct Supabase auth with email confirmation explicitly disabled
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -57,13 +57,26 @@ export default function SignUp() {
           data: {
             first_name: firstName,
           },
-          // No email verification needed
-          emailRedirectTo: undefined
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       })
       
       if (error) {
+        console.error('Sign-up error:', error.message)
         throw error
+      }
+      
+      // Check if email confirmation is needed
+      if (data?.user?.identities?.length === 0) {
+        toast({
+          title: 'Email already registered',
+          description: 'This email is already registered. Please sign in instead.',
+          variant: 'destructive',
+        })
+        setTimeout(() => {
+          router.push('/auth/sign-in')
+        }, 2000)
+        return
       }
       
       if (data?.user) {
@@ -76,7 +89,9 @@ export default function SignUp() {
         })
         
         // Redirect to sign-in page immediately
-        router.push('/auth/sign-in')
+        setTimeout(() => {
+          router.push('/auth/sign-in')
+        }, 1000)
       }
     } catch (error: any) {
       toast({

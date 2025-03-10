@@ -11,9 +11,10 @@ export async function createServerSupabaseClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       auth: {
-        persistSession: false, // Don't persist the session on the server
+        persistSession: true, // Changed to true to ensure session persistence
         flowType: 'pkce',
         // Email verification is controlled by Supabase project settings
+        autoRefreshToken: true,
       },
       cookies: cookieOptions,
     }

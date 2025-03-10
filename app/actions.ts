@@ -11,7 +11,7 @@ export const signUpAction = async (formData: FormData) => {
   const firstName = formData.get("firstName")?.toString();
   const lastName = formData.get("lastName")?.toString();
   const supabase = await createClient();
-  const origin = (await headers()).get("origin");
+  const origin = (await headers()).get("origin") || process.env.NEXT_PUBLIC_SITE_URL;
 
   if (!email || !password) {
     return encodedRedirect(
@@ -30,12 +30,30 @@ export const signUpAction = async (formData: FormData) => {
   }
 
   try {
-    // Skip email verification for all environments
+    // Check if the email already exists
+    const { data: existingUsers, error: lookupError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .limit(1);
+      
+    if (lookupError) {
+      console.error('Error checking existing user:', lookupError);
+    } else if (existingUsers && existingUsers.length > 0) {
+      return encodedRedirect(
+        "error",
+        "/sign-up",
+        "This email is already registered. Please sign in instead."
+      );
+    }
+    
+    // Configure sign-up with explicit email verification settings
     const { data: authData, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        // Skip email verification by not providing emailRedirectTo
+        // Provide a redirect URL for email verification if needed
+        emailRedirectTo: `${origin}/auth/callback`,
         data: {
           first_name: firstName,
           last_name: lastName,
@@ -63,6 +81,7 @@ export const signUpAction = async (formData: FormData) => {
           .from('profiles')
           .insert({
             id: authData.user.id,
+            email: email, // Store email in profiles table for easier lookup
             full_name: `${firstName} ${lastName}`,
             updated_at: new Date().toISOString(),
             created_at: new Date().toISOString(),
@@ -78,12 +97,23 @@ export const signUpAction = async (formData: FormData) => {
       }
     }
 
-    // Redirect to sign-in page after successful sign-up
-    return encodedRedirect(
-      "success",
-      "/auth/sign-in",
-      "Account created successfully. Please sign in with your new credentials."
-    );
+    // Check if email confirmation is needed based on Supabase response
+    const emailConfirmationNeeded = authData?.user && !authData.session;
+    
+    if (emailConfirmationNeeded) {
+      return encodedRedirect(
+        "success",
+        "/auth/sign-in",
+        "Account created successfully. Please check your email for a confirmation link."
+      );
+    } else {
+      // Redirect to sign-in page after successful sign-up
+      return encodedRedirect(
+        "success",
+        "/auth/sign-in",
+        "Account created successfully. Please sign in with your new credentials."
+      );
+    }
   } catch (error: any) {
     console.error('Unexpected error during sign up:', error);
     return encodedRedirect(
@@ -99,16 +129,43 @@ export async function signInAction(formData: FormData) {
   const password = formData.get('password') as string
   const supabase = await createClient()
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password
-  })
+  try {
+    // Sign in with password
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    })
 
-  if (error) {
-    return { error: error.message }
+    if (error) {
+      console.error('Sign-in error:', error.message)
+      return { error: error.message }
+    }
+
+    // Ensure we have a session
+    if (!data.session) {
+      // Try to refresh the session
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+      
+      if (refreshError || !refreshData.session) {
+        console.error('Session refresh error:', refreshError?.message)
+        return { error: 'Authentication failed. Please try again.' }
+      }
+    }
+
+    // Set cookies with the session
+    const cookieOptions = {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7, // 1 week
+      sameSite: 'lax' as const,
+      secure: process.env.NODE_ENV === 'production',
+    }
+
+    // Redirect to dashboard
+    redirect('/dashboard')
+  } catch (error: any) {
+    console.error('Unexpected sign-in error:', error)
+    return { error: 'An unexpected error occurred. Please try again.' }
   }
-
-  redirect('/dashboard')
 }
 
 export const forgotPasswordAction = async (formData: FormData) => {
