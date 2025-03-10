@@ -69,28 +69,39 @@ function SignUpForm() {
         throw new Error('This email is already registered. Please sign in instead.');
       }
       
-      // Use server-side action for sign-up to avoid CORS issues with email sending
-      const formData = new FormData();
-      formData.append('email', email);
-      formData.append('password', password);
-      formData.append('firstName', firstName);
-      formData.append('lastName', lastName);
-      
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        body: formData,
+      // Use direct Supabase auth instead of the API route
+      // This avoids potential issues with cookie handling between client and server
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
       
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create account');
+      if (error) {
+        console.error('Sign-up error:', error);
+        throw error;
       }
       
-      toast({
-        title: 'Account created successfully',
-        description: 'You can now sign in with your new account.',
-      });
+      // Check if email confirmation is needed
+      const emailConfirmationNeeded = data?.user && !data.session;
+      
+      if (emailConfirmationNeeded) {
+        toast({
+          title: 'Account created successfully',
+          description: 'Please check your email for a confirmation link.',
+        });
+      } else {
+        toast({
+          title: 'Account created successfully',
+          description: 'You can now sign in with your new account.',
+        });
+      }
       
       // Redirect to sign-in page
       setTimeout(() => {

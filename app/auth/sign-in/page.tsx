@@ -8,18 +8,24 @@ import { useToast } from '@/components/ui/use-toast'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
+import useAuthRedirect from '@/hooks/useAuthRedirect'
 
 // Create a separate component that uses useSearchParams
 function SignInForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [isInitialized, setIsInitialized] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirectedFrom') || '/dashboard'
   const errorMessage = searchParams.get('error')
+
+  // Use our custom hook for auth redirection
+  const { session, loading: authLoading } = useAuthRedirect({ 
+    authRoute: true,
+    redirectTo: redirectTo as string
+  });
 
   // Show error message from URL if present
   useEffect(() => {
@@ -31,29 +37,6 @@ function SignInForm() {
       });
     }
   }, [errorMessage, toast]);
-
-  // Check if user is already signed in
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        // Don't clear auth data here - it might be causing the issue
-        const supabase = createClient();
-        const { data } = await supabase.auth.getSession();
-        
-        // If user already has a valid session, redirect to dashboard
-        if (data.session) {
-          console.log('User already has a session, redirecting to dashboard');
-          router.push('/dashboard');
-        }
-      } catch (error) {
-        console.error('Error checking session:', error);
-      } finally {
-        setIsInitialized(true);
-      }
-    };
-    
-    checkSession();
-  }, [router]);
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault()
@@ -69,10 +52,9 @@ function SignInForm() {
       
       // Get a fresh Supabase client
       const supabase = createClient();
-      
-      // Log the Supabase URL and key to verify they're correct
-      console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-      console.log('Supabase Key (first 10 chars):', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 10));
+      if (!supabase) {
+        throw new Error('Failed to initialize Supabase client');
+      }
       
       // Use direct Supabase auth instead of the API route
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -92,28 +74,13 @@ function SignInForm() {
       // Log session details to help debug
       console.log('Session established:', !!data.session);
       console.log('User ID:', data.session.user.id);
-      console.log('Access token (first 10 chars):', data.session.access_token.substring(0, 10));
       
       toast({
         title: 'Signed in successfully',
         description: 'Redirecting to dashboard...',
       });
       
-      // Force a session refresh to ensure cookies are properly set
-      const refreshResult = await supabase.auth.refreshSession();
-      console.log('Session refresh result:', !!refreshResult.data.session);
-      
-      // Use a combination of approaches for more reliable redirection
-      
-      // 1. First try the Next.js router
-      router.push(redirectTo);
-      
-      // 2. After a short delay, also try window.location for a full page navigation
-      // This ensures redirection even if the router.push doesn't trigger a navigation
-      setTimeout(() => {
-        console.log('Fallback redirection to:', redirectTo);
-        window.location.href = redirectTo;
-      }, 500);
+      // The useAuthRedirect hook will handle the redirection
       
     } catch (error: any) {
       console.error('Sign-in error:', error);
@@ -128,7 +95,7 @@ function SignInForm() {
   }
 
   // Don't render until we've checked the session
-  if (!isInitialized) {
+  if (authLoading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>

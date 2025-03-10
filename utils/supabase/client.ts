@@ -5,14 +5,17 @@ import { AuthChangeEvent, Session } from '@supabase/supabase-js';
 let supabaseClient: ReturnType<typeof createBrowserClient> | null = null;
 
 export const createClient = () => {
+  // If we're not in a browser environment, return null
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  
+  // If we already have a client, return it
   if (supabaseClient) {
     return supabaseClient;
   }
-
-  const isBrowser = typeof window !== 'undefined';
   
-  // In browser environments, we don't need to specify cookie methods
-  // as the browser will handle cookies automatically
+  // Create a new client
   supabaseClient = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -22,18 +25,16 @@ export const createClient = () => {
         autoRefreshToken: true,
         detectSessionInUrl: true,
         flowType: 'pkce',
-        // Use standard browser storage for session persistence
-        storage: isBrowser ? window.localStorage : undefined,
+        storage: window.localStorage,
       },
-      // Use default cookie handling in the browser
-      cookieOptions: isBrowser ? {
+      cookieOptions: {
         name: 'sb-auth',
         maxAge: 60 * 60 * 24 * 30, // 30 days for longer persistence
         domain: window.location.hostname,
         path: '/',
         sameSite: 'lax',
         secure: window.location.protocol === 'https:',
-      } : undefined,
+      },
       global: {
         headers: {
           'X-Client-Info': 'supabase-js-v2',
@@ -43,7 +44,7 @@ export const createClient = () => {
   );
 
   // Add event listeners for debugging in development
-  if (process.env.NODE_ENV === 'development' && isBrowser) {
+  if (process.env.NODE_ENV === 'development') {
     supabaseClient.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       console.log(`Auth state changed: ${event}`, session ? `User: ${session.user.id}` : 'No session');
       
@@ -67,6 +68,7 @@ export const createClient = () => {
 export async function ensureAuthenticated() {
   try {
     const supabase = createClient();
+    if (!supabase) return { authenticated: false };
     
     // First check if we have a session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -99,6 +101,7 @@ export async function ensureAuthenticated() {
 export async function refreshSession() {
   try {
     const supabase = createClient();
+    if (!supabase) return { data: { session: null, user: null }, error: new Error('No Supabase client available') };
     return await supabase.auth.refreshSession();
   } catch (error: unknown) {
     console.error('Error refreshing session:', error);
@@ -109,6 +112,8 @@ export async function refreshSession() {
 // Function to get the current session
 export const getSession = async () => {
   const supabase = createClient();
+  if (!supabase) return { session: null, error: new Error('No Supabase client available') };
+  
   const { data, error } = await supabase.auth.getSession();
   
   if (error) {
@@ -141,6 +146,7 @@ export function useSupabase() {
     const initSupabase = async () => {
       try {
         setLoading(true);
+        // Use the singleton client
         const client = createClient();
         
         if (isMounted) {

@@ -120,9 +120,20 @@ export async function middleware(request: NextRequest) {
     // If it's an auth route and user is logged in, redirect to dashboard
     if (isAuthRoute && user && !error) {
       console.log('Redirecting to dashboard from auth route');
+      // Check if we're already in a redirect loop
+      const redirectCount = parseInt(request.nextUrl.searchParams.get('redirect_count') || '0');
+      
+      // If we've redirected too many times, just return the response to break the loop
+      if (redirectCount > 2) {
+        console.log('Breaking potential redirect loop after multiple redirects');
+        return response;
+      }
+      
       const dashboardUrl = new URL('/dashboard', request.url);
       // Add a timestamp to prevent caching issues
       dashboardUrl.searchParams.set('t', Date.now().toString());
+      // Increment redirect count
+      dashboardUrl.searchParams.set('redirect_count', (redirectCount + 1).toString());
       return NextResponse.redirect(dashboardUrl);
     }
 

@@ -1,5 +1,13 @@
-[33mcommit 685a395f5d562815c760f458d41644880066b79c[m[33m ([m[1;36mHEAD -> [m[1;32mmaster[m[33m)[m
+[33mcommit e52b2d03de89028a8c94d43e93f198061631eff3[m[33m ([m[1;36mHEAD -> [m[1;32mmaster[m[33m)[m
 Author: Seanmgard <Seanmgard@gmail.com>
-Date:   Sun Mar 9 19:03:15 2025 -0500
+Date:   Sun Mar 9 19:15:18 2025 -0500
 
     Fix authentication issues: 1) Resolve 'Error sending confirmation email' during sign-up 2) Fix sign-in not redirecting to dashboard
+
+A	app/api/auth/signin/route.ts
+A	app/api/auth/signup/route.ts
+M	app/auth/callback/route.ts
+M	app/auth/sign-in/page.tsx
+M	app/auth/sign-up/page.tsx
+A	on
+A	vercel.json.new

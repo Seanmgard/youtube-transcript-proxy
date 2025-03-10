@@ -45,27 +45,11 @@ export async function POST(request: Request) {
       user: {
         id: data.user.id,
         email: data.user.email,
-      },
-      session: {
-        expires_at: data.session.expires_at,
-        access_token: data.session.access_token,
       }
     });
 
-    // Set the auth cookie explicitly
-    response.cookies.set('sb-access-token', data.session.access_token, {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-    });
-
-    response.cookies.set('sb-refresh-token', data.session.refresh_token, {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-    });
+    // Let Supabase handle the cookie setting through its built-in mechanisms
+    // This avoids potential issues with cookie formatting
 
     return response;
   } catch (error: any) {

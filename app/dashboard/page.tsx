@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { useToast } from '@/components/ui/use-toast';
 import { useSubscription } from '@/hooks/useSubscription';
 import { Session } from '@supabase/supabase-js';
+import useAuthRedirect from '@/hooks/useAuthRedirect';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +28,11 @@ export default function Dashboard() {
   const { fetchSubscription, isOnPlan, subscription } = useSubscription();
   const [lastSubscriptionRefresh, setLastSubscriptionRefresh] = useState(0);
   const REFRESH_COOLDOWN = 1000 * 60 * 5; // 5 minutes in milliseconds
+  
+  // Use our custom hook to handle authentication and redirection
+  const { session, loading: authLoading } = useAuthRedirect({ 
+    protectedRoute: true 
+  });
 
   useEffect(() => {
     const initSupabase = async () => {
@@ -38,28 +44,17 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || !session) return;
     
     const fetchUser = async () => {
       try {
         setLoading(true);
         
-        // First, refresh the session to ensure we have the latest data
-        await supabase.auth.refreshSession();
-        
-        // Then get the user data
-        const { data: { user }, error } = await supabase.auth.getUser();
-        
-        if (error) {
-          console.error('Error fetching user:', error);
-          // Redirect to sign-in page if there's an authentication error
-          window.location.href = '/auth/sign-in';
-          return;
-        }
+        // Use the user from the session
+        const user = session.user;
         
         if (!user) {
           console.error('No user found in session');
-          window.location.href = '/auth/sign-in';
           return;
         }
         
@@ -90,27 +85,7 @@ export default function Dashboard() {
     };
     
     fetchUser();
-    
-    // Set up auth state change listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event: 'SIGNED_IN' | 'SIGNED_OUT' | 'USER_UPDATED' | 'USER_DELETED' | 'PASSWORD_RECOVERY', 
-       session: Session | null) => {
-      if (event === 'SIGNED_OUT') {
-        // Redirect to sign-in page if user signs out
-        window.location.href = '/auth/sign-in';
-      } else if (event === 'SIGNED_IN' && session) {
-        // Refresh the page if user signs in
-        window.location.reload();
-      }
-    });
-    
-    return () => {
-      // Clean up the auth listener
-      if (authListener && authListener.subscription) {
-        authListener.subscription.unsubscribe();
-      }
-    };
-  }, [supabase, fetchSubscription]);
+  }, [supabase, fetchSubscription, session]);
 
   // Check for Stripe redirect parameters
   useEffect(() => {
