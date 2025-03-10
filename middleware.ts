@@ -25,6 +25,10 @@ export async function middleware(request: NextRequest) {
             name,
             value,
             ...options,
+            // Set default options if not provided
+            path: options?.path || '/',
+            sameSite: options?.sameSite || 'lax',
+            secure: options?.secure !== undefined ? options.secure : process.env.NODE_ENV === 'production',
           });
         },
         remove(name, options) {
@@ -33,6 +37,10 @@ export async function middleware(request: NextRequest) {
             name,
             value: '',
             ...options,
+            // Set default options if not provided
+            path: options?.path || '/',
+            sameSite: options?.sameSite || 'lax',
+            secure: options?.secure !== undefined ? options.secure : process.env.NODE_ENV === 'production',
             maxAge: 0,
           });
         },
@@ -40,6 +48,7 @@ export async function middleware(request: NextRequest) {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
+        flowType: 'pkce',
       },
     }
   );
@@ -52,6 +61,7 @@ export async function middleware(request: NextRequest) {
       '/dashboard/history',
       '/dashboard/subscription',
       '/dashboard/suggest',
+      '/auth/reset-password',
     ];
 
     // Define auth routes
@@ -59,6 +69,11 @@ export async function middleware(request: NextRequest) {
       '/auth/sign-in',
       '/auth/sign-up',
       '/auth/forgot-password',
+    ];
+
+    // Define callback routes that should be excluded from auth checks
+    const callbackRoutes = [
+      '/auth/callback',
     ];
 
     // Check if the current path is a protected route
@@ -70,6 +85,16 @@ export async function middleware(request: NextRequest) {
     const isAuthRoute = authRoutes.some(route => 
       request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(route)
     );
+
+    // Check if the current path is a callback route
+    const isCallbackRoute = callbackRoutes.some(route => 
+      request.nextUrl.pathname.startsWith(route)
+    );
+
+    // Skip middleware for callback routes
+    if (isCallbackRoute) {
+      return response;
+    }
 
     // Get the user session
     const { data, error } = await supabase.auth.getSession();
@@ -86,13 +111,18 @@ export async function middleware(request: NextRequest) {
       console.log('Redirecting to sign-in from protected route');
       const redirectUrl = new URL('/auth/sign-in', request.url);
       redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname);
+      // Add a timestamp to prevent caching issues
+      redirectUrl.searchParams.set('t', Date.now().toString());
       return NextResponse.redirect(redirectUrl);
     }
 
     // If it's an auth route and user is logged in, redirect to dashboard
     if (isAuthRoute && user && !error) {
       console.log('Redirecting to dashboard from auth route');
-      return NextResponse.redirect(new URL('/dashboard', request.url));
+      const dashboardUrl = new URL('/dashboard', request.url);
+      // Add a timestamp to prevent caching issues
+      dashboardUrl.searchParams.set('t', Date.now().toString());
+      return NextResponse.redirect(dashboardUrl);
     }
 
     // For all other routes, continue with the response
@@ -102,7 +132,10 @@ export async function middleware(request: NextRequest) {
     
     // If there's an error and trying to access protected route, redirect to sign-in
     if (request.nextUrl.pathname.startsWith('/dashboard')) {
-      return NextResponse.redirect(new URL('/auth/sign-in', request.url));
+      const redirectUrl = new URL('/auth/sign-in', request.url);
+      // Add a timestamp to prevent caching issues
+      redirectUrl.searchParams.set('t', Date.now().toString());
+      return NextResponse.redirect(redirectUrl);
     }
     
     return response;
