@@ -8,6 +8,8 @@ export const createClient = () => {
     return supabaseClient;
   }
 
+  const isBrowser = typeof window !== 'undefined';
+  
   // In browser environments, we don't need to specify cookie methods
   // as the browser will handle cookies automatically
   supabaseClient = createBrowserClient(
@@ -19,42 +21,21 @@ export const createClient = () => {
         autoRefreshToken: true,
         detectSessionInUrl: true,
         flowType: 'pkce',
-        // Use cookies instead of localStorage to avoid parsing issues
-        storageKey: 'sb-auth-token',
-        // Don't use custom storage implementation to avoid potential issues
-        storage: undefined,
+        // Use standard browser storage for session persistence
+        storage: isBrowser ? window.localStorage : undefined,
       },
+      // Use default cookie handling in the browser
+      cookieOptions: isBrowser ? {
+        name: 'sb-auth',
+        maxAge: 60 * 60 * 8, // 8 hours
+        domain: window.location.hostname,
+        path: '/',
+        sameSite: 'lax',
+        secure: window.location.protocol === 'https:',
+      } : undefined,
       global: {
         headers: {
           'X-Client-Info': 'supabase-js-v2',
-        },
-      },
-      cookies: {
-        // Use the default browser cookie handling
-        get: (name) => {
-          if (typeof document === 'undefined') return null;
-          const cookies = document.cookie.split(';').map(c => c.trim());
-          const cookie = cookies.find(c => c.startsWith(`${name}=`));
-          return cookie ? cookie.split('=')[1] : null;
-        },
-        set: (name, value, options) => {
-          if (typeof document === 'undefined') return;
-          let cookie = `${name}=${value}`;
-          if (options.maxAge) cookie += `; Max-Age=${options.maxAge}`;
-          if (options.path) cookie += `; Path=${options.path}`;
-          if (options.sameSite) cookie += `; SameSite=${options.sameSite}`;
-          if (options.domain) cookie += `; Domain=${options.domain}`;
-          if (options.secure) cookie += `; Secure`;
-          document.cookie = cookie;
-        },
-        remove: (name, options) => {
-          if (typeof document === 'undefined') return;
-          let cookie = `${name}=; Max-Age=0`;
-          if (options.path) cookie += `; Path=${options.path}`;
-          if (options.sameSite) cookie += `; SameSite=${options.sameSite}`;
-          if (options.domain) cookie += `; Domain=${options.domain}`;
-          if (options.secure) cookie += `; Secure`;
-          document.cookie = cookie;
         },
       },
     }
@@ -66,7 +47,7 @@ export const createClient = () => {
 // Ensure user is authenticated, refreshing the session if needed
 export async function ensureAuthenticated() {
   try {
-    const supabase = await createClient();
+    const supabase = createClient();
     
     // First check if we have a session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -98,7 +79,7 @@ export async function ensureAuthenticated() {
 // Refresh the session
 export async function refreshSession() {
   try {
-    const supabase = await createClient();
+    const supabase = createClient();
     return await supabase.auth.refreshSession();
   } catch (error) {
     console.error('Error refreshing session:', error);
@@ -141,7 +122,7 @@ export function useSupabase() {
     const initSupabase = async () => {
       try {
         setLoading(true);
-        const client = await createClient();
+        const client = createClient();
         
         if (isMounted) {
           setSupabase(client);
@@ -174,6 +155,8 @@ export function clearAuthData() {
   localStorage.removeItem('sb-auth-token');
   localStorage.removeItem('supabase.auth.token');
   localStorage.removeItem('quizlab-auth-token');
+  localStorage.removeItem('sb-refresh-token');
+  localStorage.removeItem('sb-access-token');
   
   // Clear cookies
   const cookiesToClear = [
@@ -182,6 +165,7 @@ export function clearAuthData() {
     'supabase-auth-token',
     '__supabase_session',
     'sb-auth-token',
+    'sb-auth',
   ];
   
   cookiesToClear.forEach(name => {

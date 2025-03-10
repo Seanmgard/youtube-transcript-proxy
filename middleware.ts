@@ -28,7 +28,8 @@ export async function middleware(request: NextRequest) {
             // Set default options if not provided
             path: options?.path || '/',
             sameSite: options?.sameSite || 'lax',
-            secure: options?.secure !== undefined ? options.secure : process.env.NODE_ENV === 'production',
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: options?.maxAge || 60 * 60 * 8, // 8 hours
           });
         },
         remove(name, options) {
@@ -40,7 +41,7 @@ export async function middleware(request: NextRequest) {
             // Set default options if not provided
             path: options?.path || '/',
             sameSite: options?.sameSite || 'lax',
-            secure: options?.secure !== undefined ? options.secure : process.env.NODE_ENV === 'production',
+            secure: process.env.NODE_ENV === 'production',
             maxAge: 0,
           });
         },
@@ -78,17 +79,17 @@ export async function middleware(request: NextRequest) {
 
     // Check if the current path is a protected route
     const isProtectedRoute = protectedRoutes.some(route => 
-      request.nextUrl.pathname.startsWith(route)
+      request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(route + '/')
     );
 
     // Check if the current path is an auth route
     const isAuthRoute = authRoutes.some(route => 
-      request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(route)
+      request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(route + '/')
     );
 
     // Check if the current path is a callback route
     const isCallbackRoute = callbackRoutes.some(route => 
-      request.nextUrl.pathname.startsWith(route)
+      request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(route + '/')
     );
 
     // Skip middleware for callback routes

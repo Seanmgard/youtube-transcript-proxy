@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
 import Link from 'next/link'
-import { createClient } from '@/utils/supabase/client'
+import { createClient, clearAuthData } from '@/utils/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 // Create a separate component that uses useSearchParams
@@ -19,12 +19,27 @@ function SignInForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirectedFrom') || '/dashboard'
+  const errorMessage = searchParams.get('error')
+
+  // Show error message from URL if present
+  useEffect(() => {
+    if (errorMessage) {
+      toast({
+        title: 'Error',
+        description: decodeURIComponent(errorMessage),
+        variant: 'destructive',
+      });
+    }
+  }, [errorMessage, toast]);
 
   // Check if user is already signed in
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const supabase = await createClient();
+        // Clear any existing auth data to start fresh
+        clearAuthData();
+        
+        const supabase = createClient();
         const { data } = await supabase.auth.getSession();
         
         // If user already has a valid session, redirect to dashboard
@@ -48,25 +63,30 @@ function SignInForm() {
     setLoading(true)
     
     try {
+      // Clear any existing auth data to start fresh
+      clearAuthData();
+      
       // Form validation
       if (!email || !password) {
         throw new Error('Email and password are required');
       }
       
-      // Use server-side API for sign-in to avoid CORS issues
-      const formData = new FormData();
-      formData.append('email', email);
-      formData.append('password', password);
+      // Get a fresh Supabase client
+      const supabase = createClient();
       
-      const response = await fetch('/api/auth/signin', {
-        method: 'POST',
-        body: formData,
+      // Use direct Supabase auth instead of the API route
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
       
-      const result = await response.json();
+      if (error) {
+        console.error('Sign-in error:', error);
+        throw error;
+      }
       
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to sign in');
+      if (!data.session) {
+        throw new Error('Failed to establish a valid session');
       }
       
       toast({
@@ -74,23 +94,15 @@ function SignInForm() {
         description: 'Redirecting to dashboard...',
       });
       
-      // Get a fresh Supabase client to ensure we have the latest session
-      const supabase = await createClient();
-      
       // Force a session refresh to ensure cookies are properly set
       await supabase.auth.refreshSession();
       
-      // Get the current session to verify it's valid
-      const { data: sessionData } = await supabase.auth.getSession();
-      
-      if (!sessionData.session) {
-        throw new Error('Failed to establish a valid session');
-      }
-      
-      // Use a full page reload to ensure proper session handling
+      // Add a delay to ensure cookies are set
       setTimeout(() => {
-        window.location.href = redirectTo;
-      }, 1000);
+        // Use a full page reload with cache-busting parameter
+        const timestamp = Date.now();
+        window.location.href = `${redirectTo}?t=${timestamp}`;
+      }, 500);
     } catch (error: any) {
       console.error('Sign-in error:', error);
       toast({

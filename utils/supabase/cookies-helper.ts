@@ -1,3 +1,5 @@
+import { cookies } from 'next/headers';
+
 // Simple synchronous cookie implementation for Supabase
 export function getCookieOptions() {
   return {
@@ -17,4 +19,11 @@ export function getCookieOptions() {
       console.log(`Removing cookie ${name} (server-side)`);
     },
   };
+}
+
+// Helper function to get all auth-related cookies (stub for server-side)
+export function getAuthCookies() {
+  // This is a server-side function, so we can't access document.cookie
+  // Instead, we'll return an empty object
+  return {};
 } 
