@@ -26,9 +26,11 @@ export default function DashboardLayout({
       hasAttemptedFetch.current = true;
       
       try {
-        fetchSubscription(true).catch(err => {
-          console.error('Error fetching subscription:', err);
-        });
+        if (user.id) {
+          fetchSubscription(user.id, true).catch(err => {
+            console.error('Error fetching subscription:', err);
+          });
+        }
       } catch (err) {
         console.error('Error in subscription effect:', err);
       }

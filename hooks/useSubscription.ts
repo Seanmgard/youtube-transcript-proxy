@@ -515,7 +515,8 @@ export function useSubscription() {
                 // Only fetch if we haven't fetched recently
                 const now = Date.now();
                 if (now - lastSubscriptionRefresh > REFRESH_COOLDOWN) {
-                  fetchSubscription(true);
+                  // Use the current user ID when calling fetchSubscription
+                  fetchSubscription(user?.id, true);
                 }
               }, 500);
             }
@@ -527,7 +528,7 @@ export function useSubscription() {
               // Only fetch if we haven't fetched recently
               const now = Date.now();
               if (now - lastSubscriptionRefresh > REFRESH_COOLDOWN || !subscription) {
-                fetchSubscription(false);
+                fetchSubscription(user?.id, false);
               }
             }
           });

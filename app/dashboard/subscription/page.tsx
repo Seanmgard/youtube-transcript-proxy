@@ -70,7 +70,7 @@ export default function SubscriptionPage() {
         
         try {
           // Only attempt to fetch once with a timeout
-          const fetchPromise = fetchSubscription(true);
+          const fetchPromise = fetchSubscription(user?.id, true);
           const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Subscription fetch timeout')), 5000)
           );
@@ -181,7 +181,7 @@ export default function SubscriptionPage() {
             try {
               // Force refresh subscription data
               if (isMounted) {
-                const updatedSubscription = await fetchSubscription(true);
+                const updatedSubscription = await fetchSubscription(user?.id, true);
                 
                 // Check if subscription has been updated
                 if (updatedSubscription && updatedSubscription.updated_at) {
@@ -481,7 +481,7 @@ export default function SubscriptionPage() {
             variant="ghost" 
             onClick={() => {
               setRefreshing(true);
-              fetchSubscription(true).finally(() => {
+              fetchSubscription(user?.id, true).finally(() => {
                 setRefreshing(false);
                 // Clear any URL parameters to prevent issues
                 if (window.history.replaceState) {
@@ -706,7 +706,7 @@ export default function SubscriptionPage() {
           variant="ghost" 
           onClick={() => {
             setRefreshing(true);
-            fetchSubscription(true).finally(() => {
+            fetchSubscription(user?.id, true).finally(() => {
               setRefreshing(false);
               // Clear any URL parameters to prevent issues
               if (window.history.replaceState) {
