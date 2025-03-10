@@ -39,17 +39,35 @@ export async function POST(request: Request) {
       );
     }
 
-    // Ensure cookies are properly set
-    const cookieStore = cookies();
-    
-    // Return success response
-    return NextResponse.json({
+    // Create a response with the session data
+    const response = NextResponse.json({
       success: true,
       user: {
         id: data.user.id,
         email: data.user.email,
+      },
+      session: {
+        expires_at: data.session.expires_at,
+        access_token: data.session.access_token,
       }
     });
+
+    // Set the auth cookie explicitly
+    response.cookies.set('sb-access-token', data.session.access_token, {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7, // 1 week
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    });
+
+    response.cookies.set('sb-refresh-token', data.session.refresh_token, {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7, // 1 week
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    });
+
+    return response;
   } catch (error: any) {
     console.error('Unexpected error during sign in:', error);
     return NextResponse.json(

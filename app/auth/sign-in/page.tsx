@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function SignIn() {
   const [email, setEmail] = useState('')
@@ -16,6 +16,8 @@ export default function SignIn() {
   const [isInitialized, setIsInitialized] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams.get('redirectedFrom') || '/dashboard'
 
   // Check if user is already signed in
   useEffect(() => {
@@ -71,10 +73,23 @@ export default function SignIn() {
         description: 'Redirecting to dashboard...',
       });
       
-      // Redirect to dashboard
+      // Get a fresh Supabase client to ensure we have the latest session
+      const supabase = await createClient();
+      
+      // Force a session refresh to ensure cookies are properly set
+      await supabase.auth.refreshSession();
+      
+      // Get the current session to verify it's valid
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      if (!sessionData.session) {
+        throw new Error('Failed to establish a valid session');
+      }
+      
+      // Use a full page reload to ensure proper session handling
       setTimeout(() => {
-        window.location.href = '/dashboard';
-      }, 1500);
+        window.location.href = redirectTo;
+      }, 1000);
     } catch (error: any) {
       console.error('Sign-in error:', error);
       toast({

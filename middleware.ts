@@ -72,10 +72,18 @@ export async function middleware(request: NextRequest) {
     );
 
     // Get the user session
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const { data, error } = await supabase.auth.getSession();
+    const session = data?.session;
+    const user = session?.user;
+
+    // Debug logging
+    console.log('Middleware path:', request.nextUrl.pathname);
+    console.log('Session exists:', !!session);
+    console.log('User exists:', !!user);
 
     // If it's a protected route and no user, redirect to sign-in
     if (isProtectedRoute && (!user || error)) {
+      console.log('Redirecting to sign-in from protected route');
       const redirectUrl = new URL('/auth/sign-in', request.url);
       redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname);
       return NextResponse.redirect(redirectUrl);
@@ -83,9 +91,11 @@ export async function middleware(request: NextRequest) {
 
     // If it's an auth route and user is logged in, redirect to dashboard
     if (isAuthRoute && user && !error) {
+      console.log('Redirecting to dashboard from auth route');
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
 
+    // For all other routes, continue with the response
     return response;
   } catch (error) {
     console.error('Middleware error:', error);

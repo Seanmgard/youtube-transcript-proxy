@@ -1,0 +1,5 @@
+[33mcommit 685a395f5d562815c760f458d41644880066b79c[m[33m ([m[1;36mHEAD -> [m[1;32mmaster[m[33m)[m
+Author: Seanmgard <Seanmgard@gmail.com>
+Date:   Sun Mar 9 19:03:15 2025 -0500
+
+    Fix authentication issues: 1) Resolve 'Error sending confirmation email' during sign-up 2) Fix sign-in not redirecting to dashboard
