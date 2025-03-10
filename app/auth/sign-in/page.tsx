@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
 import Link from 'next/link'
 import { createClient, clearAuthData } from '@/utils/supabase/client'
+import { setAuthCookiesInBrowser } from '@/utils/supabase/cookies-helper'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 // Create a separate component that uses useSearchParams
@@ -74,6 +75,10 @@ function SignInForm() {
       // Get a fresh Supabase client
       const supabase = createClient();
       
+      // Log the Supabase URL and key to verify they're correct
+      console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+      console.log('Supabase Key (first 10 chars):', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 10));
+      
       // Use direct Supabase auth instead of the API route
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -89,20 +94,29 @@ function SignInForm() {
         throw new Error('Failed to establish a valid session');
       }
       
+      // Log session details to help debug
+      console.log('Session established:', !!data.session);
+      console.log('User ID:', data.session.user.id);
+      console.log('Access token (first 10 chars):', data.session.access_token.substring(0, 10));
+      
       toast({
         title: 'Signed in successfully',
         description: 'Redirecting to dashboard...',
       });
       
       // Force a session refresh to ensure cookies are properly set
-      await supabase.auth.refreshSession();
+      const refreshResult = await supabase.auth.refreshSession();
+      console.log('Session refresh result:', !!refreshResult.data.session);
+      
+      // Manually set cookies to ensure they're properly set
+      setAuthCookiesInBrowser(data.session);
       
       // Add a delay to ensure cookies are set
       setTimeout(() => {
         // Use a full page reload with cache-busting parameter
         const timestamp = Date.now();
         window.location.href = `${redirectTo}?t=${timestamp}`;
-      }, 500);
+      }, 1000);
     } catch (error: any) {
       console.error('Sign-in error:', error);
       toast({

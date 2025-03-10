@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/utils/supabase/server';
-import { cookies } from 'next/headers';
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -22,10 +21,11 @@ export async function GET(request: Request) {
   }
 
   try {
-    const cookieStore = cookies();
+    console.log('Auth callback received with code');
     const supabase = createServerSupabaseClient();
     
     // Exchange the code for a session
+    console.log('Exchanging code for session...');
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
     
     if (exchangeError) {
@@ -34,6 +34,7 @@ export async function GET(request: Request) {
     }
 
     // Get the user session to confirm it worked
+    console.log('Getting session after code exchange...');
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
     if (sessionError) {
@@ -46,6 +47,9 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${origin}/auth/sign-in?error=Authentication+failed`);
     }
 
+    console.log('Session established successfully');
+    console.log('User ID:', session.user.id);
+    
     // Determine where to redirect the user
     let redirectUrl = redirect_to || next;
     
@@ -69,6 +73,16 @@ export async function GET(request: Request) {
     // Manually set auth cookies in the response to ensure they're properly set
     if (session) {
       const maxAge = 60 * 60 * 8; // 8 hours
+      
+      // Set access token cookie
+      response.cookies.set('sb-access-token', session.access_token, {
+        path: '/',
+        maxAge,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+      });
+      
+      // Set auth token cookie (combined)
       response.cookies.set('sb-auth-token', session.access_token, {
         path: '/',
         maxAge,
@@ -86,6 +100,8 @@ export async function GET(request: Request) {
         });
       }
     }
+    
+    console.log('Redirecting to:', redirectUrl);
     
     // Redirect to the dashboard or specified page
     return response;

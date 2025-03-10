@@ -4,26 +4,89 @@ import { cookies } from 'next/headers';
 export function getCookieOptions() {
   return {
     get(name: string) {
-      // This is a server-side function, so we can't access document.cookie
-      // Instead, we'll return undefined and let Supabase handle it
-      return undefined;
+      try {
+        // In server components, we need to use a synchronous approach
+        // This is a workaround for the fact that cookies() returns a Promise
+        const allCookies = document.cookie.split('; ');
+        const targetCookie = allCookies.find(c => c.startsWith(`${name}=`));
+        if (targetCookie) {
+          return targetCookie.split('=')[1];
+        }
+        return undefined;
+      } catch (error) {
+        // If we're in a server environment where document is not available
+        console.log(`Getting cookie ${name} (server-side)`);
+        return undefined;
+      }
     },
     set(name: string, value: string, options: any) {
-      // This is a server-side function, so we can't set cookies directly
-      // Instead, we'll log a message and let Supabase handle it
-      console.log(`Setting cookie ${name} (server-side)`);
+      try {
+        // This is a server-side function, so we can't set cookies directly
+        console.log(`Setting cookie ${name} (server-side)`);
+      } catch (error) {
+        console.error(`Error setting cookie ${name}:`, error);
+      }
     },
     remove(name: string, options: any) {
-      // This is a server-side function, so we can't remove cookies directly
-      // Instead, we'll log a message and let Supabase handle it
-      console.log(`Removing cookie ${name} (server-side)`);
+      try {
+        // This is a server-side function, so we can't remove cookies directly
+        console.log(`Removing cookie ${name} (server-side)`);
+      } catch (error) {
+        console.error(`Error removing cookie ${name}:`, error);
+      }
     },
   };
 }
 
 // Helper function to get all auth-related cookies (stub for server-side)
 export function getAuthCookies() {
-  // This is a server-side function, so we can't access document.cookie
-  // Instead, we'll return an empty object
+  try {
+    // Try to get cookies from browser
+    if (typeof document !== 'undefined') {
+      const allCookies = document.cookie.split('; ');
+      const authCookies = [
+        'sb-access-token',
+        'sb-refresh-token',
+        'sb-auth-token',
+        '__supabase_session',
+      ];
+      
+      return authCookies.reduce((acc: Record<string, string>, name) => {
+        const targetCookie = allCookies.find(c => c.startsWith(`${name}=`));
+        if (targetCookie) {
+          acc[name] = targetCookie.split('=')[1];
+        }
+        return acc;
+      }, {});
+    }
+  } catch (error) {
+    console.error('Error getting auth cookies:', error);
+  }
+  
+  // If we're in a server environment or there was an error
   return {};
+}
+
+// Helper function to set auth cookies in the browser
+export function setAuthCookiesInBrowser(session: any) {
+  if (typeof window === 'undefined' || !session) return;
+  
+  try {
+    const maxAge = 60 * 60 * 8; // 8 hours
+    
+    // Set access token
+    document.cookie = `sb-access-token=${session.access_token}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    
+    // Set auth token (combined)
+    document.cookie = `sb-auth-token=${session.access_token}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    
+    // Set refresh token if available
+    if (session.refresh_token) {
+      document.cookie = `sb-refresh-token=${session.refresh_token}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    }
+    
+    console.log('Auth cookies set in browser');
+  } catch (error) {
+    console.error('Error setting auth cookies in browser:', error);
+  }
 } 

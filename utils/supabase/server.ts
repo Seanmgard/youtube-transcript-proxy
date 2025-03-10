@@ -15,19 +15,36 @@ export function createServerSupabaseClient() {
       },
       cookies: {
         get(name) {
-          // This is a server-side function, so we can't access document.cookie
-          // Instead, we'll return undefined and let Supabase handle it
-          return undefined;
+          try {
+            // In server components, we need to use a synchronous approach
+            // This is a workaround for the fact that cookies() returns a Promise
+            const allCookies = document.cookie.split('; ');
+            const targetCookie = allCookies.find(c => c.startsWith(`${name}=`));
+            if (targetCookie) {
+              return targetCookie.split('=')[1];
+            }
+            return undefined;
+          } catch (error) {
+            // If we're in a server environment where document is not available
+            console.log(`Getting cookie ${name} (server-side)`);
+            return undefined;
+          }
         },
         set(name, value, options) {
-          // This is a server-side function, so we can't set cookies directly
-          // Instead, we'll log a message and let Supabase handle it
-          console.log(`Setting cookie ${name} (server-side)`);
+          try {
+            // This is a server-side function, so we can't set cookies directly
+            console.log(`Setting cookie ${name} (server-side)`);
+          } catch (error) {
+            console.error(`Error setting cookie ${name}:`, error);
+          }
         },
         remove(name, options) {
-          // This is a server-side function, so we can't remove cookies directly
-          // Instead, we'll log a message and let Supabase handle it
-          console.log(`Removing cookie ${name} (server-side)`);
+          try {
+            // This is a server-side function, so we can't remove cookies directly
+            console.log(`Removing cookie ${name} (server-side)`);
+          } catch (error) {
+            console.error(`Error removing cookie ${name}:`, error);
+          }
         },
       },
     }
