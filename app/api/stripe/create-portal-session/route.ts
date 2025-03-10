@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server';
-import { createCustomerPortalSession } from '@/utils/stripe';
-import { createClient } from '@supabase/supabase-js';
+import { createCustomerPortalSession, getStripeInstance } from '@/utils/stripe';
+import { createClient } from '@/utils/supabase/server';
 
 // Set the runtime to nodejs to avoid Edge Runtime issues with cookies
 export const runtime = 'nodejs';
 
-// Create a direct Supabase client for server-side operations
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// Use the server-side createClient function
+const supabase = createClient();
 
 export async function POST(request: Request) {
   try {

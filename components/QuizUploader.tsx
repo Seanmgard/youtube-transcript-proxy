@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/utils/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { QuizSettings, Question } from '@/lib/types';
 
 export default function QuizUploader() {
-  const supabase = createClientComponentClient();
+  const [supabase, setSupabase] = useState<any>(null);
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -29,6 +29,15 @@ export default function QuizUploader() {
     difficulty: 'medium',
     questionType: 'multiple_choice',
   });
+
+  useEffect(() => {
+    const initSupabase = async () => {
+      const client = await createClient();
+      setSupabase(client);
+    };
+    
+    initSupabase();
+  }, []);
 
   // Auto-scroll to bottom of streaming text
   useEffect(() => {
@@ -180,6 +189,10 @@ export default function QuizUploader() {
                 
                 // Save the quiz to Supabase
                 try {
+                  if (!supabase) {
+                    throw new Error('Supabase client not initialized');
+                  }
+                  
                   const { data: { user } } = await supabase.auth.getUser();
                   if (!user) {
                     throw new Error('User not authenticated');

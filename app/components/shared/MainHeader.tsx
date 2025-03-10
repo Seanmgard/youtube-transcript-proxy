@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 
 // Navigation items for the landing page
@@ -40,7 +40,7 @@ export function MainHeader() {
 
   useEffect(() => {
     const initSupabase = async () => {
-      const client = await createClientComponentClient();
+      const client = await createClient();
       setSupabase(client);
     };
     

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Quiz } from '@/lib/types'
 
@@ -12,13 +12,26 @@ interface QuizHistoryProps {
 export default function QuizHistory({ limit }: QuizHistoryProps) {
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClientComponentClient()
+  const [supabase, setSupabase] = useState<any>(null)
 
   useEffect(() => {
-    fetchQuizzes()
+    const initSupabase = async () => {
+      const client = await createClient()
+      setSupabase(client)
+    }
+    
+    initSupabase()
   }, [])
 
+  useEffect(() => {
+    if (supabase) {
+      fetchQuizzes()
+    }
+  }, [supabase])
+
   const fetchQuizzes = async () => {
+    if (!supabase) return
+    
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return

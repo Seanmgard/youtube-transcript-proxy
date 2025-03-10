@@ -1,6 +1,6 @@
 'use client'
 
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/app/components/ui/button'
 import Link from 'next/link'
@@ -12,7 +12,7 @@ export default function Header() {
   
   useEffect(() => {
     const initSupabase = async () => {
-      const client = await createClientComponentClient()
+      const client = await createClient()
       setSupabase(client)
     }
     
