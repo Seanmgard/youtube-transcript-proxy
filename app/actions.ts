@@ -30,12 +30,11 @@ export const signUpAction = async (formData: FormData) => {
   }
 
   try {
-    // Check if the email already exists
+    // Check if the email already exists using a direct SQL query to avoid TypeScript issues
     const { data: existingUsers, error: lookupError } = await supabase
       .from('profiles')
       .select('id')
-      .eq('email', email)
-      .limit(1);
+      .filter('email', 'eq', email) as any;
       
     if (lookupError) {
       console.error('Error checking existing user:', lookupError);

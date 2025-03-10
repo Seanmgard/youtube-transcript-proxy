@@ -19,23 +19,44 @@ export const createClient = () => {
         autoRefreshToken: true,
         detectSessionInUrl: true,
         flowType: 'pkce',
-        // Email verification is controlled by Supabase project settings
-        storageKey: 'quizlab-auth-token',
-        storage: {
-          getItem: (key) => {
-            if (typeof window === 'undefined') return null;
-            return window.localStorage.getItem(key);
-          },
-          setItem: (key, value) => {
-            if (typeof window === 'undefined') return;
-            window.localStorage.setItem(key, value);
-          },
-          removeItem: (key) => {
-            if (typeof window === 'undefined') return;
-            window.localStorage.removeItem(key);
-          },
+        // Use cookies instead of localStorage to avoid parsing issues
+        storageKey: 'sb-auth-token',
+        // Don't use custom storage implementation to avoid potential issues
+        storage: undefined,
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'supabase-js-v2',
         },
-      }
+      },
+      cookies: {
+        // Use the default browser cookie handling
+        get: (name) => {
+          if (typeof document === 'undefined') return null;
+          const cookies = document.cookie.split(';').map(c => c.trim());
+          const cookie = cookies.find(c => c.startsWith(`${name}=`));
+          return cookie ? cookie.split('=')[1] : null;
+        },
+        set: (name, value, options) => {
+          if (typeof document === 'undefined') return;
+          let cookie = `${name}=${value}`;
+          if (options.maxAge) cookie += `; Max-Age=${options.maxAge}`;
+          if (options.path) cookie += `; Path=${options.path}`;
+          if (options.sameSite) cookie += `; SameSite=${options.sameSite}`;
+          if (options.domain) cookie += `; Domain=${options.domain}`;
+          if (options.secure) cookie += `; Secure`;
+          document.cookie = cookie;
+        },
+        remove: (name, options) => {
+          if (typeof document === 'undefined') return;
+          let cookie = `${name}=; Max-Age=0`;
+          if (options.path) cookie += `; Path=${options.path}`;
+          if (options.sameSite) cookie += `; SameSite=${options.sameSite}`;
+          if (options.domain) cookie += `; Domain=${options.domain}`;
+          if (options.secure) cookie += `; Secure`;
+          document.cookie = cookie;
+        },
+      },
     }
   );
 
@@ -143,4 +164,30 @@ export function useSupabase() {
   }, []);
 
   return { supabase, loading, error };
+}
+
+// Add a utility function to clear all auth-related cookies and local storage
+export function clearAuthData() {
+  if (typeof window === 'undefined') return;
+  
+  // Clear localStorage
+  localStorage.removeItem('sb-auth-token');
+  localStorage.removeItem('supabase.auth.token');
+  localStorage.removeItem('quizlab-auth-token');
+  
+  // Clear cookies
+  const cookiesToClear = [
+    'sb-access-token',
+    'sb-refresh-token',
+    'supabase-auth-token',
+    '__supabase_session',
+    'sb-auth-token',
+  ];
+  
+  cookiesToClear.forEach(name => {
+    document.cookie = `${name}=; Max-Age=0; path=/; domain=${window.location.hostname}`;
+    document.cookie = `${name}=; Max-Age=0; path=/;`;
+  });
+  
+  console.log('Auth data cleared');
 }

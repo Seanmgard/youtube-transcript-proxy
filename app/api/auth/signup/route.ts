@@ -23,8 +23,7 @@ export async function POST(request: Request) {
     const { data: existingUsers, error: lookupError } = await supabase
       .from('profiles')
       .select('id')
-      .eq('email', email)
-      .limit(1);
+      .filter('email', 'eq', email) as any;
       
     if (lookupError) {
       console.error('Error checking existing user:', lookupError);
@@ -76,7 +75,7 @@ export async function POST(request: Request) {
             updated_at: new Date().toISOString(),
             created_at: new Date().toISOString(),
             is_admin: false
-          });
+          } as any);
 
         if (profileError) {
           console.error('Profile creation error:', profileError);

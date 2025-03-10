@@ -17,6 +17,7 @@ export interface Database {
           created_at: string
           updated_at: string
           is_admin: boolean
+          email: string | null
         }
         Insert: {
           id: string
@@ -25,6 +26,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
           is_admin?: boolean
+          email?: string | null
         }
         Update: {
           id?: string
@@ -33,6 +35,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
           is_admin?: boolean
+          email?: string | null
         }
       }
       quizzes: {
