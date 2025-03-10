@@ -1,0 +1,67 @@
+[33mcommit 6e4005cbe81a50690279c21caa590bd8d04e7665[m
+Author: Seanmgard <Seanmgard@gmail.com>
+Date:   Sun Mar 9 18:20:39 2025 -0500
+
+    Add Vercel Analytics and Speed Insights integration
+
+[1mdiff --git a/vercel.json b/vercel.json[m
+[1mindex c241293..777cedf 100644[m
+[1m--- a/vercel.json[m
+[1m+++ b/vercel.json[m
+[36m@@ -26,5 +26,11 @@[m
+   ],[m
+   "env": {[m
+     "NEXT_PUBLIC_SITE_URL": "https://quizlabai.com"[m
+[32m+[m[32m  },[m
+[32m+[m[32m  "analytics": {[m
+[32m+[m[32m    "enabled": true,[m
+[32m+[m[32m    "speedInsights": {[m
+[32m+[m[32m      "enabled": true[m
+[32m+[m[32m    }[m
+   }[m
+ } [m
+\ No newline at end of file[m
+
+[33mcommit 63faf488b51e6e80b9c846c32992f421d395b530[m
+Author: Seanmgard <Seanmgard@gmail.com>
+Date:   Sun Mar 9 18:16:58 2025 -0500
+
+    Add domain configuration for quizlabai.com
+
+[1mdiff --git a/vercel.json b/vercel.json[m
+[1mnew file mode 100644[m
+[1mindex 0000000..c241293[m
+[1m--- /dev/null[m
+[1m+++ b/vercel.json[m
+[36m@@ -0,0 +1,30 @@[m
+[32m+[m[32m{[m
+[32m+[m[32m  "version": 2,[m
+[32m+[m[32m  "buildCommand": "npm run build",[m
+[32m+[m[32m  "devCommand": "npm run dev",[m
+[32m+[m[32m  "installCommand": "npm install",[m
+[32m+[m[32m  "framework": "nextjs",[m
+[32m+[m[32m  "regions": ["iad1"],[m
+[32m+[m[32m  "headers": [[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "source": "/(.*)",[m
+[32m+[m[32m      "headers": [[m
+[32m+[m[32m        {[m
+[32m+[m[32m          "key": "X-Content-Type-Options",[m
+[32m+[m[32m          "value": "nosniff"[m
+[32m+[m[32m        },[m
+[32m+[m[32m        {[m
+[32m+[m[32m          "key": "X-Frame-Options",[m
+[32m+[m[32m          "value": "DENY"[m
+[32m+[m[32m        },[m
+[32m+[m[32m        {[m
+[32m+[m[32m          "key": "X-XSS-Protection",[m
+[32m+[m[32m          "value": "1; mode=block"[m
+[32m+[m[32m        }[m
+[32m+[m[32m      ][m
+[32m+[m[32m    }[m
+[32m+[m[32m  ],[m
+[32m+[m[32m  "env": {[m
+[32m+[m[32m    "NEXT_PUBLIC_SITE_URL": "https://quizlabai.com"[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m[41m [m
+\ No newline at end of file[m

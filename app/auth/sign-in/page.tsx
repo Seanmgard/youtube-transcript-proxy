@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Button } from '@/app/components/ui/button'
-import { Input } from '@/app/components/ui/input'
-import { Label } from '@/app/components/ui/label'
-import { useToast } from '@/app/components/ui/use-toast'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { useToast } from '@/components/ui/use-toast'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -45,44 +45,45 @@ export default function SignIn() {
     setLoading(true)
     
     try {
-      // Get the Supabase client - properly awaited
-      const supabase = await createClient();
-      
-      // Use direct Supabase auth
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      })
-      
-      if (error) {
-        console.error('Sign-in error:', error.message)
-        throw error
+      // Form validation
+      if (!email || !password) {
+        throw new Error('Email and password are required');
       }
       
-      if (data?.user) {
-        toast({
-          title: 'Signed in successfully',
-          description: 'Redirecting to dashboard...',
-        })
-        
-        // Force a session refresh to ensure cookies are properly set
-        await supabase.auth.refreshSession()
-        
-        // Add a delay before redirecting to ensure cookies are set
-        setTimeout(() => {
-          // Use window.location for a full page reload to ensure proper session handling
-          window.location.href = '/dashboard'
-        }, 1500)
+      // Use server-side API for sign-in to avoid CORS issues
+      const formData = new FormData();
+      formData.append('email', email);
+      formData.append('password', password);
+      
+      const response = await fetch('/api/auth/signin', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to sign in');
       }
+      
+      toast({
+        title: 'Signed in successfully',
+        description: 'Redirecting to dashboard...',
+      });
+      
+      // Redirect to dashboard
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 1500);
     } catch (error: any) {
-      console.error('Sign-in error details:', error)
+      console.error('Sign-in error:', error);
       toast({
         title: 'Error signing in',
         description: error.message || 'An error occurred during sign in',
         variant: 'destructive',
-      })
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -96,65 +97,58 @@ export default function SignIn() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8 pt-24">
-      <div className="w-full max-w-md space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight">
-            Sign in to your account
-          </h2>
+    <div className="flex min-h-screen flex-col items-center justify-center py-2">
+      <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
+        <div className="flex flex-col space-y-2 text-center">
+          <h1 className="text-2xl font-semibold tracking-tight">Sign in to your account</h1>
+          <p className="text-sm text-muted-foreground">
+            Enter your email and password to sign in
+          </p>
         </div>
-
-        <form onSubmit={handleSignIn} className="mt-8 space-y-6">
-          <div className="space-y-4 rounded-md shadow-sm">
-            <div>
-              <Label htmlFor="email">Email address</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="mt-1"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+        <div className="grid gap-6">
+          <form onSubmit={handleSignIn}>
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  placeholder="name@example.com"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Signing in...' : 'Sign in'}
+              </Button>
             </div>
-
-            <div>
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="mt-1"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div>
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={loading}
+          </form>
+          <div className="text-center">
+            <Link 
+              href="/auth/forgot-password" 
+              className="text-sm text-muted-foreground underline underline-offset-4 hover:text-primary"
             >
-              {loading ? 'Signing in...' : 'Sign in'}
-            </Button>
+              Forgot your password?
+            </Link>
           </div>
-        </form>
-
-        <p className="mt-2 text-center text-sm text-gray-600">
+        </div>
+        <div className="px-8 text-center text-sm text-muted-foreground">
           Don't have an account?{' '}
-          <Link
-            href="/auth/sign-up"
-            className="font-medium text-primary hover:text-primary/80"
-          >
+          <Link href="/auth/sign-up" className="underline underline-offset-4 hover:text-primary">
             Sign up
           </Link>
-        </p>
+        </div>
       </div>
     </div>
   )
