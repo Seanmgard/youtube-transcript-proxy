@@ -10,6 +10,7 @@ import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { useAuth } from '@/app/providers/AuthProvider';
 
 export default function SubscriptionPage() {
   const { 
@@ -24,6 +25,7 @@ export default function SubscriptionPage() {
     fetchSubscription
   } = useSubscription();
   
+  const { user } = useAuth();
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const router = useRouter();

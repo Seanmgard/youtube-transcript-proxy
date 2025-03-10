@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useToast } from '@/components/ui/use-toast';
 import { useSubscription } from '@/hooks/useSubscription';
+import { Session } from '@supabase/supabase-js';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -91,7 +92,9 @@ export default function Dashboard() {
     fetchUser();
     
     // Set up auth state change listener
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event: 'SIGNED_IN' | 'SIGNED_OUT' | 'USER_UPDATED' | 'USER_DELETED' | 'PASSWORD_RECOVERY', 
+       session: Session | null) => {
       if (event === 'SIGNED_OUT') {
         // Redirect to sign-in page if user signs out
         window.location.href = '/auth/sign-in';

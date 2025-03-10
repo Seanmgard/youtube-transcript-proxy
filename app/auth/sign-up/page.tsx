@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,7 +9,8 @@ import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 
-export default function SignUp() {
+// Create a separate component for the sign-up form
+function SignUpForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [firstName, setFirstName] = useState('')
@@ -185,5 +186,18 @@ export default function SignUp() {
         </div>
       </div>
     </div>
+  )
+}
+
+// Main component with Suspense boundary
+export default function SignUp() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen flex-col items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    }>
+      <SignUpForm />
+    </Suspense>
   )
 } 

@@ -475,7 +475,7 @@ export function useSubscription() {
       // Only fetch if we haven't fetched recently
       const now = Date.now();
       if (now - lastSubscriptionRefresh > REFRESH_COOLDOWN || !subscription) {
-        fetchSubscription(false);
+        fetchSubscription(user.id, false);
       }
     } else {
       setSubscription(null);
