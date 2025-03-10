@@ -62,8 +62,6 @@ function SignInForm() {
     setLoading(true)
     
     try {
-      // Don't clear auth data here - it might be causing the issue
-      
       // Form validation
       if (!email || !password) {
         throw new Error('Email and password are required');
@@ -105,9 +103,17 @@ function SignInForm() {
       const refreshResult = await supabase.auth.refreshSession();
       console.log('Session refresh result:', !!refreshResult.data.session);
       
-      // Use Next.js router for navigation instead of window.location
-      // This preserves the React state and prevents full page reloads
+      // Use a combination of approaches for more reliable redirection
+      
+      // 1. First try the Next.js router
       router.push(redirectTo);
+      
+      // 2. After a short delay, also try window.location for a full page navigation
+      // This ensures redirection even if the router.push doesn't trigger a navigation
+      setTimeout(() => {
+        console.log('Fallback redirection to:', redirectTo);
+        window.location.href = redirectTo;
+      }, 500);
       
     } catch (error: any) {
       console.error('Sign-in error:', error);

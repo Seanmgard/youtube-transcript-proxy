@@ -28,7 +28,7 @@ export const createClient = () => {
       // Use default cookie handling in the browser
       cookieOptions: isBrowser ? {
         name: 'sb-auth',
-        maxAge: 60 * 60 * 24 * 7, // 7 days for longer persistence
+        maxAge: 60 * 60 * 24 * 30, // 30 days for longer persistence
         domain: window.location.hostname,
         path: '/',
         sameSite: 'lax',
@@ -46,6 +46,17 @@ export const createClient = () => {
   if (process.env.NODE_ENV === 'development' && isBrowser) {
     supabaseClient.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       console.log(`Auth state changed: ${event}`, session ? `User: ${session.user.id}` : 'No session');
+      
+      // Explicitly store session in localStorage for redundancy
+      if (session && event === 'SIGNED_IN') {
+        try {
+          localStorage.setItem('sb-auth-token', session.access_token);
+          localStorage.setItem('sb-auth-user', JSON.stringify(session.user));
+          console.log('Explicitly stored session in localStorage');
+        } catch (e) {
+          console.error('Error storing session in localStorage:', e);
+        }
+      }
     });
   }
 

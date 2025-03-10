@@ -138,6 +138,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSession(session);
           setUser(session.user);
           
+          // If user is authenticated but on a public path (like sign-in), redirect to dashboard
+          const isPublicPath = publicPaths.some(path => 
+            pathname === path || pathname?.startsWith(path + '/')
+          );
+          
+          if (isPublicPath && !isRedirecting.current && 
+              (pathname === '/auth/sign-in' || pathname === '/sign-in')) {
+            console.log('User is authenticated but on sign-in page, redirecting to dashboard');
+            isRedirecting.current = true;
+            
+            // Use a more reliable redirection approach
+            try {
+              // First try the Next.js router
+              router.push('/dashboard');
+              
+              // After a short delay, also try window.location for a full page navigation
+              setTimeout(() => {
+                if (isRedirecting.current) {
+                  console.log('Fallback redirection to dashboard from initialization');
+                  window.location.href = '/dashboard';
+                  isRedirecting.current = false;
+                }
+              }, 1000);
+            } catch (error) {
+              console.error('Error redirecting during initialization:', error);
+              isRedirecting.current = false;
+            }
+          }
+          
           // Schedule refresh for 5 minutes before token expiry
           const expiresAt = session.expires_at;
           if (expiresAt) {
@@ -201,12 +230,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 );
                 
                 if (isPublicPath && !isRedirecting.current) {
-                  console.log('Redirecting to dashboard after sign in');
+                  console.log('Redirecting to dashboard after sign in from AuthProvider');
                   isRedirecting.current = true;
-                  setTimeout(() => {
+                  
+                  // Use a more reliable redirection approach
+                  try {
+                    // First try the Next.js router
                     router.push('/dashboard');
+                    
+                    // After a short delay, also try window.location for a full page navigation
+                    setTimeout(() => {
+                      if (isRedirecting.current) {
+                        console.log('Fallback redirection to dashboard from AuthProvider');
+                        window.location.href = '/dashboard';
+                        isRedirecting.current = false;
+                      }
+                    }, 1000);
+                  } catch (error) {
+                    console.error('Error redirecting after sign in:', error);
                     isRedirecting.current = false;
-                  }, 100);
+                  }
                 }
               }
             } else if (event === 'SIGNED_OUT') {
