@@ -134,6 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         if (session) {
+          console.log('Initial session found:', session.user.id);
           setSession(session);
           setUser(session.user);
           
@@ -143,10 +144,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const expiresInMs = (expiresAt - Math.floor(Date.now() / 1000)) * 1000;
             const refreshInMs = Math.max(0, expiresInMs - 5 * 60 * 1000); // 5 minutes before expiry
             
+            console.log(`Scheduling token refresh in ${Math.floor(refreshInMs / 1000 / 60)} minutes`);
             refreshTimer.current = setTimeout(() => {
               refreshUserSession();
             }, refreshInMs);
           }
+        } else {
+          console.log('No initial session found');
         }
         
         // Set up auth state change listener
@@ -156,10 +160,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             
             // Handle token refresh events
             if (event === 'TOKEN_REFRESHED') {
+              console.log('Token refreshed event received');
               // Only update the session if user IDs match or if we don't have a current session
               if (!session || (newSession && session?.user?.id === newSession?.user?.id)) {
                 // Only update the session, don't trigger redirects
                 if (newSession) {
+                  console.log('Updating session after token refresh');
                   setSession(newSession);
                   setUser(newSession.user);
                   
@@ -173,6 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     const expiresInMs = (expiresAt - Math.floor(Date.now() / 1000)) * 1000;
                     const refreshInMs = Math.max(0, expiresInMs - 5 * 60 * 1000); // 5 minutes before expiry
                     
+                    console.log(`Scheduling next token refresh in ${Math.floor(refreshInMs / 1000 / 60)} minutes`);
                     refreshTimer.current = setTimeout(() => {
                       refreshUserSession();
                     }, refreshInMs);
@@ -182,10 +189,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               return;
             }
             
-            if (newSession) {
-              setSession(newSession);
-              setUser(newSession.user);
+            if (event === 'SIGNED_IN') {
+              console.log('Sign in event received');
+              if (newSession) {
+                setSession(newSession);
+                setUser(newSession.user);
+                
+                // If we're on a public path, redirect to dashboard
+                const isPublicPath = publicPaths.some(path => 
+                  pathname === path || pathname?.startsWith(path + '/')
+                );
+                
+                if (isPublicPath && !isRedirecting.current) {
+                  console.log('Redirecting to dashboard after sign in');
+                  isRedirecting.current = true;
+                  setTimeout(() => {
+                    router.push('/dashboard');
+                    isRedirecting.current = false;
+                  }, 100);
+                }
+              }
             } else if (event === 'SIGNED_OUT') {
+              console.log('Sign out event received');
               setSession(null);
               setUser(null);
               
@@ -195,6 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               );
               
               if (!isPublicPath && !pathname?.startsWith('/auth/') && !isRedirecting.current) {
+                console.log('Redirecting to sign in after sign out');
                 isRedirecting.current = true;
                 setTimeout(() => {
                   router.push('/sign-in');

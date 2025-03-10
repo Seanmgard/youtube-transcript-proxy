@@ -72,17 +72,32 @@ export function setAuthCookiesInBrowser(session: any) {
   if (typeof window === 'undefined' || !session) return;
   
   try {
-    const maxAge = 60 * 60 * 8; // 8 hours
+    console.log('Setting auth cookies in browser...');
+    
+    // Use a longer expiration time for better persistence
+    const maxAge = 60 * 60 * 24 * 7; // 7 days
+    const domain = window.location.hostname;
+    const secure = window.location.protocol === 'https:';
     
     // Set access token
-    document.cookie = `sb-access-token=${session.access_token}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    document.cookie = `sb-access-token=${session.access_token}; path=/; max-age=${maxAge}; SameSite=Lax${secure ? '; Secure' : ''}; domain=${domain}`;
     
     // Set auth token (combined)
-    document.cookie = `sb-auth-token=${session.access_token}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    document.cookie = `sb-auth-token=${session.access_token}; path=/; max-age=${maxAge}; SameSite=Lax${secure ? '; Secure' : ''}; domain=${domain}`;
     
     // Set refresh token if available
     if (session.refresh_token) {
-      document.cookie = `sb-refresh-token=${session.refresh_token}; path=/; max-age=${maxAge}; SameSite=Lax`;
+      document.cookie = `sb-refresh-token=${session.refresh_token}; path=/; max-age=${maxAge}; SameSite=Lax${secure ? '; Secure' : ''}; domain=${domain}`;
+    }
+    
+    // Also store in localStorage as a backup
+    try {
+      localStorage.setItem('sb-auth-token', session.access_token);
+      if (session.refresh_token) {
+        localStorage.setItem('sb-refresh-token', session.refresh_token);
+      }
+    } catch (e) {
+      console.error('Error setting localStorage items:', e);
     }
     
     console.log('Auth cookies set in browser');

@@ -6,8 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
 import Link from 'next/link'
-import { createClient, clearAuthData } from '@/utils/supabase/client'
-import { setAuthCookiesInBrowser } from '@/utils/supabase/cookies-helper'
+import { createClient } from '@/utils/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 // Create a separate component that uses useSearchParams
@@ -37,14 +36,13 @@ function SignInForm() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        // Clear any existing auth data to start fresh
-        clearAuthData();
-        
+        // Don't clear auth data here - it might be causing the issue
         const supabase = createClient();
         const { data } = await supabase.auth.getSession();
         
         // If user already has a valid session, redirect to dashboard
         if (data.session) {
+          console.log('User already has a session, redirecting to dashboard');
           router.push('/dashboard');
         }
       } catch (error) {
@@ -64,8 +62,7 @@ function SignInForm() {
     setLoading(true)
     
     try {
-      // Clear any existing auth data to start fresh
-      clearAuthData();
+      // Don't clear auth data here - it might be causing the issue
       
       // Form validation
       if (!email || !password) {
@@ -108,15 +105,10 @@ function SignInForm() {
       const refreshResult = await supabase.auth.refreshSession();
       console.log('Session refresh result:', !!refreshResult.data.session);
       
-      // Manually set cookies to ensure they're properly set
-      setAuthCookiesInBrowser(data.session);
+      // Use Next.js router for navigation instead of window.location
+      // This preserves the React state and prevents full page reloads
+      router.push(redirectTo);
       
-      // Add a delay to ensure cookies are set
-      setTimeout(() => {
-        // Use a full page reload with cache-busting parameter
-        const timestamp = Date.now();
-        window.location.href = `${redirectTo}?t=${timestamp}`;
-      }, 1000);
     } catch (error: any) {
       console.error('Sign-in error:', error);
       toast({

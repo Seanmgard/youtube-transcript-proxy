@@ -1,4 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 // Create a singleton instance to ensure we don't create multiple clients
 let supabaseClient: ReturnType<typeof createBrowserClient> | null = null;
@@ -27,7 +28,7 @@ export const createClient = () => {
       // Use default cookie handling in the browser
       cookieOptions: isBrowser ? {
         name: 'sb-auth',
-        maxAge: 60 * 60 * 8, // 8 hours
+        maxAge: 60 * 60 * 24 * 7, // 7 days for longer persistence
         domain: window.location.hostname,
         path: '/',
         sameSite: 'lax',
@@ -40,6 +41,13 @@ export const createClient = () => {
       },
     }
   );
+
+  // Add event listeners for debugging in development
+  if (process.env.NODE_ENV === 'development' && isBrowser) {
+    supabaseClient.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+      console.log(`Auth state changed: ${event}`, session ? `User: ${session.user.id}` : 'No session');
+    });
+  }
 
   return supabaseClient;
 };
@@ -70,7 +78,7 @@ export async function ensureAuthenticated() {
     }
     
     return { authenticated: !!refreshData.session, session: refreshData.session };
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Unexpected error in ensureAuthenticated:', error);
     return { authenticated: false };
   }
@@ -81,7 +89,7 @@ export async function refreshSession() {
   try {
     const supabase = createClient();
     return await supabase.auth.refreshSession();
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error refreshing session:', error);
     return { data: { session: null, user: null }, error };
   }
@@ -128,7 +136,7 @@ export function useSupabase() {
           setSupabase(client);
           setLoading(false);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.error('Error initializing Supabase client:', err);
         if (isMounted) {
           setError(err instanceof Error ? err : new Error('Failed to initialize Supabase client'));
@@ -151,27 +159,58 @@ export function useSupabase() {
 export function clearAuthData() {
   if (typeof window === 'undefined') return;
   
-  // Clear localStorage
-  localStorage.removeItem('sb-auth-token');
-  localStorage.removeItem('supabase.auth.token');
-  localStorage.removeItem('quizlab-auth-token');
-  localStorage.removeItem('sb-refresh-token');
-  localStorage.removeItem('sb-access-token');
-  
-  // Clear cookies
-  const cookiesToClear = [
-    'sb-access-token',
-    'sb-refresh-token',
-    'supabase-auth-token',
-    '__supabase_session',
-    'sb-auth-token',
-    'sb-auth',
-  ];
-  
-  cookiesToClear.forEach(name => {
-    document.cookie = `${name}=; Max-Age=0; path=/; domain=${window.location.hostname}`;
-    document.cookie = `${name}=; Max-Age=0; path=/;`;
-  });
-  
-  console.log('Auth data cleared');
+  try {
+    console.log('Clearing auth data...');
+    
+    // Clear localStorage
+    const keysToRemove = [
+      'sb-auth-token',
+      'supabase.auth.token',
+      'quizlab-auth-token',
+      'sb-refresh-token',
+      'sb-access-token',
+      'sb:token',
+      'supabase.auth.refreshToken',
+      'supabase.auth.accessToken',
+    ];
+    
+    keysToRemove.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+      } catch (e: unknown) {
+        console.error(`Error removing ${key} from localStorage:`, e);
+      }
+    });
+    
+    // Clear cookies
+    const cookiesToClear = [
+      'sb-access-token',
+      'sb-refresh-token',
+      'supabase-auth-token',
+      '__supabase_session',
+      'sb-auth-token',
+      'sb-auth',
+    ];
+    
+    cookiesToClear.forEach(name => {
+      try {
+        document.cookie = `${name}=; Max-Age=0; path=/; domain=${window.location.hostname}`;
+        document.cookie = `${name}=; Max-Age=0; path=/;`;
+      } catch (e: unknown) {
+        console.error(`Error clearing cookie ${name}:`, e);
+      }
+    });
+    
+    console.log('Auth data cleared');
+    
+    // If we have a Supabase client, also sign out
+    if (supabaseClient) {
+      console.log('Signing out from Supabase client');
+      supabaseClient.auth.signOut().catch((e: unknown) => {
+        console.error('Error signing out:', e);
+      });
+    }
+  } catch (error: unknown) {
+    console.error('Error clearing auth data:', error);
+  }
 }
