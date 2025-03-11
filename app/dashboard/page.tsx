@@ -9,8 +9,6 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useToast } from '@/components/ui/use-toast';
 import { useSubscription } from '@/hooks/useSubscription';
-import { Session } from '@supabase/supabase-js';
-import useAuthRedirect from '@/hooks/useAuthRedirect';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,14 +23,7 @@ export default function Dashboard() {
   const [exporting, setExporting] = useState<string | null>(null);
   const { toast } = useToast();
   const [supabase, setSupabase] = useState<any>(null);
-  const { fetchSubscription, isOnPlan, subscription } = useSubscription();
-  const [lastSubscriptionRefresh, setLastSubscriptionRefresh] = useState(0);
-  const REFRESH_COOLDOWN = 1000 * 60 * 5; // 5 minutes in milliseconds
-  
-  // Use our custom hook to handle authentication and redirection
-  const { session, loading: authLoading } = useAuthRedirect({ 
-    protectedRoute: true 
-  });
+  const { fetchSubscription, isOnPlan } = useSubscription();
 
   useEffect(() => {
     const initSupabase = async () => {
@@ -44,48 +35,52 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (!supabase || !session) return;
+    if (!supabase) return;
     
     const fetchUser = async () => {
       try {
-        setLoading(true);
-        
-        // Use the user from the session
-        const user = session.user;
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) {
+          console.error('Error fetching user:', error);
+          // Redirect to sign-in page if there's an authentication error
+          window.location.href = '/auth/sign-in';
+          return;
+        }
         
         if (!user) {
-          console.error('No user found in session');
+          window.location.href = '/auth/sign-in';
           return;
         }
         
         setUser(user);
         
-        // Fetch subscription status with the user ID
-        await fetchSubscription(user.id);
-        
-        // Fetch the most recent quiz
-        const { data: quizData, error: quizError } = await supabase
-          .from('quizzes')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1);
+        // Use a static flag to track if we've already attempted to fetch the subscription
+        // This prevents multiple fetch attempts during component re-renders
+        if (!fetchUser.hasAttemptedFetch) {
+          fetchUser.hasAttemptedFetch = true;
           
-        if (quizError) {
-          console.error('Error fetching quiz:', quizError);
-        } else if (quizData && quizData.length > 0) {
-          setCurrentQuiz(quizData[0]);
+          // Fetch subscription data safely
+          try {
+            await fetchSubscription(true).catch(err => {
+              console.error('Error fetching subscription:', err);
+            });
+          } catch (err) {
+            console.error('Error in subscription effect:', err);
+          }
         }
         
+        setLoading(false);
       } catch (error) {
         console.error('Unexpected error:', error);
-      } finally {
         setLoading(false);
       }
     };
     
+    // Add the static property to the function
+    fetchUser.hasAttemptedFetch = false;
+    
     fetchUser();
-  }, [supabase, fetchSubscription, session]);
+  }, [supabase, fetchSubscription]);
 
   // Check for Stripe redirect parameters
   useEffect(() => {
@@ -108,21 +103,6 @@ export default function Dashboard() {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, [user, toast, fetchSubscription]);
-
-  // Initialize the subscription when user changes
-  useEffect(() => {
-    if (user) {
-      // Only fetch if we haven't fetched recently
-      const now = Date.now();
-      if (now - lastSubscriptionRefresh > REFRESH_COOLDOWN || !subscription) {
-        fetchSubscription(user.id, false);
-        setLastSubscriptionRefresh(now);
-      }
-    } else {
-      // Don't try to set subscription directly, it's managed by the hook
-      setLoading(false);
-    }
-  }, [user, fetchSubscription, subscription, lastSubscriptionRefresh]);
 
   const handleQuizGenerated = (quiz: any) => {
     setCurrentQuiz(quiz);

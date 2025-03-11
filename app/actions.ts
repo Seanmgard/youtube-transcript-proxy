@@ -1,9 +1,10 @@
 "use server";
 
 import { encodedRedirect } from "@/utils/utils";
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import type { Database } from "@/lib/database.types";
 
 export const signUpAction = async (formData: FormData) => {
   const email = formData.get("email")?.toString();
@@ -11,7 +12,10 @@ export const signUpAction = async (formData: FormData) => {
   const firstName = formData.get("firstName")?.toString();
   const lastName = formData.get("lastName")?.toString();
   const supabase = await createClient();
-  const origin = (await headers()).get("origin") || process.env.NEXT_PUBLIC_SITE_URL;
+  
+  // Await headers() to resolve the Promise
+  const headersList = await headers();
+  const origin = headersList.get("origin");
 
   if (!email || !password) {
     return encodedRedirect(
@@ -30,28 +34,11 @@ export const signUpAction = async (formData: FormData) => {
   }
 
   try {
-    // Check if the email already exists using a direct SQL query to avoid TypeScript issues
-    const { data: existingUsers, error: lookupError } = await supabase
-      .from('profiles')
-      .select('id')
-      .filter('email', 'eq', email) as any;
-      
-    if (lookupError) {
-      console.error('Error checking existing user:', lookupError);
-    } else if (existingUsers && existingUsers.length > 0) {
-      return encodedRedirect(
-        "error",
-        "/sign-up",
-        "This email is already registered. Please sign in instead."
-      );
-    }
-    
-    // Configure sign-up with explicit email verification settings
-    const { data: authData, error } = await supabase.auth.signUp({
+    // First, attempt to sign up the user
+    const { data: authData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        // Provide a redirect URL for email verification if needed
         emailRedirectTo: `${origin}/auth/callback`,
         data: {
           first_name: firstName,
@@ -60,59 +47,81 @@ export const signUpAction = async (formData: FormData) => {
       },
     });
 
-    if (error) {
-      console.error('Sign up error:', error.code, error.message);
-      if (error.message.includes('rate limit')) {
+    if (signUpError) {
+      console.error('Sign up error:', signUpError.code, signUpError.message);
+      
+      if (signUpError.message.includes('rate limit')) {
         return encodedRedirect(
           "error",
           "/sign-up",
-          "Too many sign-up attempts. Please try again later or contact support."
+          "Too many sign-up attempts. Please try again later."
         );
       }
-      return encodedRedirect("error", "/sign-up", error.message);
-    }
-
-    // Create or update profile
-    if (authData?.user) {
-      try {
-        // Use a SQL query to insert the profile
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: authData.user.id,
-            email: email, // Store email in profiles table for easier lookup
-            full_name: `${firstName} ${lastName}`,
-            updated_at: new Date().toISOString(),
-            created_at: new Date().toISOString(),
-            is_admin: false
-          } as any);
-
-        if (profileError) {
-          console.error('Profile creation error:', profileError);
-        }
-      } catch (profileError) {
-        console.error('Profile creation error:', profileError);
-        // Continue anyway - the profile might be created by a trigger
+      
+      if (signUpError.message.includes('weak password')) {
+        return encodedRedirect(
+          "error",
+          "/sign-up",
+          "Password is too weak. Please use a stronger password."
+        );
       }
+
+      return encodedRedirect("error", "/sign-up", signUpError.message);
     }
 
-    // Check if email confirmation is needed based on Supabase response
-    const emailConfirmationNeeded = authData?.user && !authData.session;
-    
-    if (emailConfirmationNeeded) {
+    if (!authData.user) {
       return encodedRedirect(
-        "success",
-        "/auth/sign-in",
-        "Account created successfully. Please check your email for a confirmation link."
-      );
-    } else {
-      // Redirect to sign-in page after successful sign-up
-      return encodedRedirect(
-        "success",
-        "/auth/sign-in",
-        "Account created successfully. Please sign in with your new credentials."
+        "error",
+        "/sign-up",
+        "Failed to create user account. Please try again."
       );
     }
+
+    // Check if the user already exists but hasn't confirmed their email
+    if (authData.user.identities?.length === 0) {
+      return encodedRedirect(
+        "error",
+        "/sign-up",
+        "Email address is already registered. Please sign in or reset your password."
+      );
+    }
+
+    // Create or update profile using RLS policies
+    try {
+      const profileData: Database['public']['Tables']['profiles']['Insert'] = {
+        first_name: firstName,
+        last_name: lastName,
+        email: email,
+        updated_at: new Date().toISOString(),
+        is_admin: false,
+      };
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert(profileData)
+        .select()
+        .single();
+
+      if (profileError) {
+        console.error('Profile creation error:', profileError);
+        // Profile creation failed, but auth succeeded
+        // The database trigger should handle profile creation as fallback
+      }
+    } catch (profileError) {
+      console.error('Unexpected error creating profile:', profileError);
+    }
+
+    // Check if email confirmation is required
+    if (authData.user.confirmation_sent_at) {
+      return encodedRedirect(
+        "success",
+        "/sign-up",
+        "Please check your email for a confirmation link to complete your registration."
+      );
+    }
+
+    // No email confirmation required, proceed to dashboard
+    return redirect('/dashboard');
   } catch (error: any) {
     console.error('Unexpected error during sign up:', error);
     return encodedRedirect(
@@ -124,122 +133,134 @@ export const signUpAction = async (formData: FormData) => {
 };
 
 export async function signInAction(formData: FormData) {
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
-  const supabase = await createClient()
+  const email = formData.get('email') as string;
+  const password = formData.get('password') as string;
+  const supabase = await createClient();
 
   try {
-    // Sign in with password
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
-    })
+    });
 
     if (error) {
-      console.error('Sign-in error:', error.message)
-      return { error: error.message }
+      return { error: error.message };
     }
 
-    // Ensure we have a session
-    if (!data.session) {
-      // Try to refresh the session
-      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-      
-      if (refreshError || !refreshData.session) {
-        console.error('Session refresh error:', refreshError?.message)
-        return { error: 'Authentication failed. Please try again.' }
-      }
+    if (!data.user) {
+      return { error: "Failed to sign in. Please try again." };
     }
 
-    // Set cookies with the session
-    const cookieOptions = {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-      sameSite: 'lax' as const,
-      secure: process.env.NODE_ENV === 'production',
-    }
-
-    // Redirect to dashboard
-    redirect('/dashboard')
+    return redirect('/dashboard');
   } catch (error: any) {
-    console.error('Unexpected sign-in error:', error)
-    return { error: 'An unexpected error occurred. Please try again.' }
+    return { error: "An unexpected error occurred. Please try again." };
   }
 }
 
 export const forgotPasswordAction = async (formData: FormData) => {
   const email = formData.get("email")?.toString();
   const supabase = await createClient();
-  const origin = (await headers()).get("origin");
+  
+  // Await headers() to resolve the Promise
+  const headersList = await headers();
+  const origin = headersList.get("origin");
   const callbackUrl = formData.get("callbackUrl")?.toString();
 
   if (!email) {
     return encodedRedirect("error", "/forgot-password", "Email is required");
   }
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?redirect_to=/protected/reset-password`,
-  });
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${origin}/auth/callback?redirect_to=/protected/reset-password`,
+    });
 
-  if (error) {
-    console.error(error.message);
+    if (error) {
+      console.error('Password reset error:', error);
+      return encodedRedirect(
+        "error",
+        "/forgot-password",
+        "Could not send password reset email. Please try again."
+      );
+    }
+
+    if (callbackUrl) {
+      return redirect(callbackUrl);
+    }
+
+    return encodedRedirect(
+      "success",
+      "/forgot-password",
+      "Check your email for a link to reset your password."
+    );
+  } catch (error) {
+    console.error('Unexpected error during password reset:', error);
     return encodedRedirect(
       "error",
       "/forgot-password",
-      "Could not reset password",
+      "An unexpected error occurred. Please try again."
     );
   }
-
-  if (callbackUrl) {
-    return redirect(callbackUrl);
-  }
-
-  return encodedRedirect(
-    "success",
-    "/forgot-password",
-    "Check your email for a link to reset your password.",
-  );
 };
 
 export const resetPasswordAction = async (formData: FormData) => {
   const supabase = await createClient();
-
   const password = formData.get("password") as string;
   const confirmPassword = formData.get("confirmPassword") as string;
 
   if (!password || !confirmPassword) {
-    encodedRedirect(
+    return encodedRedirect(
       "error",
       "/protected/reset-password",
-      "Password and confirm password are required",
+      "Password and confirm password are required"
     );
   }
 
   if (password !== confirmPassword) {
-    encodedRedirect(
+    return encodedRedirect(
       "error",
       "/protected/reset-password",
-      "Passwords do not match",
+      "Passwords do not match"
     );
   }
 
-  const { error } = await supabase.auth.updateUser({
-    password: password,
-  });
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password: password,
+    });
 
-  if (error) {
-    encodedRedirect(
+    if (error) {
+      return encodedRedirect(
+        "error",
+        "/protected/reset-password",
+        "Password update failed. Please try again."
+      );
+    }
+
+    return encodedRedirect(
+      "success", 
+      "/protected/reset-password",
+      "Password updated successfully"
+    );
+  } catch (error) {
+    console.error('Unexpected error during password reset:', error);
+    return encodedRedirect(
       "error",
       "/protected/reset-password",
-      "Password update failed",
+      "An unexpected error occurred. Please try again."
     );
   }
-
-  encodedRedirect("success", "/protected/reset-password", "Password updated");
 };
 
 export const signOutAction = async () => {
   const supabase = await createClient();
-  await supabase.auth.signOut();
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Sign out error:', error);
+    }
+  } catch (error) {
+    console.error('Unexpected error during sign out:', error);
+  }
   return redirect("/sign-in");
 };

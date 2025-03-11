@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/app/components/ui/label'
 import Link from 'next/link'
 import SubjectManager, { Subject } from './SubjectManager'
+import { SupabaseClient, User } from '@supabase/supabase-js'
 
 // Helper function to determine text color based on background color
 const getContrastColor = (hexColor: string): string => {
@@ -45,10 +46,11 @@ const getContrastColor = (hexColor: string): string => {
 
 interface QuizHistoryProps {
   showAll?: boolean;
-  limit?: number;
+  user: User;
+  supabase: SupabaseClient;
 }
 
-export default function QuizHistory({ showAll = false, limit = 5 }: QuizHistoryProps) {
+export default function QuizHistory({ showAll = false, user, supabase }: QuizHistoryProps) {
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null)
@@ -60,7 +62,6 @@ export default function QuizHistory({ showAll = false, limit = 5 }: QuizHistoryP
   const [ankiDeckName, setAnkiDeckName] = useState('')
   const [sendingToAnki, setSendingToAnki] = useState(false)
   const { toast } = useToast()
-  const [supabase, setSupabase] = useState<any>(null)
   const [editSubject, setEditSubject] = useState<Subject | null>(null)
   const [categorizingQuiz, setCategorizingQuiz] = useState<Quiz | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -69,19 +70,33 @@ export default function QuizHistory({ showAll = false, limit = 5 }: QuizHistoryP
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
 
   useEffect(() => {
-    const initSupabase = async () => {
-      const client = await createClient();
-      setSupabase(client);
-    };
-    
-    initSupabase();
-  }, []);
+    if (!user || !supabase) return;
 
-  useEffect(() => {
-    if (supabase) {
-      fetchQuizzes();
-    }
-  }, [supabase]);
+    const fetchQuizzes = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('quiz_history')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(showAll ? 50 : 5);
+
+        if (error) {
+          console.error('Error fetching quiz history:', error);
+          return;
+        }
+
+        setQuizzes(data || []);
+      } catch (error) {
+        console.error('Error in fetchQuizzes:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchQuizzes();
+  }, [user, supabase, showAll]);
 
   // Add a new useEffect to refresh the session when the component mounts
   useEffect(() => {
@@ -99,99 +114,6 @@ export default function QuizHistory({ showAll = false, limit = 5 }: QuizHistoryP
 
     refreshSession();
   }, [supabase]);
-
-  const fetchQuizzes = async () => {
-    if (!supabase) return;
-    
-    try {
-      setLoading(true)
-      
-      // First try to get the session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      
-      if (sessionError) {
-        console.error('Session error:', sessionError)
-        toast({
-          title: 'Authentication Error',
-          description: 'There was a problem with your authentication. Please try signing in again.',
-          variant: 'destructive',
-        })
-        setLoading(false)
-        return
-      }
-      
-      // If no session, try to refresh it
-      if (!session) {
-        // Try to refresh the session
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-        
-        if (refreshError) {
-          console.error('Error refreshing session:', refreshError)
-          toast({
-            title: 'Authentication Error',
-            description: 'Your session has expired. Please sign in again.',
-            variant: 'destructive',
-          })
-          setLoading(false)
-          return
-        }
-        
-        if (!refreshData.session) {
-          console.error('No authenticated session after refresh')
-          toast({
-            title: 'Authentication Required',
-            description: 'Please sign in to view your quizzes.',
-            variant: 'destructive',
-          })
-          setLoading(false)
-          return
-        }
-        
-        // Use the user from the refreshed session
-        const userId = refreshData.session.user.id
-        
-        const { data, error } = await supabase
-          .from('quizzes')
-          .select('*')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(showAll ? 100 : limit)
-
-        if (error) {
-          console.error('Error fetching quizzes:', error)
-          throw error
-        }
-
-        setQuizzes(data || [])
-      } else {
-        // Use the user from the existing session
-        const userId = session.user.id
-        
-        const { data, error } = await supabase
-          .from('quizzes')
-          .select('*')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(showAll ? 100 : limit)
-
-        if (error) {
-          console.error('Error fetching quizzes:', error)
-          throw error
-        }
-
-        setQuizzes(data || [])
-      }
-    } catch (error) {
-      console.error('Error in fetchQuizzes:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to load quizzes. Please try again later.',
-        variant: 'destructive',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleExport = async (quiz: Quiz, format: 'doc' | 'csv' | 'anki') => {
     try {

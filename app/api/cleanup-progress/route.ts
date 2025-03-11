@@ -1,13 +1,13 @@
-// @ts-nocheck
 import { NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/server';
+import { createClient } from '@/lib/supabase/server';
+import type { Database } from '@/lib/database.types';
 
 export async function POST(request: Request) {
   try {
     // Create a new supabase client
     const supabase = await createClient();
 
-    // Get the current user using getUser() for better security
+    // Get the current user with explicit typing
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user) {
@@ -18,11 +18,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get all quizzes for the user
+    // Explicitly type user.id as string (UUID from auth.users)
+    const userId: string = user.id;
+
+    // Get all quizzes for the user with proper typing
     const { data: quizzes, error: quizzesError } = await supabase
       .from('quizzes')
       .select('id')
-      .eq('user_id', user.id);
+      .eq('user_id', userId as string);
 
     if (quizzesError) {
       console.error('Error fetching quizzes:', quizzesError);
@@ -36,7 +39,7 @@ export async function POST(request: Request) {
     const { data: progressRecords, error: progressError } = await supabase
       .from('learning_progress')
       .select('id, quiz_id')
-      .eq('user_id', user.id);
+      .eq('user_id', userId as string);
 
     if (progressError) {
       console.error('Error fetching learning progress:', progressError);
@@ -49,8 +52,10 @@ export async function POST(request: Request) {
     // Create a set of valid quiz IDs
     const validQuizIds = new Set(quizzes.map(quiz => quiz.id));
 
-    // Find orphaned progress records (those with quiz_id not in validQuizIds)
-    const orphanedRecords = progressRecords.filter(record => !validQuizIds.has(record.quiz_id));
+    // Find orphaned progress records
+    const orphanedRecords = progressRecords.filter(
+      record => !validQuizIds.has(record.quiz_id)
+    );
 
     if (orphanedRecords.length === 0) {
       return NextResponse.json({ 

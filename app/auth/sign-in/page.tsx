@@ -9,12 +9,14 @@ import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import useAuthRedirect from '@/hooks/useAuthRedirect'
+import { Loader2 } from 'lucide-react'
 
 // Create a separate component that uses useSearchParams
 function SignInForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
   const { toast } = useToast()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -38,6 +40,18 @@ function SignInForm() {
     }
   }, [errorMessage, toast]);
 
+  const clearAuthCookies = () => {
+    const cookiesToClear = [
+      'sb-refresh-token',
+      'sb-access-token',
+      'sb-auth-token'
+    ];
+    
+    cookiesToClear.forEach(cookieName => {
+      document.cookie = `${cookieName}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=lax`;
+    });
+  };
+
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault()
     
@@ -55,8 +69,11 @@ function SignInForm() {
       if (!supabase) {
         throw new Error('Failed to initialize Supabase client');
       }
+
+      // Clear any existing auth cookies before attempting sign in
+      clearAuthCookies();
       
-      // Use direct Supabase auth instead of the API route
+      // Attempt to sign in
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -64,12 +81,26 @@ function SignInForm() {
       
       if (error) {
         console.error('Sign-in error:', error);
+        
+        // Handle specific error cases
+        if (error.message.includes('Invalid login credentials')) {
+          throw new Error('Invalid email or password');
+        }
+        
+        // Handle rate limiting
+        if (error.message.includes('Too many requests')) {
+          throw new Error('Too many sign-in attempts. Please try again later.');
+        }
+        
         throw error;
       }
       
       if (!data.session) {
         throw new Error('Failed to establish a valid session');
       }
+      
+      // Reset retry count on successful sign in
+      setRetryCount(0);
       
       // Log session details to help debug
       console.log('Session established:', !!data.session);
@@ -84,11 +115,33 @@ function SignInForm() {
       
     } catch (error: any) {
       console.error('Sign-in error:', error);
-      toast({
-        title: 'Error signing in',
-        description: error.message || 'An error occurred during sign in',
-        variant: 'destructive',
-      });
+      
+      // Increment retry count
+      setRetryCount(prev => prev + 1);
+      
+      // If too many retries, suggest password reset
+      if (retryCount >= 2) {
+        toast({
+          title: 'Multiple failed attempts',
+          description: (
+            <div>
+              <p>{error.message}</p>
+              <p className="mt-2">
+                <Link href="/auth/forgot-password" className="underline">
+                  Forgot your password?
+                </Link>
+              </p>
+            </div>
+          ),
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Error signing in',
+          description: error.message || 'An error occurred during sign in',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -98,78 +151,106 @@ function SignInForm() {
   if (authLoading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center py-2">
-      <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
-        <div className="flex flex-col space-y-2 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Sign in to your account</h1>
-          <p className="text-sm text-muted-foreground">
-            Enter your email and password to sign in
+      <div className="w-full max-w-md space-y-8 px-4 sm:px-6">
+        <div className="space-y-6">
+          <h1 className="text-4xl font-bold tracking-tight text-center">
+            Welcome back
+          </h1>
+          <p className="text-center text-muted-foreground">
+            Enter your credentials to access your account
           </p>
         </div>
-        <div className="grid gap-6">
-          <form onSubmit={handleSignIn}>
-            <div className="grid gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  placeholder="name@example.com"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Signing in...' : 'Sign in'}
-              </Button>
+
+        <form onSubmit={handleSignIn} className="space-y-6">
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1"
+                placeholder="you@example.com"
+                disabled={loading}
+              />
             </div>
-          </form>
-          <div className="text-center">
-            <Link 
-              href="/auth/forgot-password" 
-              className="text-sm text-muted-foreground underline underline-offset-4 hover:text-primary"
-            >
-              Forgot your password?
-            </Link>
+
+            <div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-sm text-primary hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="mt-1"
+                disabled={loading}
+              />
+            </div>
           </div>
-        </div>
-        <div className="px-8 text-center text-sm text-muted-foreground">
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Signing in...
+              </>
+            ) : (
+              'Sign in'
+            )}
+          </Button>
+        </form>
+
+        <p className="text-center text-sm text-muted-foreground">
           Don't have an account?{' '}
-          <Link href="/auth/sign-up" className="underline underline-offset-4 hover:text-primary">
+          <Link
+            href="/auth/sign-up"
+            className="text-primary hover:underline"
+          >
             Sign up
           </Link>
-        </div>
+        </p>
       </div>
     </div>
-  )
+  );
 }
 
-// Main component with Suspense boundary
-export default function SignIn() {
+// Main page component
+export default function SignInPage() {
   return (
-    <Suspense fallback={
-      <div className="flex min-h-screen flex-col items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    }>
-      <SignInForm />
-    </Suspense>
-  )
+    <div className="min-h-screen bg-background">
+      <Suspense fallback={
+        <div className="flex min-h-screen flex-col items-center justify-center">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+      }>
+        <SignInForm />
+      </Suspense>
+    </div>
+  );
 } 

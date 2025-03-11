@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server';
 import { getStripeInstance } from '@/utils/stripe';
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { createClient } from '@/utils/supabase/server';
+import { createClient } from '@/lib/supabase/server';
+import type { Database } from '@/lib/database.types';
 
-// Import the PRICE_IDs from the stripe utils
+// Import the PRICE_IDs from environment variables
 const PRICE_IDS = {
   premium: process.env.STRIPE_PREMIUM_PLAN_PRICE_ID || '',
   premium_annual: process.env.STRIPE_PREMIUM_ANNUAL_PLAN_PRICE_ID || '',
@@ -13,15 +14,13 @@ const PRICE_IDS = {
 // Set the runtime to nodejs to avoid Edge Runtime issues with cookies
 export const runtime = 'nodejs';
 
-// Use the server-side createClient function
-const supabase = createClient();
-
 export async function POST(request: Request) {
   try {
-    // Get the raw request body for Stripe signature verification
-    const body = await request.text();
-    const signature = (await headers()).get('stripe-signature') as string;
-    
+    const body = await request.text()
+    const headerData = await headers()
+    const signature = headerData.get('stripe-signature') as string
+    const supabase = await createClient()
+
     if (!signature) {
       console.error('No Stripe signature found in request');
       return new NextResponse('No Stripe signature', { status: 400 });

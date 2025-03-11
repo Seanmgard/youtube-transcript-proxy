@@ -12,31 +12,39 @@ export interface Database {
       profiles: {
         Row: {
           id: string
-          full_name: string | null
-          avatar_url: string | null
-          created_at: string
-          updated_at: string
-          is_admin: boolean
+          first_name: string | null
+          last_name: string | null
           email: string | null
+          updated_at: string
+          subscription_id: string | null
+          is_admin: boolean
         }
         Insert: {
-          id: string
-          full_name?: string | null
-          avatar_url?: string | null
-          created_at?: string
-          updated_at?: string
-          is_admin?: boolean
+          id?: string
+          first_name?: string | null
+          last_name?: string | null
           email?: string | null
+          updated_at?: string
+          subscription_id?: string | null
+          is_admin?: boolean
         }
         Update: {
-          id?: string
-          full_name?: string | null
-          avatar_url?: string | null
-          created_at?: string
-          updated_at?: string
-          is_admin?: boolean
+          first_name?: string | null
+          last_name?: string | null
           email?: string | null
+          updated_at?: string
+          subscription_id?: string | null
+          is_admin?: boolean
         }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       quizzes: {
         Row: {
@@ -72,6 +80,54 @@ export interface Database {
           subject?: string | null
           category?: string | null
         }
+      }
+      learning_progress: {
+        Row: {
+          id: string
+          user_id: string
+          quiz_id: string
+          progress: Json
+          score: number
+          completed: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          quiz_id: string
+          progress?: Json
+          score?: number
+          completed?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          quiz_id?: string
+          progress?: Json
+          score?: number
+          completed?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_progress_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       subscriptions: {
         Row: {

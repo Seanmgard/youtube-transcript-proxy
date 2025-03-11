@@ -1,9 +1,9 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { createClient, ensureAuthenticated, refreshSession } from '@/utils/supabase/client';
 import { useRouter, usePathname } from 'next/navigation';
-import { Session, User } from '@supabase/supabase-js';
+import { Session, User, AuthChangeEvent } from '@supabase/supabase-js';
 
 // Create context types
 type AuthContextType = {
@@ -11,20 +11,18 @@ type AuthContextType = {
   session: Session | null;
   isLoading: boolean;
   signOut: () => Promise<void>;
-  refreshSession: () => Promise<void>;
+  refreshUserSession: () => Promise<void>;
 };
 
-// Create the context with default values
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  session: null,
-  isLoading: true,
-  signOut: async () => {},
-  refreshSession: async () => {},
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Custom hook to use the auth context
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
 
 // Public paths that don't require authentication
 const publicPaths = [
@@ -46,14 +44,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isInitialized = useRef(false);
   const isRedirecting = useRef(false);
   const refreshTimer = useRef<NodeJS.Timeout | null>(null);
+  const supabase = createClient();
 
   // Function to refresh the session
-  const refreshUserSession = async () => {
+  const refreshUserSession = useCallback(async () => {
     try {
       const { data, error } = await refreshSession();
       
       if (error) {
         console.error('Error refreshing session:', error);
+        // Clear session on refresh error
+        setSession(null);
+        setUser(null);
         return;
       }
       
@@ -75,206 +77,135 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             refreshUserSession();
           }, refreshInMs);
         }
-      } else {
-        setSession(null);
-        setUser(null);
       }
     } catch (error) {
       console.error('Unexpected error refreshing session:', error);
+      // Clear session on critical error
+      setSession(null);
+      setUser(null);
     }
-  };
+  }, []);
 
-  // Sign out function
-  const signOut = async () => {
+  // Sign out function with enhanced error handling
+  const signOut = useCallback(async () => {
     try {
-      // Prevent multiple redirects
       if (isRedirecting.current) return;
       isRedirecting.current = true;
       
-      const supabase = createClient();
+      if (!supabase) {
+        throw new Error('Supabase client not initialized');
+      }
+      
+      // Clear the refresh timer
+      if (refreshTimer.current) {
+        clearTimeout(refreshTimer.current);
+        refreshTimer.current = null;
+      }
       
       await supabase.auth.signOut();
       setUser(null);
       setSession(null);
       
-      // Clear any problematic cookies
-      document.cookie = 'sb-refresh-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      document.cookie = 'sb-access-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      document.cookie = 'sb-auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      // Clear all auth-related cookies
+      const cookiesToClear = [
+        'sb-refresh-token',
+        'sb-access-token',
+        'sb-auth-token'
+      ];
+      
+      cookiesToClear.forEach(cookieName => {
+        document.cookie = `${cookieName}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=lax`;
+      });
       
       // Add a small delay before redirecting
       setTimeout(() => {
-        router.push('/sign-in');
+        router.push('/auth/sign-in');
         isRedirecting.current = false;
       }, 100);
     } catch (error) {
       console.error('Error signing out:', error);
       isRedirecting.current = false;
+      
+      // Force clear session on error
+      setUser(null);
+      setSession(null);
+      router.push('/auth/sign-in');
     }
-  };
+  }, [router, supabase]);
 
   // Initialize auth state
   useEffect(() => {
-    if (isInitialized.current) return;
-    isInitialized.current = true;
+    if (!supabase || isInitialized.current) return;
     
     const initializeAuth = async () => {
       setIsLoading(true);
       
       try {
-        const supabase = createClient();
-        
         // Get the initial session
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
         
-        if (error) {
-          console.error('Error getting session:', error);
-          setIsLoading(false);
+        if (sessionError) {
+          console.error('Error getting initial session:', sessionError);
           return;
         }
         
-        if (session) {
-          console.log('Initial session found:', session.user.id);
-          setSession(session);
-          setUser(session.user);
+        if (initialSession) {
+          setSession(initialSession);
+          setUser(initialSession.user);
           
-          // If user is authenticated but on a public path (like sign-in), redirect to dashboard
-          const isPublicPath = publicPaths.some(path => 
-            pathname === path || pathname?.startsWith(path + '/')
-          );
-          
-          if (isPublicPath && !isRedirecting.current && 
-              (pathname === '/auth/sign-in' || pathname === '/sign-in')) {
-            console.log('User is authenticated but on sign-in page, redirecting to dashboard');
-            isRedirecting.current = true;
-            
-            // Use a more reliable redirection approach
-            try {
-              // First try the Next.js router
-              router.push('/dashboard');
-              
-              // After a short delay, also try window.location for a full page navigation
-              setTimeout(() => {
-                if (isRedirecting.current) {
-                  console.log('Fallback redirection to dashboard from initialization');
-                  window.location.href = '/dashboard';
-                  isRedirecting.current = false;
-                }
-              }, 1000);
-            } catch (error) {
-              console.error('Error redirecting during initialization:', error);
-              isRedirecting.current = false;
-            }
-          }
-          
-          // Schedule refresh for 5 minutes before token expiry
-          const expiresAt = session.expires_at;
+          // Schedule refresh
+          const expiresAt = initialSession.expires_at;
           if (expiresAt) {
             const expiresInMs = (expiresAt - Math.floor(Date.now() / 1000)) * 1000;
-            const refreshInMs = Math.max(0, expiresInMs - 5 * 60 * 1000); // 5 minutes before expiry
+            const refreshInMs = Math.max(0, expiresInMs - 5 * 60 * 1000);
             
-            console.log(`Scheduling token refresh in ${Math.floor(refreshInMs / 1000 / 60)} minutes`);
             refreshTimer.current = setTimeout(() => {
               refreshUserSession();
             }, refreshInMs);
           }
-        } else {
-          console.log('No initial session found');
         }
         
         // Set up auth state change listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event: string, newSession: any) => {
+          async (event: AuthChangeEvent, newSession: Session | null) => {
             console.log('Auth state changed:', event);
             
-            // Handle token refresh events
             if (event === 'TOKEN_REFRESHED') {
-              console.log('Token refreshed event received');
-              // Only update the session if user IDs match or if we don't have a current session
               if (!session || (newSession && session?.user?.id === newSession?.user?.id)) {
-                // Only update the session, don't trigger redirects
+                setSession(newSession);
+                setUser(newSession?.user ?? null);
+                
+                // Schedule next refresh
                 if (newSession) {
-                  console.log('Updating session after token refresh');
-                  setSession(newSession);
-                  setUser(newSession.user);
-                  
-                  // Schedule the next refresh
-                  if (refreshTimer.current) {
-                    clearTimeout(refreshTimer.current);
-                  }
-                  
                   const expiresAt = newSession.expires_at;
                   if (expiresAt) {
                     const expiresInMs = (expiresAt - Math.floor(Date.now() / 1000)) * 1000;
-                    const refreshInMs = Math.max(0, expiresInMs - 5 * 60 * 1000); // 5 minutes before expiry
+                    const refreshInMs = Math.max(0, expiresInMs - 5 * 60 * 1000);
                     
-                    console.log(`Scheduling next token refresh in ${Math.floor(refreshInMs / 1000 / 60)} minutes`);
+                    if (refreshTimer.current) {
+                      clearTimeout(refreshTimer.current);
+                    }
+                    
                     refreshTimer.current = setTimeout(() => {
                       refreshUserSession();
                     }, refreshInMs);
                   }
                 }
               }
-              return;
-            }
-            
-            if (event === 'SIGNED_IN') {
-              console.log('Sign in event received');
-              if (newSession) {
-                setSession(newSession);
-                setUser(newSession.user);
-                
-                // If we're on a public path, redirect to dashboard
-                const isPublicPath = publicPaths.some(path => 
-                  pathname === path || pathname?.startsWith(path + '/')
-                );
-                
-                if (isPublicPath && !isRedirecting.current) {
-                  console.log('Redirecting to dashboard after sign in from AuthProvider');
-                  isRedirecting.current = true;
-                  
-                  // Use a more reliable redirection approach
-                  try {
-                    // First try the Next.js router
-                    router.push('/dashboard');
-                    
-                    // After a short delay, also try window.location for a full page navigation
-                    setTimeout(() => {
-                      if (isRedirecting.current) {
-                        console.log('Fallback redirection to dashboard from AuthProvider');
-                        window.location.href = '/dashboard';
-                        isRedirecting.current = false;
-                      }
-                    }, 1000);
-                  } catch (error) {
-                    console.error('Error redirecting after sign in:', error);
-                    isRedirecting.current = false;
-                  }
-                }
-              }
             } else if (event === 'SIGNED_OUT') {
-              console.log('Sign out event received');
               setSession(null);
               setUser(null);
-              
-              // Only redirect if we're not already on a public path
-              const isPublicPath = publicPaths.some(path => 
-                pathname === path || pathname?.startsWith(path + '/')
-              );
-              
-              if (!isPublicPath && !pathname?.startsWith('/auth/') && !isRedirecting.current) {
-                console.log('Redirecting to sign in after sign out');
-                isRedirecting.current = true;
-                setTimeout(() => {
-                  router.push('/sign-in');
-                  isRedirecting.current = false;
-                }, 100);
+              if (refreshTimer.current) {
+                clearTimeout(refreshTimer.current);
+                refreshTimer.current = null;
               }
+            } else if (newSession) {
+              setSession(newSession);
+              setUser(newSession.user);
             }
           }
         );
         
-        // Return cleanup function
         return () => {
           subscription.unsubscribe();
           if (refreshTimer.current) {
@@ -282,29 +213,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         };
       } catch (error) {
-        console.error('Unexpected error initializing auth:', error);
+        console.error('Error initializing auth:', error);
       } finally {
         setIsLoading(false);
+        isInitialized.current = true;
       }
     };
-
-    // Initialize auth and store the cleanup function
-    let cleanupFn: (() => void) | undefined;
     
-    // Start the initialization process
-    initializeAuth().then(cleanup => {
-      cleanupFn = cleanup;
-    }).catch(err => {
-      console.error('Error in auth initialization:', err);
-    });
-    
-    // Clean up subscription on unmount
-    return () => {
-      if (cleanupFn) {
-        cleanupFn();
-      }
-    };
-  }, [router, pathname]);
+    initializeAuth();
+  }, [supabase, session, refreshUserSession]);
 
   // Redirect logic for protected routes - only run once after loading
   useEffect(() => {
@@ -342,8 +259,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, isLoading, pathname, router]);
 
+  // Provide the auth context
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, signOut, refreshSession: refreshUserSession }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        isLoading,
+        signOut,
+        refreshUserSession,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

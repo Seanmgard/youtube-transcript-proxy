@@ -1,34 +1,29 @@
-// @ts-nocheck
 import { NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/server';
+import { createClient } from '@/lib/supabase/server';
+import type { Database } from '@/lib/database.types';
 
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const quizId = searchParams.get('id');
+    const quizIdParam = searchParams.get('id');
 
-    if (!quizId) {
+    if (!quizIdParam) {
       return NextResponse.json(
         { error: 'Quiz ID is required' },
         { status: 400 }
       );
     }
 
-    // Create a new supabase client
+    // Explicitly type quizId as string to match Database type
+    const quizId: Database['public']['Tables']['quizzes']['Row']['id'] = quizIdParam;
+
     const supabase = await createClient();
 
-    // Get the current user using getUser() for better security
+    // Get the current user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
-    if (userError) {
+    if (userError || !user) {
       console.error('Authentication error:', userError);
-      return NextResponse.json(
-        { error: 'Authentication failed: ' + userError.message },
-        { status: 401 }
-      );
-    }
-    
-    if (!user) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
@@ -39,7 +34,7 @@ export async function DELETE(request: Request) {
     const { data: quiz, error: quizError } = await supabase
       .from('quizzes')
       .select('user_id')
-      .eq('id', quizId)
+      .eq('id', quizId as string)
       .single();
 
     if (quizError) {
@@ -61,7 +56,7 @@ export async function DELETE(request: Request) {
     const { error: progressError } = await supabase
       .from('learning_progress')
       .delete()
-      .eq('quiz_id', quizId);
+      .eq('quiz_id', quizId as string);
       
     if (progressError) {
       console.error('Error deleting learning progress:', progressError);
@@ -72,7 +67,7 @@ export async function DELETE(request: Request) {
     const { error: deleteError } = await supabase
       .from('quizzes')
       .delete()
-      .eq('id', quizId);
+      .eq('id', quizId as string);
 
     if (deleteError) {
       console.error('Error deleting quiz:', deleteError);

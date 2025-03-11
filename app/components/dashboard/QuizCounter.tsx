@@ -87,9 +87,9 @@ export function QuizCounter() {
       hasAttemptedFetch.current = true;
       
       try {
-        // Pass the user ID as the first parameter and true as the second parameter for forceRefresh
+        // Only pass the forceRefresh parameter
         if (user.id) {
-          fetchSubscription(user.id, true).catch(err => {
+          fetchSubscription(true).catch(err => {
             console.error('Error fetching subscription:', err);
           });
         }

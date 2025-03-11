@@ -1,54 +1,105 @@
 import { createServerClient } from "@supabase/ssr";
 import { Database } from "@/lib/database.types";
-import { cookies } from "next/headers";
+import { getCookieOptions } from "./cookies-helper";
+import { cache } from 'react';
 
-// Create a server-side Supabase client
-export function createServerSupabaseClient() {
-  return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        flowType: 'pkce',
-      },
-      cookies: {
-        get(name) {
-          try {
-            // In server components, we need to use a synchronous approach
-            // This is a workaround for the fact that cookies() returns a Promise
-            const allCookies = document.cookie.split('; ');
-            const targetCookie = allCookies.find(c => c.startsWith(`${name}=`));
-            if (targetCookie) {
-              return targetCookie.split('=')[1];
-            }
-            return undefined;
-          } catch (error) {
-            // If we're in a server environment where document is not available
-            console.log(`Getting cookie ${name} (server-side)`);
-            return undefined;
-          }
-        },
-        set(name, value, options) {
-          try {
-            // This is a server-side function, so we can't set cookies directly
-            console.log(`Setting cookie ${name} (server-side)`);
-          } catch (error) {
-            console.error(`Error setting cookie ${name}:`, error);
-          }
-        },
-        remove(name, options) {
-          try {
-            // This is a server-side function, so we can't remove cookies directly
-            console.log(`Removing cookie ${name} (server-side)`);
-          } catch (error) {
-            console.error(`Error removing cookie ${name}:`, error);
-          }
-        },
-      },
+// Cache the server-side Supabase client creation to prevent multiple instances
+export const createServerSupabaseClient = cache(async () => {
+  try {
+    const cookieMethods = await getCookieOptions();
+    
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      throw new Error('Missing Supabase environment variables');
     }
-  );
+    
+    return createServerClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        auth: {
+          persistSession: false, // Don't persist the session on the server
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          flowType: 'pkce',
+        },
+        cookies: cookieMethods,
+        cookieOptions: {
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          httpOnly: true,
+        },
+      }
+    );
+  } catch (error) {
+    console.error('Error creating server Supabase client:', error);
+    throw error;
+  }
+});
+
+// Helper function to validate a session
+export async function validateSession(accessToken?: string) {
+  try {
+    const supabase = await createServerSupabaseClient();
+    
+    if (!accessToken) {
+      return { user: null, error: new Error('No access token provided') };
+    }
+    
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    
+    if (error) {
+      console.error('Error validating session:', error);
+      return { user: null, error };
+    }
+    
+    return { user, error: null };
+  } catch (error) {
+    console.error('Error in validateSession:', error);
+    return { user: null, error };
+  }
+}
+
+// Helper function to refresh a session
+export async function refreshServerSession(refreshToken?: string) {
+  try {
+    const supabase = await createServerSupabaseClient();
+    
+    if (!refreshToken) {
+      return { session: null, error: new Error('No refresh token provided') };
+    }
+    
+    const { data, error } = await supabase.auth.refreshSession({
+      refresh_token: refreshToken,
+    });
+    
+    if (error) {
+      console.error('Error refreshing session:', error);
+      return { session: null, error };
+    }
+    
+    return { session: data.session, error: null };
+  } catch (error) {
+    console.error('Error in refreshServerSession:', error);
+    return { session: null, error };
+  }
+}
+
+// Helper function to get current session
+export async function getServerSession() {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data: { session }, error } = await supabase.auth.getSession();
+    
+    if (error) {
+      console.error('Error getting server session:', error);
+      return { session: null, error };
+    }
+    
+    return { session, error: null };
+  } catch (error) {
+    console.error('Error in getServerSession:', error);
+    return { session: null, error };
+  }
 }
 
 // For compatibility with existing code that uses createClient

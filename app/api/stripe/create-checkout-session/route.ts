@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createCheckoutSession, getPriceId, getStripeInstance } from '@/utils/stripe';
-import { createClient } from '@/utils/supabase/server';
+import { createClient } from '@/lib/supabase/server';
+import type { Database } from '@/lib/database.types';
 
 // Set the runtime to nodejs to avoid Edge Runtime issues with cookies
 export const runtime = 'nodejs';
 
-// Create a server-side Supabase client for server-side operations
-const supabase = createClient();
-
 export async function POST(request: Request) {
   try {
+    // Initialize Supabase client inside the handler
+    const supabase = await createClient();
+
     // Get the user ID from the authorization header
     const authHeader = request.headers.get('authorization');
     let userId: string | null = null;
@@ -110,11 +111,11 @@ export async function POST(request: Request) {
       // Get the user's email from auth if not in profile
       let userEmail = profile.email;
       if (!userEmail) {
-        const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
-        if (userError || !userData.user) {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
           console.error('Error fetching user email:', userError);
         } else {
-          userEmail = userData.user.email;
+          userEmail = user.email;
         }
       }
 
@@ -135,8 +136,14 @@ export async function POST(request: Request) {
         // Update the user's subscription record with the Stripe customer ID
         const { error: updateError } = await supabase
           .from('subscriptions')
-          .update({ stripe_customer_id: customerId })
-          .eq('user_id', userId);
+          .insert({
+            user_id: userId,
+            stripe_customer_id: customerId,
+            status: 'incomplete',
+            plan_type: planType,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
           
         if (updateError) {
           console.error('Error updating subscription with customer ID:', updateError);

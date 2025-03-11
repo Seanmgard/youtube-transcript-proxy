@@ -25,7 +25,7 @@ export default function useAuthRedirect({
     
     const checkSession = async () => {
       try {
-        const supabase = createClient();
+        const supabase = await createClient();
         if (!supabase) {
           if (isMounted) {
             setLoading(false);
@@ -65,34 +65,40 @@ export default function useAuthRedirect({
     checkSession();
 
     // Set up auth state change listener
-    const supabase = createClient();
-    if (supabase) {
-      const { data: listener } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, newSession: Session | null) => {
-        if (isMounted) {
-          setSession(newSession);
-          
-          // Handle redirects on auth state change
-          if (newSession) {
-            if (authRoute) {
-              router.replace(redirectTo);
-            }
-          } else {
-            if (protectedRoute) {
-              router.replace(`/auth/sign-in?redirectedFrom=${encodeURIComponent(window.location.pathname)}`);
+    const setupListener = async () => {
+      const supabase = await createClient();
+      if (supabase) {
+        const { data: listener } = supabase.auth.onAuthStateChange(
+          (event: AuthChangeEvent, newSession: Session | null) => {
+            if (isMounted) {
+              setSession(newSession);
+              
+              // Handle redirects on auth state change
+              if (newSession) {
+                if (authRoute) {
+                  router.replace(redirectTo);
+                }
+              } else {
+                if (protectedRoute) {
+                  router.replace(`/auth/sign-in?redirectedFrom=${encodeURIComponent(window.location.pathname)}`);
+                }
+              }
             }
           }
-        }
-      });
+        );
 
-      // Clean up listener
-      return () => {
-        isMounted = false;
-        listener.subscription.unsubscribe();
-      };
-    }
+        return listener;
+      }
+    };
+
+    let listener: { subscription: { unsubscribe: () => void } } | undefined;
+    setupListener().then(result => {
+      listener = result;
+    });
 
     return () => {
       isMounted = false;
+      listener?.subscription.unsubscribe();
     };
   }, [authRoute, protectedRoute, redirectTo, router]);
 

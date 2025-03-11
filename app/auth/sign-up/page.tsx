@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,12 +9,10 @@ import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 
-// Create a separate component for the sign-up form
-function SignUpForm() {
+export default function SignUp() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
   const [loading, setLoading] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
   const { toast } = useToast()
@@ -48,74 +46,59 @@ function SignUpForm() {
     setLoading(true)
     
     try {
-      // Form validation
-      if (!email || !password || !firstName || !lastName) {
-        throw new Error('Please fill in all required fields');
-      }
-      
       // Get the Supabase client - properly awaited
       const supabase = await createClient();
       
-      // First check if the email already exists
-      const { data: existingUsers, error: lookupError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', email)
-        .limit(1);
-        
-      if (lookupError) {
-        console.error('Error checking existing user:', lookupError);
-      } else if (existingUsers && existingUsers.length > 0) {
-        throw new Error('This email is already registered. Please sign in instead.');
-      }
-      
-      // Use direct Supabase auth instead of the API route
-      // This avoids potential issues with cookie handling between client and server
+      // Use direct Supabase auth
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             first_name: firstName,
-            last_name: lastName,
           },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
-      });
+      })
       
       if (error) {
-        console.error('Sign-up error:', error);
-        throw error;
+        throw error
       }
       
-      // Check if email confirmation is needed
-      const emailConfirmationNeeded = data?.user && !data.session;
-      
-      if (emailConfirmationNeeded) {
+      if (data?.user) {
+        // Create a profile record
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([
+            { 
+              id: data.user.id,
+              first_name: firstName,
+              email: email,
+            },
+          ])
+        
+        if (profileError) {
+          console.error('Error creating profile:', profileError)
+          // Continue anyway - the profile might be created by a trigger
+        }
+        
         toast({
           title: 'Account created successfully',
-          description: 'Please check your email for a confirmation link.',
-        });
-      } else {
-        toast({
-          title: 'Account created successfully',
-          description: 'You can now sign in with your new account.',
-        });
+          description: 'Please check your email to confirm your account.',
+        })
+        
+        // Add a delay before redirecting
+        setTimeout(() => {
+          router.push('/sign-in')
+        }, 1000)
       }
-      
-      // Redirect to sign-in page
-      setTimeout(() => {
-        router.push('/auth/sign-in');
-      }, 1500);
     } catch (error: any) {
-      console.error('Sign-up error:', error);
       toast({
         title: 'Error creating account',
         description: error.message || 'An error occurred during sign up',
         variant: 'destructive',
-      });
+      })
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
   }
 
@@ -129,86 +112,83 @@ function SignUpForm() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center py-2">
-      <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
-        <div className="flex flex-col space-y-2 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Create an account</h1>
-          <p className="text-sm text-muted-foreground">
-            Enter your details below to create your account
-          </p>
+    <div className="flex min-h-screen flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8 pt-24">
+      <div className="w-full max-w-md space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight">
+            Create your account
+          </h2>
         </div>
-        <div className="grid gap-6">
-          <form onSubmit={handleSignUp}>
-            <div className="grid gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First name</Label>
-                  <Input
-                    id="firstName"
-                    placeholder="John"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last name</Label>
-                  <Input
-                    id="lastName"
-                    placeholder="Doe"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  placeholder="name@example.com"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Creating account...' : 'Create account'}
-              </Button>
+
+        <form onSubmit={handleSignUp} className="mt-8 space-y-6">
+          <div className="space-y-4 rounded-md shadow-sm">
+            <div>
+              <Label htmlFor="firstName">First Name</Label>
+              <Input
+                id="firstName"
+                name="firstName"
+                type="text"
+                autoComplete="given-name"
+                required
+                className="mt-1"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+              />
             </div>
-          </form>
-        </div>
-        <div className="px-8 text-center text-sm text-muted-foreground">
+
+            <div>
+              <Label htmlFor="email">Email address</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                className="mt-1"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                required
+                className="mt-1"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Password must be at least 6 characters
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading}
+            >
+              {loading ? 'Creating account...' : 'Sign up'}
+            </Button>
+          </div>
+        </form>
+
+        <p className="mt-2 text-center text-sm text-gray-600">
           Already have an account?{' '}
-          <Link href="/auth/sign-in" className="underline underline-offset-4 hover:text-primary">
+          <Link
+            href="/auth/sign-in"
+            className="font-medium text-primary hover:text-primary/80"
+          >
             Sign in
           </Link>
-        </div>
+        </p>
       </div>
     </div>
-  )
-}
-
-// Main component with Suspense boundary
-export default function SignUp() {
-  return (
-    <Suspense fallback={
-      <div className="flex min-h-screen flex-col items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    }>
-      <SignUpForm />
-    </Suspense>
   )
 } 

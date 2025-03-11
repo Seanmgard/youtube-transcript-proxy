@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getStripeInstance } from '@/utils/stripe';
-import { createClient } from '@/utils/supabase/server';
+import { createClient } from '@/lib/supabase/server';
+import type { Database } from '@/lib/database.types';
 
-// Import the PRICE_IDs from the stripe utils
+// Import the PRICE_IDs from environment variables
 const PRICE_IDS = {
   premium: process.env.STRIPE_PREMIUM_PLAN_PRICE_ID || '',
   premium_annual: process.env.STRIPE_PREMIUM_ANNUAL_PLAN_PRICE_ID || '',
@@ -11,11 +12,11 @@ const PRICE_IDS = {
 // Set the runtime to nodejs to avoid Edge Runtime issues with cookies
 export const runtime = 'nodejs';
 
-// Use the server-side createClient function
-const supabase = createClient();
-
 export async function POST(request: Request) {
   try {
+    // Initialize Supabase client inside the handler
+    const supabase = await createClient();
+
     // Get the request body
     const body = await request.json();
     const { userId, forceUpdate } = body;
@@ -177,13 +178,13 @@ export async function POST(request: Request) {
             .eq('user_id', validatedUserId)
             .single();
             
-            console.log('Updated subscription data:', JSON.stringify(verifySubscription));
-            
-            return NextResponse.json({
-              success: true,
-              message: 'Subscription updated successfully',
-              subscription: verifySubscription,
-            });
+          console.log('Updated subscription data:', JSON.stringify(verifySubscription));
+          
+          return NextResponse.json({
+            success: true,
+            message: 'Subscription updated successfully',
+            subscription: verifySubscription,
+          });
         } else {
           console.log(`No active Stripe subscriptions found for customer ${subscription.stripe_customer_id}`);
           

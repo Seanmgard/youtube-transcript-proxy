@@ -83,7 +83,7 @@ export function useSubscription() {
   };
 
   // Fetch the user's subscription
-  const fetchSubscription = useCallback(async (userId?: string, forceRefresh = false) => {
+  const fetchSubscription = useCallback(async (forceRefresh = false) => {
     try {
       // Prevent concurrent fetches and implement debouncing
       if (fetchInProgress) {
@@ -113,10 +113,7 @@ export function useSubscription() {
       setIsLoading(true);
       setError(null);
 
-      // Use provided userId or fall back to user from context
-      const currentUserId = userId || user?.id;
-
-      if (!currentUserId) {
+      if (!user) {
         // Not authenticated, just set a null subscription and don't show an error
         setSubscription(null);
         setIsLoading(false);
@@ -133,20 +130,19 @@ export function useSubscription() {
         const { data: subscriptionData, error: subscriptionError } = await supabase
           .from('subscriptions')
           .select('*')
-          .eq('user_id', currentUserId)
+          .eq('user_id', user.id)
           .single();
         
         if (subscriptionError) {
           if (subscriptionError.code === 'PGRST116') {
             // No subscription found, try to create a default one
-            console.log(`No subscription found for user ${currentUserId}, creating default`);
+            console.log(`No subscription found for user ${user.id}, creating default`);
             
             try {
-              const defaultSubscription = await createDefaultSubscription(currentUserId);
+              const defaultSubscription = await createDefaultSubscription(user.id);
               setSubscription(defaultSubscription);
               lastSubscriptionRefresh = now;
               errorCount = 0; // Reset error count on success
-              return defaultSubscription;
             } catch (createError: any) {
               console.error('Error creating default subscription:', createError);
               
@@ -158,7 +154,7 @@ export function useSubscription() {
                 // Create a client-side fallback subscription object
                 const fallbackSubscription: Subscription = {
                   id: `fallback-${uuidv4()}`,
-                  user_id: currentUserId,
+                  user_id: user.id,
                   stripe_customer_id: null,
                   stripe_subscription_id: null,
                   stripe_price_id: null,
@@ -201,7 +197,6 @@ export function useSubscription() {
           setSubscription(subscriptionData);
           lastSubscriptionRefresh = now;
           errorCount = 0; // Reset error count on success
-          return subscriptionData;
         }
       } catch (error: any) {
         console.error('Unexpected error in fetchSubscription:', error);
@@ -475,7 +470,7 @@ export function useSubscription() {
       // Only fetch if we haven't fetched recently
       const now = Date.now();
       if (now - lastSubscriptionRefresh > REFRESH_COOLDOWN || !subscription) {
-        fetchSubscription(user.id, false);
+        fetchSubscription(false);
       }
     } else {
       setSubscription(null);
@@ -515,8 +510,7 @@ export function useSubscription() {
                 // Only fetch if we haven't fetched recently
                 const now = Date.now();
                 if (now - lastSubscriptionRefresh > REFRESH_COOLDOWN) {
-                  // Use the current user ID when calling fetchSubscription
-                  fetchSubscription(user?.id, true);
+                  fetchSubscription(true);
                 }
               }, 500);
             }
@@ -528,7 +522,7 @@ export function useSubscription() {
               // Only fetch if we haven't fetched recently
               const now = Date.now();
               if (now - lastSubscriptionRefresh > REFRESH_COOLDOWN || !subscription) {
-                fetchSubscription(user?.id, false);
+                fetchSubscription(false);
               }
             }
           });

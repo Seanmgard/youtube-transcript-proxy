@@ -1,7 +1,8 @@
-// @ts-nocheck
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { createServerSupabaseClient } from '@/utils/supabase/server';
+import type { Database } from '@/lib/database.types';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 export async function POST(request: Request) {
   try {
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
     }
 
     // Get the current user using server-side Supabase client
-    const supabase = await createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient() as SupabaseClient<Database>;
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session || !session.user) {
@@ -28,12 +29,15 @@ export async function POST(request: Request) {
     }
 
     const user = session.user;
+    
+    // Explicitly type user ID to match profiles table
+    const userId: Database['public']['Tables']['profiles']['Row']['id'] = user.id;
 
     // Get user profile information
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('*')
-      .eq('id', user.id)
+      .select('first_name,last_name')
+      .eq('id', userId)
       .single();
 
     if (profileError) {
@@ -65,6 +69,11 @@ export async function POST(request: Request) {
     const recipientEmail = process.env.CONTACT_EMAIL || 'support@quizlabai.com';
     const senderEmail = process.env.SMTP_SENDER || 'noreply@quizlabai.com';
 
+    // Format user's full name if available
+    const userFullName = profile && !profileError ? 
+      `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 
+      user.email;
+
     // Prepare email content
     const mailOptions = {
       from: senderEmail,
@@ -72,23 +81,23 @@ export async function POST(request: Request) {
       replyTo: user.email,
       subject: `QuizLab AI Feature Suggestion: ${title}`,
       text: `
-Feature Suggestion from ${profile?.full_name || user.email}
+Feature Suggestion from ${userFullName}
 
 Title: ${title}
 Description:
 ${description}
 
-User ID: ${user.id}
+User ID: ${userId}
 User Email: ${user.email}
       `,
       html: `
 <h2>New Feature Suggestion</h2>
-<p><strong>From:</strong> ${profile?.full_name || user.email}</p>
+<p><strong>From:</strong> ${userFullName}</p>
 <p><strong>Title:</strong> ${title}</p>
 <p><strong>Description:</strong></p>
 <p>${description.replace(/\n/g, '<br>')}</p>
 <hr>
-<p><strong>User ID:</strong> ${user.id}</p>
+<p><strong>User ID:</strong> ${userId}</p>
 <p><strong>User Email:</strong> ${user.email}</p>
       `,
     };
@@ -107,16 +116,18 @@ User Email: ${user.email}
 
     // Store the suggestion in the database
     try {
+      const suggestionData: Database['public']['Tables']['feature_suggestions']['Insert'] = {
+        user_id: userId,
+        title,
+        description,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
       const { data, error } = await supabase
         .from('feature_suggestions')
-        .insert([
-          {
-            user_id: user.id,
-            title,
-            description,
-            status: 'pending',
-          },
-        ]);
+        .insert(suggestionData);
 
       if (error) {
         console.error('Error storing suggestion in database:', error);

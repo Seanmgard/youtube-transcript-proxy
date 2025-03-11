@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server';
-import { createCustomerPortalSession, getStripeInstance } from '@/utils/stripe';
-import { createClient } from '@/utils/supabase/server';
+import { createCustomerPortalSession } from '@/utils/stripe';
+import { createClient } from '@/lib/supabase/server';
+import type { Database } from '@/lib/database.types';
 
 // Set the runtime to nodejs to avoid Edge Runtime issues with cookies
 export const runtime = 'nodejs';
 
-// Use the server-side createClient function
-const supabase = createClient();
-
 export async function POST(request: Request) {
   try {
+    // Initialize Supabase client inside the handler
+    const supabase = await createClient();
+
     // Get the user ID from the authorization header
     const authHeader = request.headers.get('authorization');
     let userId: string | null = null;

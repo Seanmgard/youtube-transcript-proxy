@@ -1,11 +1,11 @@
-// @ts-nocheck
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { v4 as uuidv4 } from 'uuid'
-import { createClient } from '@/utils/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { getCookieOptions } from '@/utils/supabase/cookies-helper'
+import type { Database } from "@/lib/database.types"
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -416,10 +416,13 @@ Example format (follow this exactly):
                       const startDate = firstDayOfMonth.toISOString();
                       const endDate = lastDayOfMonth.toISOString();
                       
+                      // Explicitly type userId to match Database type
+                      const userId: Database['public']['Tables']['quizzes']['Row']['user_id'] = user.id;
+
                       const { count, error: countError } = await supabase
                         .from('quizzes')
                         .select('*', { count: 'exact', head: true })
-                        .eq('user_id', user.id)
+                        .eq('user_id', userId as string)
                         .gte('created_at', startDate)
                         .lte('created_at', endDate);
                       
@@ -451,19 +454,23 @@ Example format (follow this exactly):
                       }
                     }
                     
-                    // Now insert the quiz
+                    // Now insert the quiz with proper typing
                     const quizId = uuidv4();
+                    const quizData: Database['public']['Tables']['quizzes']['Insert'] = {
+                      id: quizId,
+                      title: quizTitle,
+                      user_id: user.id,
+                      questions,
+                      description: null,
+                      subject: null,
+                      category: null,
+                      created_at: new Date().toISOString(),
+                      updated_at: new Date().toISOString()
+                    };
+
                     const { error: dbError } = await supabase
                       .from('quizzes')
-                      .insert({
-                        id: quizId,
-                        title: quizTitle,
-                        user_id: user.id,
-                        questions,
-                        settings,
-                        pdf_url: '',
-                        created_at: new Date().toISOString(),
-                      });
+                      .insert(quizData);
 
                     if (dbError) {
                       console.error('DB insert error:', dbError);
