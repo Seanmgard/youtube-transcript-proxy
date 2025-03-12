@@ -133,17 +133,17 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex items-center gap-2 mb-6">
+    <div className="space-y-6 max-w-6xl mx-auto px-4 sm:px-6">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-6">
         <Link href="/dashboard">
-          <Button variant="outline" size="icon">
+          <Button variant="outline" size="icon" className="w-10 h-10 mb-2 sm:mb-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="text-3xl font-bold">Quiz History</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold">Quiz History</h1>
       </div>
 
-      <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+      <div className="p-4 sm:p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
         <h2 className="text-xl font-semibold mb-6">All Quizzes</h2>
         <QuizHistory showAll={true} user={user} supabase={supabase} />
       </div>

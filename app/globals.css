@@ -30,6 +30,28 @@
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
   }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+  }
 }
 
 @layer base {
@@ -38,6 +60,17 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  
+  /* Improve text readability on mobile */
+  @media (max-width: 640px) {
+    html {
+      font-size: 15px;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+      word-break: break-word;
+    }
   }
 }
 
@@ -56,4 +89,40 @@
 
 .rotate-y-180 {
   transform: rotateY(180deg);
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  /* Ensure buttons have enough touch target size */
+  button, 
+  .btn,
+  [role="button"],
+  a.button,
+  input[type="button"],
+  input[type="submit"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Improve form elements on mobile */
+  input, 
+  select, 
+  textarea {
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
+  }
+  
+  /* Ensure proper spacing in mobile layouts */
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Fix dark mode text contrast issues */
+.dark .text-gray-500 {
+  color: rgba(209, 213, 219, 0.8) !important;
+}
+
+.dark .text-gray-400 {
+  color: rgba(229, 231, 235, 0.8) !important;
 }
