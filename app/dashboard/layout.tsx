@@ -123,14 +123,14 @@ export default function DashboardLayout({
       />
       
       {/* Main Content */}
-      <div className="md:ml-64 min-h-screen pt-20 transition-all duration-300">
+      <div className="ml-64 min-h-screen pt-16">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mx-6 mt-6">
             <p>{error}</p>
             <p className="text-sm mt-1">You can continue using the dashboard with limited functionality.</p>
           </div>
         )}
-        <div className="container mx-auto px-4 sm:px-6 md:px-8 py-6">
+        <div className="container mx-auto p-6 md:p-8">
           {children}
         </div>
       </div>
