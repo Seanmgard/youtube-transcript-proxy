@@ -497,118 +497,199 @@ export default function QuizUploader({ onQuizGenerated, initialQuiz, onSaveCompl
 
   return (
     <div className="space-y-6">
-      {/* File Upload */}
-      <div>
-        <Label htmlFor="pdf-upload" className="block mb-2">Upload PDF</Label>
-        <Input
-          id="pdf-upload"
-          type="file"
-          accept=".pdf"
-          onChange={handleFileChange}
-          className="cursor-pointer"
-        />
-      </div>
-
-      {/* Quiz Settings */}
-      <div className="grid grid-cols-1 gap-6">
-        {/* Number of Questions */}
-        <div>
-          <div className="flex justify-between mb-2">
-            <Label>Number of Questions</Label>
-            <span className="text-sm text-gray-500">
-              {settings.numberOfQuestions} questions
-              {!isPremium && (
-                <span className="ml-1 text-xs text-amber-500">
-                  (Max {maxQuestions} for free users)
-                </span>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6">
+        <h2 className="text-xl font-semibold mb-4">Upload PDF</h2>
+        
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* File Upload */}
+          <div className="space-y-2">
+            <Label htmlFor="pdf-upload" className="block text-sm font-medium">
+              Upload PDF Document
+            </Label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Input
+                id="pdf-upload"
+                type="file"
+                accept="application/pdf"
+                onChange={handleFileChange}
+                className="flex-1 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                disabled={isGenerating}
+              />
+              {file && (
+                <div className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-full">
+                  {file.name}
+                </div>
               )}
-            </span>
+            </div>
           </div>
-          <Slider
-            value={[settings.numberOfQuestions]}
-            min={1}
-            max={maxQuestions}
-            step={1}
-            onValueChange={(value) => setSettings({ ...settings, numberOfQuestions: value[0] })}
-          />
-        </div>
 
-        {/* Difficulty Level */}
-        <div>
-          <Label className="block mb-2">Difficulty Level</Label>
-          <RadioGroup
-            value={settings.difficulty}
-            onValueChange={(value) => setSettings({ ...settings, difficulty: value as 'easy' | 'medium' | 'hard' })}
-            className="flex flex-col space-y-1"
+          {/* Quiz Settings */}
+          <div className="space-y-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+            <h3 className="text-lg font-medium">Quiz Settings</h3>
+            
+            {/* Number of Questions */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label htmlFor="question-count" className="text-sm font-medium">
+                  Number of Questions: {settings.numberOfQuestions}
+                </Label>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  Max: {maxQuestions}
+                </span>
+              </div>
+              <div className="px-2">
+                <Slider
+                  id="question-count"
+                  min={1}
+                  max={maxQuestions}
+                  step={1}
+                  value={[settings.numberOfQuestions]}
+                  onValueChange={(value) => {
+                    setSettings({
+                      ...settings,
+                      numberOfQuestions: value[0],
+                    });
+                  }}
+                  disabled={isGenerating}
+                />
+              </div>
+            </div>
+            
+            {/* Difficulty */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Difficulty</Label>
+              <div className="grid grid-cols-1 xs:grid-cols-3 gap-3">
+                <div className="flex items-center space-x-2">
+                  <input 
+                    type="radio" 
+                    id="easy" 
+                    name="difficulty" 
+                    value="easy" 
+                    checked={settings.difficulty === 'easy'} 
+                    onChange={() => setSettings({...settings, difficulty: 'easy'})}
+                    className="h-4 w-4 text-primary"
+                    disabled={isGenerating}
+                  />
+                  <Label htmlFor="easy" className="cursor-pointer text-sm whitespace-nowrap">Easy</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input 
+                    type="radio" 
+                    id="medium" 
+                    name="difficulty" 
+                    value="medium" 
+                    checked={settings.difficulty === 'medium'} 
+                    onChange={() => setSettings({...settings, difficulty: 'medium'})}
+                    className="h-4 w-4 text-primary"
+                    disabled={isGenerating}
+                  />
+                  <Label htmlFor="medium" className="cursor-pointer text-sm whitespace-nowrap">Medium</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input 
+                    type="radio" 
+                    id="hard" 
+                    name="difficulty" 
+                    value="hard" 
+                    checked={settings.difficulty === 'hard'} 
+                    onChange={() => setSettings({...settings, difficulty: 'hard'})}
+                    className="h-4 w-4 text-primary"
+                    disabled={isGenerating}
+                  />
+                  <Label htmlFor="hard" className="cursor-pointer text-sm whitespace-nowrap">Hard</Label>
+                </div>
+              </div>
+            </div>
+            
+            {/* Question Type */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Question Type</Label>
+              <div className="grid grid-cols-1 xs:grid-cols-3 gap-3">
+                <div className="flex items-center space-x-2">
+                  <input 
+                    type="radio" 
+                    id="multiple_choice" 
+                    name="questionType" 
+                    value="multiple_choice" 
+                    checked={settings.questionType === 'multiple_choice'} 
+                    onChange={() => setSettings({...settings, questionType: 'multiple_choice'})}
+                    className="h-4 w-4 text-primary"
+                    disabled={isGenerating}
+                  />
+                  <Label htmlFor="multiple_choice" className="cursor-pointer text-sm whitespace-nowrap">Multiple Choice</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input 
+                    type="radio" 
+                    id="open_ended" 
+                    name="questionType" 
+                    value="open_ended" 
+                    checked={settings.questionType === 'open_ended'} 
+                    onChange={() => setSettings({...settings, questionType: 'open_ended'})}
+                    className="h-4 w-4 text-primary"
+                    disabled={isGenerating}
+                  />
+                  <Label htmlFor="open_ended" className="cursor-pointer text-sm whitespace-nowrap">Open Ended</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input 
+                    type="radio" 
+                    id="mixed" 
+                    name="questionType" 
+                    value="mixed" 
+                    checked={settings.questionType === 'mixed'} 
+                    onChange={() => setSettings({...settings, questionType: 'mixed'})}
+                    className="h-4 w-4 text-primary"
+                    disabled={isGenerating}
+                  />
+                  <Label htmlFor="mixed" className="cursor-pointer text-sm whitespace-nowrap">Mixed</Label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Submit Button */}
+          <Button 
+            type="submit" 
+            className="w-full sm:w-auto"
+            disabled={!file || isGenerating}
           >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="easy" id="easy" />
-              <Label htmlFor="easy">Easy</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="medium" id="medium" />
-              <Label htmlFor="medium">Medium</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="hard" id="hard" />
-              <Label htmlFor="hard">Hard</Label>
-            </div>
-          </RadioGroup>
-        </div>
-
-        {/* Question Type */}
-        <div>
-          <Label className="block mb-2">Question Type</Label>
-          <RadioGroup
-            value={settings.questionType}
-            onValueChange={(value) => setSettings({ ...settings, questionType: value as 'multiple_choice' | 'open_ended' | 'mixed' })}
-            className="flex flex-col space-y-1"
-          >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="multiple_choice" id="multiple_choice" />
-              <Label htmlFor="multiple_choice">Multiple Choice</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="open_ended" id="open_ended" />
-              <Label htmlFor="open_ended">Open Ended</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="mixed" id="mixed" />
-              <Label htmlFor="mixed">Mixed</Label>
-            </div>
-          </RadioGroup>
-        </div>
+            {isGenerating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Generating Quiz...
+              </>
+            ) : (
+              'Generate Quiz'
+            )}
+          </Button>
+        </form>
       </div>
 
-      {/* Generate Button */}
-      <div className="pt-2">
-        <Button 
-          type="submit" 
-          className="w-full"
-          disabled={!file || isGenerating}
-          onClick={handleSubmit}
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating Quiz...
-            </>
-          ) : 'Generate Quiz'}
-        </Button>
-      </div>
-
-      {/* We don't need to show the streaming response here anymore since it will be shown in the preview panel */}
-      {!onQuizGenerated && streamingResponse && (
-        <div className="mt-4 p-4 bg-gray-50 rounded-lg dark:bg-gray-700">
-          {(() => {
-            try {
-              const parsed = JSON.parse(streamingResponse);
-              setGeneratedQuiz(parsed);
-              return formatQuizContent(parsed);
-            } catch (e) {
-              return <div>Processing...</div>;
-            }
-          })()}
+      {/* Generated Quiz Display */}
+      {(isGenerating || generatedQuiz) && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6 overflow-x-auto">
+          <h2 className="text-xl font-semibold mb-4">
+            {isGenerating ? 'Generating Quiz...' : 'Generated Quiz'}
+          </h2>
+          
+          {isGenerating && (
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <p>Processing your document...</p>
+              </div>
+              <div className="border border-gray-200 dark:border-gray-700 rounded-md p-4 bg-gray-50 dark:bg-gray-900 max-h-[400px] overflow-y-auto">
+                <pre className="text-sm whitespace-pre-wrap">{streamingResponse}</pre>
+              </div>
+            </div>
+          )}
+          
+          {generatedQuiz && (
+            <div className="space-y-4">
+              {formatQuizContent(generatedQuiz)}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -563,6 +563,178 @@ export default function QuizHistory({ showAll = false, user, supabase }: QuizHis
     }
   };
 
+  // Render quiz cards
+  const renderQuizCards = () => {
+    if (loading) {
+      return (
+        <div className="flex justify-center items-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    if (quizzes.length === 0) {
+      return (
+        <div className="text-center py-8">
+          <p className="text-gray-500 dark:text-gray-400">No quizzes found</p>
+          <Link href="/dashboard">
+            <Button className="mt-4">Create a Quiz</Button>
+          </Link>
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {quizzes.map((quiz) => (
+          <div 
+            key={quiz.id} 
+            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+          >
+            <div className="p-4">
+              <div className="flex flex-col h-full">
+                <div className="flex-1">
+                  <h3 className="font-medium text-lg mb-2 line-clamp-2">{quiz.title}</h3>
+                  
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {quiz.subject ? (
+                      <span 
+                        className="inline-flex items-center px-2 py-1 rounded-full text-xs"
+                        style={{ 
+                          backgroundColor: quiz.color || '#e2e8f0',
+                          color: quiz.color ? getContrastColor(quiz.color) : '#000000'
+                        }}
+                      >
+                        {quiz.subject}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+                        Uncategorized
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-1 text-sm text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center">
+                      <Calendar className="h-4 w-4 mr-2" />
+                      <span>{new Date(quiz.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <FileText className="h-4 w-4 mr-2" />
+                      <span>{quiz.questions.length} questions</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex flex-wrap gap-2 mt-4 justify-end">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => openQuizDetails(quiz)}
+                        >
+                          <FileText className="h-4 w-4" />
+                          <span className="sr-only">View</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>View Quiz</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => startEditing(quiz)}
+                        >
+                          <Edit className="h-4 w-4" />
+                          <span className="sr-only">Edit</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Edit Quiz</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => startCategorizing(quiz)}
+                        >
+                          <Tag className="h-4 w-4" />
+                          <span className="sr-only">Categorize</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Categorize</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleExport(quiz, 'doc')}
+                          disabled={exporting === `${quiz.id}-doc`}
+                        >
+                          {exporting === `${quiz.id}-doc` ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <BookmarkPlus className="h-4 w-4" />
+                          )}
+                          <span className="sr-only">Export</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Export as DOCX</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => openDeleteConfirmation(quiz)}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                          <span className="sr-only">Delete</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Delete Quiz</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   if (loading) {
     return <div className="text-center py-4">Loading your quiz history...</div>
   }
@@ -576,721 +748,184 @@ export default function QuizHistory({ showAll = false, user, supabase }: QuizHis
   }
 
   return (
-    <>
-    <div className="space-y-4">
-      {quizzes.map((quiz) => (
-        <div
-          key={quiz.id}
-            className={`p-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer ${
-              quiz.subject && quiz.color 
-                ? 'border-l-4' 
-                : 'bg-gray-50 dark:bg-gray-700'
-            }`}
-            style={quiz.subject && quiz.color ? {
-              borderLeftColor: quiz.color,
-              backgroundColor: `${quiz.color}20`, // Add 20% opacity to the color
-            } : {}}
-            onClick={() => openQuizDetails(quiz)}
-        >
-          <div className="flex flex-col">
-            {quiz.subject ? (
-              <div className="mb-2">
-                <div 
-                  className="inline-flex items-center px-3 py-1 rounded-md text-sm"
-                  style={{ 
-                    backgroundColor: quiz.color || '#E5E7EB', 
-                    color: quiz.color ? getContrastColor(quiz.color) : '#374151' 
-                  }}
-                >
-                  <Tag className="h-3 w-3 mr-2" />
-                  {quiz.subject}
-                </div>
-              </div>
-            ) : null}
-            
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="font-semibold">{quiz.title}</h3>
-                <div className="flex flex-wrap gap-x-4 mt-1">
-                  <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
-                    <Calendar className="h-3.5 w-3.5 mr-1" />
-                    {new Date(quiz.created_at).toLocaleDateString()}
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
-                    <FileText className="h-3.5 w-3.5 mr-1" />
-                    {quiz.questions.length} questions
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
-                    <BarChart3 className="h-3.5 w-3.5 mr-1" />
-                    {quiz.settings.difficulty} difficulty
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
-                    <Clock className="h-3.5 w-3.5 mr-1" />
-                    {quiz.settings.questionType} questions
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex justify-between items-center mt-4">
-              {!quiz.subject ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs text-gray-500 hover:text-primary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startCategorizing(quiz);
-                  }}
-                >
-                  <BookmarkPlus className="h-3 w-3 mr-1" />
-                  Add Subject
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startCategorizing(quiz);
-                  }}
-                >
-                  <Tag className="mr-2 h-3 w-3" />
-                  Edit Subject
-                </Button>
-              )}
-              <div className="flex space-x-2 ml-auto">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openDeleteConfirmation(quiz);
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Delete quiz</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={exporting === `${quiz.id}-doc`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleExport(quiz, 'doc');
-                        }}
-                      >
-                        {exporting === `${quiz.id}-doc` ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            Exporting...
-                          </>
-                        ) : 'Export DOC'}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Export as a Word document (.docx)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={exporting === `${quiz.id}-csv`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleExport(quiz, 'csv');
-                        }}
-                      >
-                        {exporting === `${quiz.id}-csv` ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            Exporting...
-                          </>
-                        ) : 'Export CSV'}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Export as CSV (compatible with Quizlet)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={sendingToAnki && selectedQuiz?.id === quiz.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openSendToAnkiDialog(quiz);
-                        }}
-                      >
-                        {sendingToAnki && selectedQuiz?.id === quiz.id ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            Sending...
-                          </>
-                        ) : (
-                          <>
-                            <Send className="mr-2 h-3 w-3" />
-                            Send to Anki
-                          </>
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Send directly to Anki (requires Anki with Anki-Connect plugin)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-            </div>
-          </div>
+    <div className="space-y-6">
+      {renderQuizCards()}
+      
+      {!showAll && quizzes.length > 0 && (
+        <div className="flex justify-center mt-4">
+          <Link href="/dashboard/history">
+            <Button variant="outline">View All Quizzes</Button>
+          </Link>
         </div>
-      ))}
-    </div>
-
-    <Dialog 
-      open={isDialogOpen} 
-      onOpenChange={(open) => {
-        setIsDialogOpen(open);
-        if (!open) {
-          setEditingQuiz(null);
-          setCategorizingQuiz(null);
-          setCurrentQuestionIndex(0);
-        }
-      }}
-    >
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle>
-            {editingQuiz ? (
-              <Input 
-                value={editingQuiz.title} 
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateQuizTitle(e.target.value)}
-                className="font-bold text-xl"
-              />
-            ) : categorizingQuiz ? (
-              <div className="flex items-center justify-between">
-                <span className="flex-1 mr-4">{categorizingQuiz.title}</span>
-                <span className="text-sm text-gray-500">Categorize Quiz</span>
-              </div>
-            ) : (
-              <>
-                {selectedQuiz?.subject && (
-                  <div className="mb-2">
-                    <div 
-                      className="inline-flex items-center px-3 py-1 rounded-md text-sm"
-                      style={{ 
-                        backgroundColor: selectedQuiz.color || '#E5E7EB', 
-                        color: selectedQuiz.color ? getContrastColor(selectedQuiz.color) : '#374151' 
-                      }}
-                    >
-                      <Tag className="h-3 w-3 mr-2" />
-                      {selectedQuiz.subject}
-                    </div>
-                  </div>
-                )}
-                <div className="text-xl font-semibold">{selectedQuiz?.title}</div>
-              </>
-            )}
-          </DialogTitle>
-          <DialogDescription className="flex flex-wrap gap-x-4 mt-1">
-            <span className="flex items-center">
-              <Calendar className="h-3.5 w-3.5 mr-1" />
-              Created: {selectedQuiz && new Date(selectedQuiz.created_at).toLocaleDateString()}
-            </span>
-            <span className="flex items-center">
-              <FileText className="h-3.5 w-3.5 mr-1" />
-              {selectedQuiz?.questions.length} questions
-            </span>
-            <span className="flex items-center">
-              <BarChart3 className="h-3.5 w-3.5 mr-1" />
-              {selectedQuiz?.settings.difficulty} difficulty
-            </span>
-            <span className="flex items-center">
-              <Clock className="h-3.5 w-3.5 mr-1" />
-              {selectedQuiz?.settings.questionType} questions
-            </span>
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="overflow-y-auto flex-grow pr-2 mt-4">
-          {editingQuiz ? (
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  value={editingQuiz.title}
-                  onChange={(e) => updateQuizTitle(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              
-              <div className="border rounded-md p-4">
-                <SubjectManager
-                  onSelectSubject={setEditSubject}
-                  selectedSubjectId={editSubject?.id}
-                />
-              </div>
-              
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center">
-                  <h3 className="text-lg font-medium">Questions</h3>
-                  <span className="ml-2 text-sm text-gray-500">
-                    {currentQuestionIndex + 1} of {editingQuiz.questions.length}
-                  </span>
-                </div>
-                <div className="flex space-x-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
-                    disabled={currentQuestionIndex === 0}
-                  >
-                    Previous
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setCurrentQuestionIndex(Math.min(editingQuiz.questions.length - 1, currentQuestionIndex + 1))}
-                    disabled={currentQuestionIndex === editingQuiz.questions.length - 1}
-                  >
-                    Next
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={addNewQuestion}
-                  >
-                    Add Question
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => deleteQuestion(currentQuestionIndex)}
-                    disabled={editingQuiz.questions.length <= 1}
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                  >
-                    Delete Question
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="mb-6 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-                <div className="mb-3">
-                  <label className="block text-sm font-medium mb-1">Question {currentQuestionIndex + 1}</label>
-                  <Textarea 
-                    value={editingQuiz.questions[currentQuestionIndex].text} 
-                    onChange={(e) => updateQuestionText(currentQuestionIndex, e.target.value)}
-                    className="w-full"
-                    rows={2}
-                    placeholder="Enter your question here..."
-                  />
-                </div>
-                
-                {editingQuiz.questions[currentQuestionIndex].type === 'multiple_choice' && 
-                 editingQuiz.questions[currentQuestionIndex].options && (
-                  <div className="mb-3">
-                    <label className="block text-sm font-medium mb-1">Options</label>
-                    {editingQuiz.questions[currentQuestionIndex].options.map((option, optIndex) => (
-                      <div key={optIndex} className="flex items-center mb-2">
-                        <span className="mr-2">{String.fromCharCode(97 + optIndex)})</span>
-                        <Input 
-                          value={option} 
-                          onChange={(e) => updateQuestionOption(currentQuestionIndex, optIndex, e.target.value)}
-                          className="flex-grow"
-                          placeholder={`Option ${String.fromCharCode(97 + optIndex)}`}
-                        />
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant={option === editingQuiz.questions[currentQuestionIndex].correctAnswer ? "default" : "outline"}
-                                size="sm"
-                                className="ml-2"
-                                onClick={() => updateCorrectAnswer(currentQuestionIndex, option)}
-                              >
-                                {option === editingQuiz.questions[currentQuestionIndex].correctAnswer ? "Correct" : "Set as correct"}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Mark this as the correct answer</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {editingQuiz.questions[currentQuestionIndex].type !== 'multiple_choice' && (
-                  <div className="mb-3">
-                    <label className="block text-sm font-medium mb-1">Correct Answer</label>
-                    <Input 
-                      value={editingQuiz.questions[currentQuestionIndex].correctAnswer} 
-                      onChange={(e) => updateCorrectAnswer(currentQuestionIndex, e.target.value)}
-                      className="w-full"
-                      placeholder="Enter the correct answer"
-                    />
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex justify-end space-x-2 mt-4">
-                <Button variant="outline" onClick={() => setEditingQuiz(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={saveQuiz}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Changes
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          ) : categorizingQuiz ? (
-            <div className="space-y-4">
-              <div className="border rounded-md p-4">
-                <h3 className="text-lg font-medium mb-4">Categorize Quiz</h3>
-                <p className="text-sm text-gray-500 mb-4">
-                  Add a subject and color to organize your quizzes. This helps you find related quizzes more easily.
-                </p>
-                <SubjectManager
-                  onSelectSubject={setEditSubject}
-                  selectedSubjectId={editSubject?.id}
-                />
-              </div>
-              
-              <div className="flex justify-end space-x-2 mt-4">
-                <Button variant="outline" onClick={cancelCategorizing}>
-                  Cancel
-                </Button>
-                <Button onClick={saveCategorizationOnly} disabled={saving}>
-                  {saving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Tag className="mr-2 h-4 w-4" />
-                      Save Categorization
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            // View mode
-            selectedQuiz?.questions.map((question, index) => (
-              <div key={index} className="mb-6">
-                <p className="font-medium mb-2">
-                  {index + 1}. {question.text}
-                </p>
-                {question.type === 'multiple_choice' && question.options && (
-                  <ul className="space-y-1 ml-6">
-                    {question.options.map((option, optIndex) => (
-                      <li key={optIndex} className="flex items-start">
-                        <span className={`${option === question.correctAnswer ? 'bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md' : ''}`}>
-                          • {option}
+      )}
+      
+      {/* Quiz Details Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedQuiz?.title}</DialogTitle>
+            <DialogDescription>
+              Created on {selectedQuiz && new Date(selectedQuiz.created_at).toLocaleDateString()}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            {selectedQuiz && (
+              <div className="space-y-8">
+                {selectedQuiz.questions.map((question, index) => (
+                  <div key={index} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                    <h3 className="font-medium mb-3">
+                      {index + 1}. {question.text}
+                    </h3>
+                    
+                    {question.type === 'multiple_choice' && question.options && (
+                      <ul className="space-y-2">
+                        {question.options.map((option, optIndex) => (
+                          <li key={optIndex} className="flex items-center">
+                            <span className={`${option === question.correctAnswer ? 'bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md' : ''}`}>
+                              {String.fromCharCode(65 + optIndex)}. {option}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    
+                    {question.type !== 'multiple_choice' && (
+                      <div className="mt-2">
+                        <strong>Answer: </strong>
+                        <span className="bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md">
+                          {question.correctAnswer}
                         </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {question.correctAnswer && question.type !== 'multiple_choice' && (
-                  <div className="mt-2 ml-6">
-                    <strong>Answer: </strong>
-                    <span className="bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md">
-                      {question.correctAnswer}
-                    </span>
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
-            ))
-          )}
-        </div>
-        
-        <DialogFooter className="mt-4">
-          <div className="flex space-x-2">
-            {editingQuiz ? (
-              <>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={saveQuiz}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Changes
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={cancelEditing}
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
-              </>
-            ) : categorizingQuiz ? (
-              null
-            ) : (
-              <>
-                <Button variant="outline" size="sm" onClick={() => setIsDialogOpen(false)}>
-                  Close
-                </Button>
-                
-                <Button 
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setCategorizingQuiz(selectedQuiz);
-                    setEditingQuiz(null);
-                  }}
-                >
-                  <BookmarkPlus className="mr-2 h-4 w-4" />
-                  Categorize
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    startEditing(selectedQuiz!);
-                    setCurrentQuestionIndex(0); // Reset the current question index
-                  }}
-                  disabled={!selectedQuiz}
-                >
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit Quiz
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                  onClick={() => openDeleteConfirmation(selectedQuiz!)}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Quiz
-                </Button>
-                
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={exporting === `${selectedQuiz?.id}-doc`}
-                        onClick={() => selectedQuiz && handleExport(selectedQuiz, 'doc')}
-                      >
-                        {exporting === `${selectedQuiz?.id}-doc` ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            Exporting...
-                          </>
-                        ) : 'Export DOC'}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Export as a Word document (.docx)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={exporting === `${selectedQuiz?.id}-csv`}
-                        onClick={() => selectedQuiz && handleExport(selectedQuiz, 'csv')}
-                      >
-                        {exporting === `${selectedQuiz?.id}-csv` ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            Exporting...
-                          </>
-                        ) : 'Export CSV'}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Export as CSV (compatible with Quizlet)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={sendingToAnki}
-                        onClick={() => selectedQuiz && openSendToAnkiDialog(selectedQuiz)}
-                      >
-                        {sendingToAnki ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            Sending...
-                          </>
-                        ) : (
-                          <>
-                            <Send className="mr-2 h-3 w-3" />
-                            Send to Anki
-                          </>
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Send directly to Anki (requires Anki with Anki-Connect plugin)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </>
             )}
           </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
-    {/* Anki Deck Dialog */}
-    <Dialog open={isAnkiDialogOpen} onOpenChange={setIsAnkiDialogOpen}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Send to Anki</DialogTitle>
-          <DialogDescription>
-            Enter the name of the Anki deck where you want to send this quiz.
-            Make sure Anki is running with the Anki-Connect plugin installed.
-            <Link href="/dashboard/anki-setup" className="text-blue-600 dark:text-blue-400 hover:underline block mt-2">
-              Learn how to set up Anki integration
-            </Link>
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="deckName" className="text-right">
-              Deck Name
-            </Label>
-            <Input
-              id="deckName"
-              value={ankiDeckName}
-              onChange={(e) => setAnkiDeckName(e.target.value)}
-              className="col-span-3"
-              placeholder="Enter deck name"
-            />
+          
+          <DialogFooter className="flex flex-wrap gap-2 justify-end">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDialogOpen(false)}
+            >
+              Close
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => selectedQuiz && startEditing(selectedQuiz)}
+            >
+              <Edit className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => selectedQuiz && handleExport(selectedQuiz, 'doc')}
+              disabled={exporting === `${selectedQuiz?.id}-doc`}
+            >
+              {exporting === `${selectedQuiz?.id}-doc` ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <BookmarkPlus className="mr-2 h-4 w-4" />
+              )}
+              Export as DOCX
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Anki Deck Dialog */}
+      <Dialog open={isAnkiDialogOpen} onOpenChange={setIsAnkiDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Send to Anki</DialogTitle>
+            <DialogDescription>
+              Enter the name of the Anki deck where you want to send this quiz.
+              Make sure Anki is running with the Anki-Connect plugin installed.
+              <Link href="/dashboard/anki-setup" className="text-blue-600 dark:text-blue-400 hover:underline block mt-2">
+                Learn how to set up Anki integration
+              </Link>
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="deckName" className="text-right">
+                Deck Name
+              </Label>
+              <Input
+                id="deckName"
+                value={ankiDeckName}
+                onChange={(e) => setAnkiDeckName(e.target.value)}
+                className="col-span-3"
+                placeholder="Enter deck name"
+              />
+            </div>
           </div>
-        </div>
-        
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setIsAnkiDialogOpen(false)}
-            disabled={sendingToAnki}
-          >
-            Cancel
-          </Button>
-          <Button 
-            type="button" 
-            onClick={handleSendToAnki}
-            disabled={!ankiDeckName.trim() || sendingToAnki}
-          >
-            {sendingToAnki ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Sending...
-              </>
-            ) : (
-              'Send to Anki'
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
-    {/* Delete Confirmation Dialog */}
-    <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Delete Quiz</DialogTitle>
-          <DialogDescription>
-            Are you sure you want to delete this quiz? This action cannot be undone.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={cancelDelete}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={deleteQuiz}
-            disabled={deleting}
-          >
-            {deleting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Deleting...
-              </>
-            ) : (
-              'Delete Quiz'
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-    </>
+          
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsAnkiDialogOpen(false)}
+              disabled={sendingToAnki}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="button" 
+              onClick={handleSendToAnki}
+              disabled={!ankiDeckName.trim() || sendingToAnki}
+            >
+              {sendingToAnki ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                'Send to Anki'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Quiz</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this quiz? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={cancelDelete}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={deleteQuiz}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete Quiz'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 } 

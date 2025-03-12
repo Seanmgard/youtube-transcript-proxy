@@ -12,7 +12,9 @@ import {
   LogOut, 
   Upload,
   User,
-  BookOpen
+  BookOpen,
+  Menu,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -33,6 +35,7 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(userAvatar || null);
   const [isUploading, setIsUploading] = useState(false);
   const [supabase, setSupabase] = useState<any>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const initSupabase = async () => {
@@ -42,6 +45,11 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
     
     initSupabase();
   }, []);
+
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
 
   // Navigation items
   const navItems = [
@@ -136,83 +144,120 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
     }
   };
 
+  // Mobile menu toggle button
+  const MobileMenuToggle = () => (
+    <Button 
+      variant="ghost" 
+      size="icon" 
+      className="md:hidden fixed top-20 left-4 z-50 bg-background/80 backdrop-blur-sm"
+      onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+      aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+    >
+      {isMobileMenuOpen ? (
+        <X className="h-5 w-5" />
+      ) : (
+        <Menu className="h-5 w-5" />
+      )}
+    </Button>
+  );
+
   return (
-    <div className="min-h-screen w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col fixed top-0 left-0 pt-16">
-      {/* Navigation */}
-      <nav className="flex-1 p-4 pt-6 space-y-1">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
-              <item.icon className="mr-3 h-5 w-5" />
-              {item.name}
-            </Link>
-          );
-        })}
-      </nav>
+    <>
+      <MobileMenuToggle />
+      
+      <div 
+        className={`
+          min-h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 
+          flex flex-col fixed top-0 left-0 pt-20 z-40 transition-transform duration-300 ease-in-out
+          md:w-64 md:translate-x-0 w-[85vw] max-w-[300px]
+          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}
+      >
+        {/* Navigation */}
+        <nav className="flex-1 p-4 pt-6 space-y-1">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                <item.icon className="mr-3 h-5 w-5" />
+                {item.name}
+              </Link>
+            );
+          })}
+        </nav>
 
-      {/* Quiz Counter */}
-      <QuizCounter />
+        {/* Quiz Counter */}
+        <QuizCounter />
 
-      {/* User Profile */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
-        <div className="flex items-center">
-          <div className="relative">
-            <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex items-center justify-center">
-              {avatarUrl ? (
-                <Image 
-                  src={avatarUrl} 
-                  alt="User avatar" 
-                  width={40} 
-                  height={40} 
-                  className="object-cover"
+        {/* User Profile */}
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <div className="flex items-center">
+            <div className="relative">
+              <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex items-center justify-center">
+                {avatarUrl ? (
+                  <Image 
+                    src={avatarUrl} 
+                    alt="User avatar" 
+                    width={40} 
+                    height={40} 
+                    className="object-cover"
+                  />
+                ) : (
+                  <User className="h-6 w-6 text-gray-500 dark:text-gray-400" />
+                )}
+              </div>
+              <label 
+                htmlFor="avatar-upload" 
+                className="absolute -bottom-1 -right-1 h-5 w-5 bg-primary rounded-full flex items-center justify-center cursor-pointer"
+              >
+                <Upload className="h-3 w-3 text-white" />
+                <input 
+                  id="avatar-upload" 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={handleAvatarUpload}
+                  disabled={isUploading}
                 />
-              ) : (
-                <User className="h-6 w-6 text-gray-500 dark:text-gray-400" />
-              )}
+              </label>
             </div>
-            <label 
-              htmlFor="avatar-upload" 
-              className="absolute -bottom-1 -right-1 h-5 w-5 bg-primary rounded-full flex items-center justify-center cursor-pointer"
-            >
-              <Upload className="h-3 w-3 text-white" />
-              <input 
-                id="avatar-upload" 
-                type="file" 
-                accept="image/*" 
-                className="hidden" 
-                onChange={handleAvatarUpload}
-                disabled={isUploading}
-              />
-            </label>
+            <div className="ml-3 overflow-hidden">
+              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                {userName || 'User'}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                {userEmail || 'user@example.com'}
+              </p>
+            </div>
           </div>
-          <div className="ml-3 overflow-hidden">
-            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-              {userName || 'User'}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-              {userEmail || 'user@example.com'}
-            </p>
-          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="mt-4 w-full justify-start text-gray-700 dark:text-gray-300"
+            onClick={handleSignOut}
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Sign out
+          </Button>
         </div>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="mt-4 w-full justify-start text-gray-700 dark:text-gray-300"
-          onClick={handleSignOut}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Sign out
-        </Button>
       </div>
-    </div>
+      
+      {/* Overlay for mobile */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+    </>
   );
 } 
