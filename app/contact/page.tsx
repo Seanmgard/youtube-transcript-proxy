@@ -6,10 +6,10 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Footer } from '../components/landing/Footer';
 import { toast } from 'sonner';
 
 export default function Contact() {
+  console.log('Rendering Contact');
   const [formState, setFormState] = useState({
     name: '',
     email: '',
@@ -170,8 +170,6 @@ export default function Contact() {
           </div>
         </div>
       </div>
-      
-      <Footer />
     </main>
   );
 } 

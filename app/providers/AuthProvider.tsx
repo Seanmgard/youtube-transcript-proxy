@@ -33,6 +33,9 @@ const publicPaths = [
   '/sign-up',
   '/forgot-password',
   '/auth/callback',
+  '/privacy',
+  '/terms',
+  '/contact',
 ];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

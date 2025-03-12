@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 
 // Define protected and public routes
 const PROTECTED_ROUTES = [
@@ -22,7 +22,25 @@ const CALLBACK_ROUTES = [
   '/auth/callback',
 ];
 
+// Define public routes that should be accessible without authentication
+const PUBLIC_ROUTES = [
+  '/privacy',
+  '/terms',
+  '/contact',
+];
+
 export async function middleware(request: NextRequest) {
+  // IMPORTANT: Check for public routes FIRST, before any try/catch or authentication logic
+  const isPublicRoute = PUBLIC_ROUTES.some(route => 
+    request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(`${route}/`)
+  );
+  
+  if (isPublicRoute) {
+    console.log(`Allowing public route without auth check: ${request.nextUrl.pathname}`);
+    // Return immediately without any auth checks for public routes
+    return NextResponse.next();
+  }
+
   try {
     // Create a response object that we can modify
     let response = NextResponse.next({
@@ -37,99 +55,99 @@ export async function middleware(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value;
+          get(name) {
+            try {
+              return request.cookies.get(name)?.value;
+            } catch (error) {
+              console.error(`Error getting cookie ${name}:`, error);
+              return undefined;
+            }
           },
-          set(name: string, value: string, options: CookieOptions) {
-            response.cookies.set({
-              name,
-              value,
-              ...options,
-            });
+          set(name, value, options) {
+            try {
+              response.cookies.set({
+                name,
+                value,
+                ...options,
+              });
+            } catch (error) {
+              console.error(`Error setting cookie ${name}:`, error);
+            }
           },
-          remove(name: string, options: CookieOptions) {
-            response.cookies.set({
-              name,
-              value: '',
-              ...options,
-            });
+          remove(name, options) {
+            try {
+              response.cookies.set({
+                name,
+                value: '',
+                ...options,
+              });
+            } catch (error) {
+              console.error(`Error removing cookie ${name}:`, error);
+            }
           },
         },
       }
     );
 
-    // Refresh session if expired - required for Server Components
-    await supabase.auth.getSession();
-
-    // Skip middleware for callback routes
+    // Special handling for callback routes
     if (CALLBACK_ROUTES.some(route => request.nextUrl.pathname === route)) {
       return response;
     }
 
     try {
-      // Get the user session with error handling
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      // Try to get the user's session
+      await supabase.auth.getSession();
       
-      if (sessionError) {
-        console.error('Session error in middleware:', sessionError);
-        // Clear problematic session cookies on error
-        response.cookies.set({
-          name: 'sb-access-token',
-          value: '',
-          maxAge: 0,
-          path: '/',
-        });
-        response.cookies.set({
-          name: 'sb-refresh-token',
-          value: '',
-          maxAge: 0,
-          path: '/',
-        });
+      // Get the user
+      const { data: { user }, error } = await supabase.auth.getUser();
+
+      if (error) {
+        console.error('Auth error:', error);
+        if (PROTECTED_ROUTES.some(route => request.nextUrl.pathname.startsWith(route))) {
+          const redirectUrl = new URL('/auth/sign-in', request.url);
+          redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname);
+          return NextResponse.redirect(redirectUrl);
+        }
       }
 
+      // Check if the user is trying to access a protected route
       const isProtectedRoute = PROTECTED_ROUTES.some(route => 
         request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(`${route}/`)
       );
 
+      // Check if the user is trying to access an auth route
       const isAuthRoute = AUTH_ROUTES.some(route => 
         request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(`${route}/`)
       );
 
-      // Handle protected routes
-      if (isProtectedRoute && !session) {
-        // Store the original URL to redirect back after login
+      // If the user is not authenticated and trying to access a protected route, redirect to sign-in
+      if (isProtectedRoute && !user) {
         const redirectUrl = new URL('/auth/sign-in', request.url);
         redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname);
         return NextResponse.redirect(redirectUrl);
       }
 
-      // Handle auth routes (prevent authenticated users from accessing login/signup)
-      if (isAuthRoute && session) {
+      // If the user is authenticated and trying to access an auth route, redirect to dashboard
+      if (isAuthRoute && user) {
         return NextResponse.redirect(new URL('/dashboard', request.url));
       }
 
-      // Handle root path redirect for authenticated users
-      if (request.nextUrl.pathname === '/' && session) {
+      // If the user is authenticated and trying to access the home page, redirect to dashboard
+      if (request.nextUrl.pathname === '/' && user) {
         return NextResponse.redirect(new URL('/dashboard', request.url));
       }
-
-      return response;
-
     } catch (error) {
-      console.error('Middleware auth check error:', error);
+      console.error('Authentication error in middleware:', error);
       
-      // On critical errors, redirect to sign-in for protected routes
+      // If there's an auth error and trying to access protected route, redirect to sign-in
       if (PROTECTED_ROUTES.some(route => request.nextUrl.pathname.startsWith(route))) {
-        const redirectUrl = new URL('/auth/sign-in', request.url);
-        redirectUrl.searchParams.set('error', 'Session verification failed');
-        return NextResponse.redirect(redirectUrl);
+        return NextResponse.redirect(new URL('/auth/sign-in', request.url));
       }
-      
-      return response;
     }
 
-  } catch (error) {
-    console.error('Critical middleware error:', error);
+    return response;
+  } catch (e) {
+    console.error('Middleware error:', e);
     return NextResponse.next({
       request: {
         headers: request.headers,
@@ -138,16 +156,6 @@ export async function middleware(request: NextRequest) {
   }
 }
 
-// Only run middleware on specific paths
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
-    '/((?!_next/static|_next/image|favicon.ico|public/|api/).*)',
-  ],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|public/).*)'],
 }; 

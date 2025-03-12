@@ -91,9 +91,13 @@ export function Footer() {
               <ul role="list" className="mt-2 space-y-1.5">
                 {navigation.legal.map((item) => (
                   <li key={item.name}>
-                    <a href={item.href} className="text-xs leading-5 text-gray-300 hover:text-white">
+                    <Link 
+                      href={item.href} 
+                      className="text-xs leading-5 text-gray-300 hover:text-white"
+                      prefetch={true}
+                    >
                       {item.name}
-                    </a>
+                    </Link>
                   </li>
                 ))}
               </ul>
