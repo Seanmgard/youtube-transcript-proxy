@@ -14,7 +14,7 @@ const openai = new OpenAI({
 // 25MB limit
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
-export const maxDuration = 300; // Set max duration to 5 minutes (300 seconds)
+export const maxDuration = 60; // Set max duration to 60 seconds (Vercel hobby plan limit)
 export const dynamic = 'force-dynamic'; // Ensure the route is always dynamic
 
 // Helper to wrap data in SSE format
