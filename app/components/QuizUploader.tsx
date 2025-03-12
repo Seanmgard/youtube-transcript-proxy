@@ -23,6 +23,11 @@ interface QuizUploaderProps {
   onSaveComplete?: () => void;
 }
 
+interface CurrentQuiz {
+  title: string;
+  questions: Question[];
+}
+
 export default function QuizUploader({ onQuizGenerated, initialQuiz, onSaveComplete }: QuizUploaderProps) {
   const [supabase, setSupabase] = useState<any>(null);
   const { toast } = useToast();
@@ -244,6 +249,48 @@ export default function QuizUploader({ onQuizGenerated, initialQuiz, onSaveCompl
     }
   };
 
+  // Create a Web Worker to handle the quiz generation in the background
+  const createQuizWorker = () => {
+    const workerCode = `
+      self.onmessage = async function(e) {
+        const { file, settings, baseUrl } = e.data;
+        
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('settings', JSON.stringify(settings));
+          
+          const response = await fetch(baseUrl + '/api/generate-quiz', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (!response.body) {
+            throw new Error('ReadableStream not supported');
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value);
+            self.postMessage({ type: 'chunk', data: chunk });
+          }
+          
+          self.postMessage({ type: 'done' });
+        } catch (error) {
+          self.postMessage({ type: 'error', error: error.message });
+        }
+      };
+    `;
+
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    return new Worker(URL.createObjectURL(blob));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -258,240 +305,195 @@ export default function QuizUploader({ onQuizGenerated, initialQuiz, onSaveCompl
 
     setIsGenerating(true);
     
-    // Notify parent component that generation has started
     if (onQuizGenerated) {
       onQuizGenerated({ loading: true });
     }
 
-    try {
-      const response = await generateQuiz(file, settings);
-
-      if (!response.body) {
-        throw new Error('ReadableStream not supported in this environment.');
+    const timeoutId = setTimeout(() => {
+      if (isGenerating) {
+        setIsGenerating(false);
+        toast({
+          title: 'Generation Timeout',
+          description: 'Quiz generation is taking longer than expected. Please try again.',
+          variant: 'destructive',
+        });
+        
+        if (onQuizGenerated) {
+          onQuizGenerated({ 
+            title: 'Error', 
+            questions: [{ 
+              text: 'Quiz generation timed out. Please try again.',
+              type: 'error',
+              correctAnswer: ''
+            }] 
+          });
+        }
       }
+    }, 120000);
 
-      const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-
-      let finalQuiz: { title: string; questions: Question[] } | null = null;
-      let done = false;
+    try {
+      const worker = createQuizWorker();
       let accumulatedContent = '';
-      let currentQuiz: { title: string; questions: Question[] } = { 
+      let currentQuiz: CurrentQuiz = { 
         title: 'Generating Quiz...', 
         questions: [] 
       };
 
-      while (!done) {
-        const { value, done: readerDone } = await reader.read();
-        if (readerDone) {
-          done = true;
-          break;
+      worker.onmessage = async (e) => {
+        if (e.data.type === 'error') {
+          console.error('Worker error:', e.data.error);
+          setIsGenerating(false);
+          clearTimeout(timeoutId);
+          toast({
+            title: 'Error',
+            description: e.data.error,
+            variant: 'destructive',
+          });
+          worker.terminate();
+          return;
         }
 
-        const chunkText = value;
-        const lines = chunkText.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data:')) {
-            const jsonString = line.replace(/^data:\s*/, '').trim();
-
-            if (jsonString === '[DONE]') {
-              done = true;
-              break;
-            }
-
-            try {
-              const parsed = JSON.parse(jsonString);
-
-              if (parsed.type === 'delta') {
-                // Accumulate content
-                accumulatedContent += parsed.chunk;
+        if (e.data.type === 'chunk') {
+          const lines = e.data.data.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data:')) {
+              const jsonString = line.replace(/^data:\s*/, '').trim();
+              
+              if (jsonString === '[DONE]') {
+                setIsGenerating(false);
+                clearTimeout(timeoutId);
+                worker.terminate();
+                return;
+              }
+              
+              try {
+                const parsed = JSON.parse(jsonString);
                 
-                // Try to extract any complete questions from the accumulated content
-                try {
-                  // Look for complete question objects in the accumulated content
-                  const questionMatch = accumulatedContent.match(/\{[^{]*"text"[^}]*\}/g);
-                  if (questionMatch) {
-                    const questions = questionMatch.map(q => {
-                      try {
-                        return JSON.parse(q);
-                      } catch {
-                        return null;
-                      }
-                    }).filter(q => q !== null);
+                if (parsed.type === 'delta') {
+                  accumulatedContent += parsed.chunk;
+                  
+                  try {
+                    const questionMatch = accumulatedContent.match(/\{[^{]*"text"[^}]*\}/g);
+                    if (questionMatch) {
+                      const questions = questionMatch
+                        .map(q => {
+                          try {
+                            const parsedQuestion = JSON.parse(q);
+                            // Validate the question structure
+                            if (
+                              typeof parsedQuestion.text === 'string' &&
+                              (parsedQuestion.type === 'multiple_choice' || 
+                               parsedQuestion.type === 'open_ended' || 
+                               parsedQuestion.type === 'error')
+                            ) {
+                              return parsedQuestion as Question;
+                            }
+                            return null;
+                          } catch {
+                            return null;
+                          }
+                        })
+                        .filter((q): q is Question => q !== null);
 
-                    if (questions.length > 0) {
-                      // Process each question to ensure it has the necessary properties
-                      const processedQuestions = questions.map(q => {
-                        // If this is a multiple choice question and it has options
-                        if (q.type === 'multiple_choice' && q.options) {
-                          // Make sure options is an array
-                          const options = Array.isArray(q.options) ? q.options : [];
-                          return { ...q, options };
+                      if (questions.length > 0) {
+                        currentQuiz.questions = questions;
+                        setStreamingResponse(JSON.stringify(currentQuiz));
+                        
+                        if (onQuizGenerated) {
+                          onQuizGenerated(currentQuiz);
                         }
-                        return q;
-                      });
-                      
-                      // Update the current quiz with the processed questions
-                      currentQuiz.questions = processedQuestions;
+                      }
+                    }
+
+                    const titleMatch = accumulatedContent.match(/"title"\s*:\s*"([^"]*)"/);
+                    if (titleMatch && titleMatch[1]) {
+                      currentQuiz.title = titleMatch[1];
                       setStreamingResponse(JSON.stringify(currentQuiz));
                       
-                      // Update parent component with partial results
                       if (onQuizGenerated) {
                         onQuizGenerated(currentQuiz);
                       }
                     }
+                  } catch {
+                    // Continue accumulating if parsing fails
+                  }
+                } else if (parsed.type === 'final') {
+                  const finalQuiz = parsed.quiz as CurrentQuiz;
+                  setStreamingResponse(JSON.stringify(finalQuiz));
+                  setGeneratedQuiz(finalQuiz);
+                  
+                  if (onQuizGenerated) {
+                    onQuizGenerated(finalQuiz);
                   }
 
-                  // Look for title if not already set
-                  const titleMatch = accumulatedContent.match(/"title"\s*:\s*"([^"]*)"/);
-                  if (titleMatch && titleMatch[1]) {
-                    currentQuiz.title = titleMatch[1];
-                    setStreamingResponse(JSON.stringify(currentQuiz));
-                    
-                    // Update parent with title
-                    if (onQuizGenerated) {
-                      onQuizGenerated(currentQuiz);
-                    }
+                  if (user) {
+                    await saveQuizToSupabase(finalQuiz);
                   }
-                } catch {
-                  // If we can't parse it yet, just continue accumulating
-                }
-              } else if (parsed.type === 'error') {
-                setStreamingResponse(JSON.stringify({ 
-                  title: 'Error', 
-                  questions: [{ text: parsed.message, type: 'error' }] 
-                }));
-                
-                // Notify parent of error
-                if (onQuizGenerated) {
-                  onQuizGenerated({ 
-                    title: 'Error', 
-                    questions: [{ text: parsed.message, type: 'error' }] 
-                  });
-                }
-                
-                // Check if the error is related to the quiz limit
-                if (parsed.message && parsed.message.includes('monthly quiz limit')) {
+
                   toast({
-                    title: 'Monthly Quiz Limit Reached',
-                    description: 'You have reached your monthly quiz limit. Upgrade to Premium for unlimited quizzes.',
-                    variant: 'destructive',
-                    duration: 10000, // Show for 10 seconds
-                  });
-                  
-                  // We'll use a custom dialog instead of window.confirm
-                  // to avoid blocking the UI
-                  const upgradeDialog = document.createElement('div');
-                  upgradeDialog.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
-                  upgradeDialog.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full">
-                      <h3 class="text-lg font-medium mb-4">Quiz Limit Reached</h3>
-                      <div class="mb-6">You have reached your monthly quiz limit. Would you like to upgrade to Premium for unlimited quizzes?</div>
-                      <div class="flex justify-end space-x-4">
-                        <button id="cancel-upgrade" class="px-4 py-2 border rounded-md">Cancel</button>
-                        <button id="confirm-upgrade" class="px-4 py-2 bg-blue-600 text-white rounded-md">OK</button>
-                      </div>
-                    </div>
-                  `;
-                  
-                  document.body.appendChild(upgradeDialog);
-                  
-                  document.getElementById('confirm-upgrade')?.addEventListener('click', () => {
-                    window.location.href = '/dashboard/subscription';
-                    document.body.removeChild(upgradeDialog);
-                  });
-                  
-                  document.getElementById('cancel-upgrade')?.addEventListener('click', () => {
-                    document.body.removeChild(upgradeDialog);
-                  });
-                } 
-                // Check if the error is related to the question count limit
-                else if (parsed.message && parsed.message.includes('up to 10 questions')) {
-                  toast({
-                    title: 'Question Limit Reached',
-                    description: 'Free users can only create quizzes with up to 10 questions. Upgrade to Premium for larger quizzes.',
-                    variant: 'destructive',
-                    duration: 10000, // Show for 10 seconds
-                  });
-                  
-                  // We'll use a custom dialog instead of window.confirm
-                  // to avoid blocking the UI
-                  const upgradeDialog = document.createElement('div');
-                  upgradeDialog.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
-                  upgradeDialog.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full">
-                      <h3 class="text-lg font-medium mb-4">Question Limit Reached</h3>
-                      <div class="mb-6">Free users can only create quizzes with up to 10 questions. Would you like to upgrade to Premium for larger quizzes?</div>
-                      <div class="flex justify-end space-x-4">
-                        <button id="cancel-upgrade" class="px-4 py-2 border rounded-md">Cancel</button>
-                        <button id="confirm-upgrade" class="px-4 py-2 bg-blue-600 text-white rounded-md">OK</button>
-                      </div>
-                    </div>
-                  `;
-                  
-                  document.body.appendChild(upgradeDialog);
-                  
-                  document.getElementById('confirm-upgrade')?.addEventListener('click', () => {
-                    window.location.href = '/dashboard/subscription';
-                    document.body.removeChild(upgradeDialog);
-                  });
-                  
-                  document.getElementById('cancel-upgrade')?.addEventListener('click', () => {
-                    document.body.removeChild(upgradeDialog);
+                    title: 'Success',
+                    description: `Quiz "${finalQuiz.title}" generated successfully`,
                   });
                 }
-              } else if (parsed.type === 'final') {
-                finalQuiz = parsed.quiz;
-                setStreamingResponse(JSON.stringify(parsed.quiz));
-                
-                // Update parent with final quiz
-                if (onQuizGenerated) {
-                  onQuizGenerated(parsed.quiz);
-                }
-                
-                // Save the quiz to Supabase if user is authenticated
-                if (user) {
-                  await saveQuizToSupabase(parsed.quiz);
-                } else {
-                  toast({
-                    title: 'Not Signed In',
-                    description: 'Sign in to save your quizzes and track your progress.',
-                    variant: 'default',
-                    duration: 5000,
-                  });
-                }
+              } catch (err) {
+                console.warn('Failed to parse chunk:', err);
               }
-            } catch (err) {
-              console.error('Failed to parse SSE chunk:', err);
             }
           }
         }
-      }
-      reader.releaseLock();
 
-      if (finalQuiz) {
-        toast({
-          title: 'Quiz Generated',
-          description: `Title: ${finalQuiz.title}`,
-        });
-      }
+        if (e.data.type === 'done') {
+          setIsGenerating(false);
+          clearTimeout(timeoutId);
+          worker.terminate();
+        }
+      };
+
+      // Get the base URL for API requests
+      const baseUrl = window.location.origin;
+
+      // Start the worker with the base URL
+      worker.postMessage({ file, settings, baseUrl });
+
+      // Add a visibilitychange listener just to show the user it's still working
+      const visibilityHandler = () => {
+        if (document.visibilityState === 'visible' && isGenerating) {
+          toast({
+            title: 'Still Working',
+            description: 'Quiz generation is continuing in the background.',
+            variant: 'default',
+          });
+        }
+      };
+      
+      document.addEventListener('visibilitychange', visibilityHandler);
+      
+      // Clean up the visibility handler when done
+      return () => {
+        document.removeEventListener('visibilitychange', visibilityHandler);
+      };
+
     } catch (err: any) {
       console.error('Error generating quiz:', err);
+      setIsGenerating(false);
+      clearTimeout(timeoutId);
       toast({
         title: 'Error',
         description: err.message,
         variant: 'destructive',
       });
       
-      // Notify parent of error
       if (onQuizGenerated) {
         onQuizGenerated({ 
           title: 'Error', 
-          questions: [{ text: err.message, type: 'error' }] 
+          questions: [{ 
+            text: err.message,
+            type: 'error',
+            correctAnswer: ''
+          }] 
         });
       }
-    } finally {
-      setIsGenerating(false);
     }
   };
 

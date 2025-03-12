@@ -14,6 +14,9 @@ const openai = new OpenAI({
 // 25MB limit
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
+export const maxDuration = 300; // Set max duration to 5 minutes (300 seconds)
+export const dynamic = 'force-dynamic'; // Ensure the route is always dynamic
+
 // Helper to wrap data in SSE format
 function sseJson(obj: any) {
   return `data: ${JSON.stringify(obj)}\n\n`;
@@ -170,6 +173,14 @@ function parseAssistantResponse(response: string, maxQuestions: number = 10) {
 
 export async function POST(request: Request) {
   try {
+    // Set headers for SSE
+    const headers = new Headers({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no' // Disable buffering for Nginx
+    });
+
     const cookieStore = cookies();
     const supabase = await createClient();
     
@@ -225,8 +236,22 @@ export async function POST(request: Request) {
       async start(controller) {
         // Helper to send SSE JSON to the client
         function sendJson(data: any) {
-          controller.enqueue(encoder.encode(sseJson(data)));
+          try {
+            controller.enqueue(encoder.encode(sseJson(data)));
+          } catch (err) {
+            console.error('Error sending SSE data:', err);
+          }
         }
+
+        // Send a keepalive ping every 15 seconds to prevent connection timeouts
+        const keepAliveInterval = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(`: keepalive ping\n\n`));
+          } catch (err) {
+            console.error('Error sending keepalive:', err);
+            clearInterval(keepAliveInterval);
+          }
+        }, 15000);
 
         try {
           // If we have an info message to send (e.g., for unauthenticated users), send it first
@@ -318,6 +343,28 @@ If no content found: {"title":"No Content Found","questions":[]}
 
           // Step F: Stream from OpenAI
           let bufferAll = '';
+          let streamTimeout: NodeJS.Timeout | null = null;
+          
+          // Set up a timeout to handle stalled streams
+          const setupStreamTimeout = () => {
+            // Clear any existing timeout
+            if (streamTimeout) clearTimeout(streamTimeout);
+            
+            // Set a new timeout
+            streamTimeout = setTimeout(() => {
+              sendJson({ 
+                type: 'warning', 
+                message: 'Stream is taking longer than expected. Still processing...' 
+              });
+              
+              // Recursively set up another timeout
+              setupStreamTimeout();
+            }, 30000); // 30 second timeout
+          };
+          
+          // Initial timeout setup
+          setupStreamTimeout();
+          
           openai.beta.threads.runs
             .stream(thread.id, {
               assistant_id: process.env.OPENAI_ASSISTANT_ID!,
@@ -334,6 +381,10 @@ Example format (follow this exactly):
 `,
             })
             .on('textDelta', (textDelta) => {
+              // Reset the timeout on each chunk received
+              if (streamTimeout) clearTimeout(streamTimeout);
+              setupStreamTimeout();
+              
               const chunk = textDelta.value || '';
               bufferAll += chunk;
 
@@ -342,22 +393,34 @@ Example format (follow this exactly):
               sendJson({ type: 'delta', chunk: formatRawChunk(chunk) });
             })
             .on('toolCallCreated', (toolCall) => {
+              // Reset the timeout when a tool call is created
+              if (streamTimeout) clearTimeout(streamTimeout);
+              setupStreamTimeout();
+              
               // Inform the client that the assistant is searching the document
               sendJson({ 
                 type: 'info', 
-                message: 'Searching through the document...' 
+                message: 'Searching through document...' 
               });
             })
-            .on('toolCallDone', (toolCall) => {
-              if (toolCall.type === 'file_search') {
-                // Inform the client that the search is complete
-                sendJson({ 
-                  type: 'info', 
-                  message: 'Document search complete, generating questions...' 
-                });
-              }
+            .on('toolCallDelta', (toolCallDelta) => {
+              // Reset the timeout on tool call updates
+              if (streamTimeout) clearTimeout(streamTimeout);
+              setupStreamTimeout();
+            })
+            .on('error', (streamErr) => {
+              // Clear the timeout on error
+              if (streamTimeout) clearTimeout(streamTimeout);
+              
+              console.error('OpenAI streaming error:', streamErr);
+              sendJson({ type: 'error', message: streamErr.message });
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+              controller.close();
             })
             .on('end', async () => {
+              // Clear the timeout when the stream ends
+              if (streamTimeout) clearTimeout(streamTimeout);
+              
               // All tokens have streamed in
               sendJson({ type: 'info', message: 'Streaming complete. Parsing final quiz...' });
 
@@ -508,17 +571,17 @@ Example format (follow this exactly):
                 });
               }
 
+              // Clean up the keepalive interval when done
+              clearInterval(keepAliveInterval);
+
               // Signal we are done
               controller.enqueue(encoder.encode('data: [DONE]\n\n'));
               controller.close();
             })
-            .on('error', (streamErr) => {
-              console.error('OpenAI streaming error:', streamErr);
-              sendJson({ type: 'error', message: streamErr.message });
-              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-              controller.close();
-            });
         } catch (err: any) {
+          // Clean up the keepalive interval on error
+          clearInterval(keepAliveInterval);
+          
           console.error('Error in SSE route:', err);
           // Send SSE error
           sendJson({ type: 'error', message: err.message });
@@ -528,23 +591,13 @@ Example format (follow this exactly):
       },
     });
 
-    // Return SSE response
-    return new Response(readableStream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-      },
+    return new NextResponse(readableStream, { headers });
+  } catch (err: any) {
+    console.error('Error in generate-quiz route:', err);
+    return new NextResponse(JSON.stringify({ message: err.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
     });
-  } catch (outerError: any) {
-    console.error('Outer error (before streaming):', outerError);
-    // Fallback: return JSON error
-    return NextResponse.json(
-      {
-        success: false,
-        message: outerError.message || 'An unexpected error occurred',
-      },
-      { status: 500 }
-    );
   }
 }
 
