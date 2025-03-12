@@ -41,29 +41,29 @@ export function Hero() {
   };
 
   return (
-    <div className="relative isolate overflow-hidden bg-gradient-to-b from-indigo-100/20 pt-4 sm:pt-6">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 pt-4 pb-8 sm:pb-12 lg:px-8 lg:py-12">
-        <div className="text-center mb-4 sm:mb-8">
+    <div className="relative isolate overflow-hidden bg-gradient-to-b from-indigo-100/20 pt-10 sm:pt-14">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 pt-8 pb-8 sm:pb-12 lg:px-8 lg:py-16">
+        <div className="text-center mb-6 sm:mb-10">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             className="mx-auto max-w-3xl"
           >
-            <div className="mt-2 sm:mt-4 lg:mt-2 flex justify-center">
+            <div className="mt-4 sm:mt-6 lg:mt-4 flex justify-center">
               <a href="#" className="inline-flex space-x-6">
                 <span className="rounded-full bg-indigo-600/10 px-3 py-1 text-sm font-semibold leading-6 text-indigo-600 ring-1 ring-inset ring-indigo-600/10">
                   Now Launched in Beta
                 </span>
               </a>
             </div>
-            <h1 className="mt-2 sm:mt-4 text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900">
+            <h1 className="mt-4 sm:mt-6 text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900">
               Transform Study Materials into Interactive Quizzes
             </h1>
-            <p className="mt-2 sm:mt-3 text-base sm:text-lg leading-7 sm:leading-8 text-gray-600 px-4 sm:px-0">
+            <p className="mt-4 sm:mt-6 text-base sm:text-lg leading-7 sm:leading-8 text-gray-600 px-4 sm:px-0">
               Upload your PDF study materials and let our AI generate personalized quizzes. Learn smarter, not harder with QuizLab AI.
             </p>
-            <div className="mt-3 sm:mt-4 flex items-center justify-center gap-x-4 sm:gap-x-6">
+            <div className="mt-6 sm:mt-8 flex items-center justify-center gap-x-4 sm:gap-x-6">
               <Link
                 href="/auth/sign-up"
                 className="rounded-md bg-indigo-600 px-3 sm:px-3.5 py-2 sm:py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
@@ -80,7 +80,7 @@ export function Hero() {
           </motion.div>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 mt-4 sm:mt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 mt-6 sm:mt-8">
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
