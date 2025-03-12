@@ -37,9 +37,6 @@ export function MainHeader() {
   
   // Check if user is on auth pages
   const isAuthPage = pathname?.startsWith('/auth');
-  
-  // Check if user is on dashboard pages
-  const isDashboardPage = pathname?.startsWith('/dashboard');
 
   useEffect(() => {
     const initSupabase = async () => {
@@ -118,21 +115,16 @@ export function MainHeader() {
             <span className="text-xl font-bold text-gray-900">QuizLab AI</span>
           </Link>
         </div>
-        
-        {/* Only show mobile menu toggle on non-dashboard pages */}
-        {!isDashboardPage && (
-          <div className="flex lg:hidden">
-            <button
-              type="button"
-              className="-m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-gray-700"
-              onClick={() => setMobileMenuOpen(true)}
-            >
-              <span className="sr-only">Open main menu</span>
-              <Menu className="h-6 w-6" aria-hidden="true" />
-            </button>
-          </div>
-        )}
-        
+        <div className="flex lg:hidden">
+          <button
+            type="button"
+            className="-m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-gray-700"
+            onClick={() => setMobileMenuOpen(true)}
+          >
+            <span className="sr-only">Open main menu</span>
+            <Menu className="h-6 w-6" aria-hidden="true" />
+          </button>
+        </div>
         <div className="hidden lg:flex lg:gap-x-12">
           {!isAuthPage && !user && navigationItems.map((item) => (
             <Link
@@ -144,9 +136,7 @@ export function MainHeader() {
             </Link>
           ))}
         </div>
-        
-        {/* Hide the sign-out button in the header on dashboard pages since it's in the sidebar */}
-        <div className={`hidden lg:flex lg:flex-1 lg:justify-end lg:gap-x-4 items-center ${isDashboardPage ? 'lg:invisible' : ''}`}>
+        <div className="hidden lg:flex lg:flex-1 lg:justify-end lg:gap-x-4 items-center">
           {loading ? (
             <div className="h-9 w-16 bg-gray-200 rounded-md animate-pulse"></div>
           ) : user ? (
@@ -184,8 +174,8 @@ export function MainHeader() {
         </div>
       </nav>
 
-      {/* Mobile menu - only for non-dashboard pages */}
-      {mobileMenuOpen && !isDashboardPage && (
+      {/* Mobile menu */}
+      {mobileMenuOpen && (
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
