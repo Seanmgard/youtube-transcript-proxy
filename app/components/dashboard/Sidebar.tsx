@@ -163,11 +163,14 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
       )}
 
       <aside className={`
-        min-h-[calc(100vh-4rem)] w-64 bg-white border-r border-gray-200 flex flex-col fixed top-16 left-0 z-40
+        min-h-screen w-64 bg-white border-r border-gray-200 flex flex-col fixed top-0 left-0
         transform transition-transform duration-300 ease-in-out
-        md:translate-x-0 md:shadow-none
-        ${isMobileMenuOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full'}
+        md:translate-x-0 md:top-16 md:pt-0 md:z-40 md:min-h-[calc(100vh-4rem)]
+        ${isMobileMenuOpen ? 'translate-x-0 z-[55] shadow-xl' : '-translate-x-full'}
       `}>
+        {/* Add padding only for mobile to account for the header */}
+        <div className="md:hidden h-16" />
+        
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => {

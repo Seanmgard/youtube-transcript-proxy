@@ -593,16 +593,15 @@ export default function QuizHistory({ limit }: { limit?: number }) {
       {quizzes.map((quiz) => (
         <div
           key={quiz.id}
-            className={`p-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer ${
-              quiz.subject && quiz.color 
-                ? 'border-l-4' 
-                : 'bg-gray-50 dark:bg-gray-700'
-            }`}
-            style={quiz.subject && quiz.color ? {
-              borderLeftColor: quiz.color,
-              backgroundColor: `${quiz.color}20`, // Add 20% opacity to the color
-            } : {}}
-            onClick={() => openQuizDetails(quiz)}
+          className={`p-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${
+            quiz.subject && quiz.color 
+              ? 'border-l-4' 
+              : 'bg-gray-50 dark:bg-gray-700'
+          }`}
+          style={quiz.subject && quiz.color ? {
+            borderLeftColor: quiz.color,
+            backgroundColor: `${quiz.color}20`,
+          } : {}}
         >
           <div className="flex flex-col">
             {quiz.subject ? (
@@ -644,34 +643,37 @@ export default function QuizHistory({ limit }: { limit?: number }) {
               </div>
             </div>
             
-            <div className="flex justify-between items-center mt-4">
-              {!quiz.subject ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs text-gray-500 hover:text-primary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startCategorizing(quiz);
-                  }}
-                >
-                  <BookmarkPlus className="h-3 w-3 mr-1" />
-                  Add Subject
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startCategorizing(quiz);
-                  }}
-                >
-                  <Tag className="mr-2 h-3 w-3" />
-                  Edit Subject
-                </Button>
-              )}
-              <div className="flex space-x-2 ml-auto">
+            {/* Action Buttons - Touch scrollable on mobile */}
+            <div className="mt-4 -mb-1 overflow-x-auto scrollbar-none md:overflow-x-visible">
+              <div className="flex space-x-2 min-w-max md:min-w-0 touch-pan-x">
+                {!quiz.subject ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs text-gray-500 hover:text-primary whitespace-nowrap"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startCategorizing(quiz);
+                    }}
+                  >
+                    <BookmarkPlus className="h-3 w-3 mr-1" />
+                    Add Subject
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="whitespace-nowrap"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startCategorizing(quiz);
+                    }}
+                  >
+                    <Tag className="mr-2 h-3 w-3" />
+                    Edit Subject
+                  </Button>
+                )}
+
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -699,6 +701,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                       <Button
                         variant="outline"
                         size="sm"
+                        className="whitespace-nowrap"
                         disabled={exporting === `${quiz.id}-doc`}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -725,6 +728,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                       <Button
                         variant="outline"
                         size="sm"
+                        className="whitespace-nowrap"
                         disabled={exporting === `${quiz.id}-csv`}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -751,6 +755,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                       <Button
                         variant="outline"
                         size="sm"
+                        className="whitespace-nowrap"
                         disabled={sendingToAnki && selectedQuiz?.id === quiz.id}
                         onClick={(e) => {
                           e.stopPropagation();
