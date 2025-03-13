@@ -25,7 +25,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/app/components/ui/label'
 import Link from 'next/link'
 import SubjectManager, { Subject } from './SubjectManager'
-import { SupabaseClient, User } from '@supabase/supabase-js'
+import { User, SupabaseClient } from '@supabase/supabase-js'
+import { useAuth } from '@/app/providers/AuthProvider'
+import { useSupabase } from '@/utils/supabase/client'
 
 // Helper function to determine text color based on background color
 const getContrastColor = (hexColor: string): string => {
@@ -44,13 +46,7 @@ const getContrastColor = (hexColor: string): string => {
   return luminance > 0.5 ? '#000000' : '#FFFFFF';
 };
 
-interface QuizHistoryProps {
-  showAll?: boolean;
-  user: User;
-  supabase: SupabaseClient;
-}
-
-export default function QuizHistory({ showAll = false, user, supabase }: QuizHistoryProps) {
+export default function QuizHistory({ limit }: { limit?: number }) {
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null)
@@ -68,52 +64,95 @@ export default function QuizHistory({ showAll = false, user, supabase }: QuizHis
   const [quizToDelete, setQuizToDelete] = useState<Quiz | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const { user } = useAuth()
+  const { supabase, loading: supabaseLoading } = useSupabase()
+
+  // Combine loading states
+  const isLoading = loading || supabaseLoading;
 
   useEffect(() => {
-    if (!user || !supabase) return;
+    if (!user || !supabase) {
+      console.log('Missing user or supabase client:', { user: !!user, supabase: !!supabase });
+      return;
+    }
 
     const fetchQuizzes = async () => {
       try {
         setLoading(true);
-        const { data, error } = await supabase
-          .from('quiz_history')
+        console.log('Current user:', { id: user.id, email: user.email });
+        
+        // First verify the session is valid
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+          throw new Error(`Session error: ${sessionError.message}`);
+        }
+        
+        if (!session) {
+          console.log('No active session, attempting to refresh...');
+          const { error: refreshError } = await supabase.auth.refreshSession();
+          if (refreshError) {
+            throw new Error(`Session refresh error: ${refreshError.message}`);
+          }
+        }
+
+        // Fetch quizzes with proper error handling, excluding soft-deleted quizzes
+        console.log("Fetching quizzes for user ID:", user.id);
+        const { data: quizzesData, error: quizzesError } = await supabase
+          .from('quizzes')
           .select('*')
           .eq('user_id', user.id)
+          .is('deleted_at', null)
           .order('created_at', { ascending: false })
-          .limit(showAll ? 50 : 5);
+          .limit(limit || 50);
 
-        if (error) {
-          console.error('Error fetching quiz history:', error);
+        if (quizzesError) {
+          console.error("Error fetching quizzes:", quizzesError);
+          throw new Error(`Database error: ${quizzesError.message}`);
+        }
+
+        if (!quizzesData || quizzesData.length === 0) {
+          console.log('No quizzes found for user:', user.id);
+          setQuizzes([]);
           return;
         }
 
-        setQuizzes(data || []);
+        // Log the first quiz to check the structure
+        console.log("First quiz structure:", JSON.stringify(quizzesData[0], null, 2));
+        
+        // Normalize quiz data to handle field name mismatches
+        const normalizedQuizzes = quizzesData.map((quiz: any) => ({
+          id: quiz.id,
+          title: quiz.title,
+          user_id: quiz.user_id,
+          created_at: quiz.created_at,
+          pdf_url: quiz.pdf_url || '',
+          questions: quiz.questions || [],
+          settings: quiz.settings || {
+            numberOfQuestions: quiz.questions?.length || 0,
+            difficulty: 'medium',
+            questionType: 'mixed'
+          },
+          subject: quiz.subject || '',
+          color: quiz.color || ''
+        }));
+        
+        console.log("Normalized quizzes:", normalizedQuizzes);
+        setQuizzes(normalizedQuizzes);
+        
       } catch (error) {
         console.error('Error in fetchQuizzes:', error);
+        toast({
+          title: 'Error loading quizzes',
+          description: error instanceof Error ? error.message : 'Failed to load quiz history',
+          variant: 'destructive',
+        });
       } finally {
         setLoading(false);
       }
     };
 
     fetchQuizzes();
-  }, [user, supabase, showAll]);
-
-  // Add a new useEffect to refresh the session when the component mounts
-  useEffect(() => {
-    if (!supabase) return;
-    
-    const refreshSession = async () => {
-      try {
-        // Try to refresh the session silently
-        await supabase.auth.refreshSession();
-      } catch (error) {
-        console.error('Error refreshing session:', error);
-        // Don't show a toast here, as we'll handle auth errors in fetchQuizzes
-      }
-    };
-
-    refreshSession();
-  }, [supabase]);
+  }, [user, supabase, toast, limit]);
 
   const handleExport = async (quiz: Quiz, format: 'doc' | 'csv' | 'anki') => {
     try {
@@ -439,47 +478,20 @@ export default function QuizHistory({ showAll = false, user, supabase }: QuizHis
     setIsDeleteDialogOpen(false);
   };
 
-  const deleteQuiz = async () => {
-    if (!quizToDelete) return;
-    
+  const handleDelete = async (quiz: Quiz) => {
+    if (!quiz) return;
     try {
       setDeleting(true);
+      const { error } = await supabase
+        .from('quizzes')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', quiz.id);
       
-      // Call the API endpoint to delete the quiz
-      const response = await fetch(`/api/delete-quiz?id=${quizToDelete.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'same-origin' // Use same-origin to ensure cookies are sent
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        
-        if (response.status === 401) {
-          toast({
-            title: 'Authentication Error',
-            description: 'Your session has expired. Please sign in again.',
-            variant: 'destructive',
-          });
-          // Redirect to login
-          window.location.href = '/auth/sign-in';
-          return;
-        }
-        
-        throw new Error(errorData.error || `Failed to delete quiz (${response.status})`);
-      }
+      if (error) throw error;
       
-      // Update the local state by removing the deleted quiz
-      setQuizzes(quizzes.filter(q => q.id !== quizToDelete.id));
-      
-      // Close dialogs and reset state
+      // Remove from UI
+      setQuizzes(quizzes.filter(q => q.id !== quiz.id));
       setIsDeleteDialogOpen(false);
-      if (selectedQuiz?.id === quizToDelete.id) {
-        setIsDialogOpen(false);
-        setSelectedQuiz(null);
-      }
       setQuizToDelete(null);
       
       toast({
@@ -490,7 +502,7 @@ export default function QuizHistory({ showAll = false, user, supabase }: QuizHis
       console.error('Error deleting quiz:', error);
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to delete quiz',
+        description: 'Failed to delete quiz',
         variant: 'destructive',
       });
     } finally {
@@ -1276,7 +1288,7 @@ export default function QuizHistory({ showAll = false, user, supabase }: QuizHis
           <Button
             type="button"
             variant="destructive"
-            onClick={deleteQuiz}
+            onClick={() => handleDelete(quizToDelete!)}
             disabled={deleting}
           >
             {deleting ? (

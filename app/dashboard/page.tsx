@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/utils/supabase/client';
+import { useAuth } from '@/app/providers/AuthProvider';
+import { useSupabase } from '@/utils/supabase/client';
 import QuizUploader from '@/app/components/QuizUploader';
 import QuizHistory from '@/components/QuizHistory';
 import { Loader2, FileDown, FileText, Send, Download } from 'lucide-react';
@@ -18,20 +19,15 @@ import {
 
 export default function Dashboard() {
   const [currentQuiz, setCurrentQuiz] = useState<any>(null);
-  const [user, setUser] = useState<any>(null);
+  const { user } = useAuth();
+  const { supabase, loading: supabaseLoading } = useSupabase();
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<string | null>(null);
   const { toast } = useToast();
-  const [supabase, setSupabase] = useState<any>(null);
   const { fetchSubscription, isOnPlan } = useSubscription();
 
   useEffect(() => {
-    const initSupabase = async () => {
-      const client = await createClient();
-      setSupabase(client);
-    };
-    
-    initSupabase();
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -51,8 +47,6 @@ export default function Dashboard() {
           window.location.href = '/auth/sign-in';
           return;
         }
-        
-        setUser(user);
         
         // Use a static flag to track if we've already attempted to fetch the subscription
         // This prevents multiple fetch attempts during component re-renders
@@ -114,6 +108,15 @@ export default function Dashboard() {
       toast({
         title: "Cannot export",
         description: "Please generate a valid quiz first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to export quizzes",
         variant: "destructive",
       });
       return;
@@ -209,6 +212,15 @@ export default function Dashboard() {
       return;
     }
 
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to send quizzes to Anki",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setExporting('anki-send');
       toast({
@@ -277,9 +289,7 @@ export default function Dashboard() {
       console.error('Error sending to Anki:', error);
       toast({
         title: "Failed to send to Anki",
-        description: error instanceof Error 
-          ? error.message 
-          : "Make sure Anki is running with the Anki-Connect plugin installed",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
         variant: "destructive",
       });
     } finally {
@@ -414,51 +424,51 @@ export default function Dashboard() {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-[70vh]">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Welcome back!</h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Upload your materials to generate your quiz.
-          <br />
-          Use the selections below to refine your choices.
-        </p>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
-          <h2 className="text-xl font-semibold mb-4">Create New Quiz</h2>
-          <QuizUploader 
-            onQuizGenerated={handleQuizGenerated} 
-            key={isOnPlan('premium') ? 'premium' : 'free'} 
-          />
+      {!user || loading || supabaseLoading ? (
+        <div className="flex justify-center items-center h-[70vh]">
+          <Loader2 className="h-8 w-8 animate-spin" />
         </div>
-
-        <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
-          <h2 className="text-xl font-semibold mb-4">Quiz Preview</h2>
-          <div className="h-[400px] p-6 bg-gray-50 rounded-lg dark:bg-gray-700 overflow-auto">
-            {renderQuizContent()}
+      ) : (
+        <>
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Welcome back!</h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Upload your materials to generate your quiz.
+              <br />
+              Use the selections below to refine your choices.
+            </p>
           </div>
-        </div>
-      </div>
 
-      <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Recent Quizzes</h2>
-          <Link href="/dashboard/history">
-            <Button variant="outline">View All</Button>
-          </Link>
-        </div>
-        <QuizHistory limit={5} />
-      </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+              <h2 className="text-xl font-semibold mb-4">Create New Quiz</h2>
+              <QuizUploader 
+                onQuizGenerated={handleQuizGenerated} 
+                key={isOnPlan('premium') ? 'premium' : 'free'} 
+              />
+            </div>
+
+            <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+              <h2 className="text-xl font-semibold mb-4">Quiz Preview</h2>
+              <div className="h-[400px] p-6 bg-gray-50 rounded-lg dark:bg-gray-700 overflow-auto">
+                {renderQuizContent()}
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Recent Quizzes</h2>
+              <Link href="/dashboard/history">
+                <Button variant="outline">View All</Button>
+              </Link>
+            </div>
+            <QuizHistory limit={5} />
+          </div>
+        </>
+      )}
     </div>
-  )
+  );
 } 

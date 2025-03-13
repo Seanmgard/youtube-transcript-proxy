@@ -41,7 +41,7 @@ export function QuizCounter() {
       // Properly await the Supabase client
       const supabase = await createClient();
       
-      // Query quizzes created by the current user in the current month
+      // Query ALL quizzes created by the current user in the current month, including deleted ones
       const { count, error } = await supabase
         .from('quizzes')
         .select('*', { count: 'exact', head: true })
@@ -110,17 +110,11 @@ export function QuizCounter() {
         try {
           const supabase = await createClient();
           
+          // Only listen for INSERT events since we're tracking all creations
           const channel = supabase
             .channel('quiz-counter')
             .on('postgres_changes', { 
               event: 'INSERT', 
-              schema: 'public', 
-              table: 'quizzes' 
-            }, () => {
-              fetchQuizCount();
-            })
-            .on('postgres_changes', { 
-              event: 'DELETE', 
               schema: 'public', 
               table: 'quizzes' 
             }, () => {
