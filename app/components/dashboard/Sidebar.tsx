@@ -47,6 +47,7 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
   const navItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Learn', href: '/dashboard/learn', icon: BookOpen },
+    { name: 'History', href: '/dashboard/history', icon: History },
     { name: 'Suggest a Feature', href: '/dashboard/suggest', icon: Lightbulb },
     { name: 'Manage Subscription', href: '/dashboard/subscription', icon: CreditCard },
   ];

@@ -55,20 +55,20 @@ export function FAQ() {
   };
 
   return (
-    <div id="faq" className="bg-white dark:bg-gray-900 py-12 sm:py-16">
+    <div id="faq" className="bg-white py-12 sm:py-16">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-base font-semibold leading-7 text-indigo-600 dark:text-indigo-400">
+          <h2 className="text-base font-semibold leading-7 text-indigo-600">
             FAQ
           </h2>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
+          <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
             Frequently asked questions
           </p>
-          <p className="mt-4 text-lg leading-8 text-gray-600 dark:text-gray-300">
+          <p className="mt-4 text-lg leading-8 text-gray-600">
             Find answers to common questions about QuizLab AI.
           </p>
         </div>
-        <div className="mx-auto mt-10 max-w-2xl divide-y divide-gray-200 dark:divide-gray-700">
+        <div className="mx-auto mt-10 max-w-2xl divide-y divide-gray-200">
           {faqs.map((faq, index) => (
             <motion.div 
               key={index}
@@ -82,12 +82,12 @@ export function FAQ() {
                 onClick={() => toggleFaq(index)}
                 className="flex w-full items-start justify-between text-left"
               >
-                <span className="text-lg font-semibold leading-7 text-gray-900 dark:text-white">
+                <span className="text-lg font-semibold leading-7 text-gray-900">
                   {faq.question}
                 </span>
                 <span className="ml-6 flex h-7 items-center">
                   <ChevronDown
-                    className={`h-6 w-6 transform text-gray-600 dark:text-gray-400 transition-transform duration-200 ${
+                    className={`h-6 w-6 transform text-gray-600 transition-transform duration-200 ${
                       openIndex === index ? 'rotate-180' : ''
                     }`}
                     aria-hidden="true"
@@ -102,7 +102,7 @@ export function FAQ() {
                   transition={{ duration: 0.3 }}
                   className="mt-2 pr-12"
                 >
-                  <p className="text-base leading-7 text-gray-600 dark:text-gray-300">
+                  <p className="text-base leading-7 text-gray-600">
                     {faq.answer}
                   </p>
                 </motion.div>

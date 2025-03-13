@@ -120,16 +120,16 @@ export function HomeQuizGenerator({ onQuizGenerated }: { onQuizGenerated: (quiz:
   };
 
   return (
-    <div className="bg-white dark:bg-gray-900 shadow-lg rounded-lg p-4 sm:p-6 border border-gray-200 dark:border-gray-700 h-full">
-      <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Generate Your Quiz!</h2>
-      <p className="mb-4 sm:mb-6 text-gray-600 dark:text-gray-300 text-sm sm:text-base">
+    <div className="bg-white shadow-lg rounded-lg p-4 sm:p-6 border border-gray-200 h-full">
+      <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-gray-900">Generate Your Quiz!</h2>
+      <p className="mb-4 sm:mb-6 text-gray-600 text-sm sm:text-base">
         Transform your learning materials into practice questions. Give it a try.
       </p>
       
       {/* File Upload */}
       <form onSubmit={handleSubmit} className="mb-4 sm:mb-6">
         <div className="mb-4">
-          <Label htmlFor="pdf-upload" className="text-sm sm:text-base">Drop files here to upload</Label>
+          <Label htmlFor="pdf-upload" className="text-sm sm:text-base text-gray-900">Drop files here to upload</Label>
           <Input id="pdf-upload" type="file" accept=".pdf" onChange={handleFileChange} className="mt-1" />
         </div>
         
@@ -151,9 +151,9 @@ export function HomeQuizGenerator({ onQuizGenerated }: { onQuizGenerated: (quiz:
 
       {/* Call-to-Action Section - Only shown after quiz generation */}
       {quizGenerated && (
-        <div className="mt-4 sm:mt-6 bg-gray-50 dark:bg-gray-800 rounded-lg p-3 sm:p-4 text-sm sm:text-base">
+        <div className="mt-4 sm:mt-6 bg-gray-50 rounded-lg p-3 sm:p-4 text-sm sm:text-base">
           <div className="text-center py-2 sm:py-3">
-            <p className="mb-4 text-gray-600 dark:text-gray-300 text-sm sm:text-base">
+            <p className="mb-4 text-gray-600 text-sm sm:text-base">
               Want to create more comprehensive quizzes with customizable settings?
             </p>
             <Link href="/auth/sign-up">

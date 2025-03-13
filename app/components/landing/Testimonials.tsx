@@ -15,16 +15,16 @@ const testimonial = {
 
 export function Testimonials() {
   return (
-    <div id="testimonials" className="bg-gray-50 dark:bg-gray-800 py-16 sm:py-24">
+    <div id="testimonials" className="bg-gray-50 py-16 sm:py-24">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center mb-16">
-          <h2 className="text-base font-semibold leading-7 text-indigo-600 dark:text-indigo-400">
+          <h2 className="text-base font-semibold leading-7 text-indigo-600">
             Testimonial
           </h2>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
+          <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
             Hear from our users
           </p>
-          <p className="mt-4 text-lg leading-8 text-gray-600 dark:text-gray-300">
+          <p className="mt-4 text-lg leading-8 text-gray-600">
             See how QuizLab AI is transforming the way students learn and prepare for their exams.
           </p>
         </div>
