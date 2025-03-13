@@ -145,26 +145,52 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
     try {
       const response = await fetch(`/api/export-quiz?id=${quiz.id}&format=${format}`, {
         method: 'GET',
-      })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (!response.ok) throw new Error('Failed to export quiz')
+      if (!response.ok) {
+        throw new Error(`Export failed: ${response.statusText}`);
+      }
 
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `quiz-${quiz.id}.${format}`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${quiz.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: 'Export Successful',
+        description: `Quiz exported as ${format.toUpperCase()} successfully`,
+      });
     } catch (error) {
-      console.error('Error exporting quiz:', error)
+      console.error('Error exporting quiz:', error);
+      toast({
+        title: 'Export Failed',
+        description: error instanceof Error ? error.message : 'Failed to export quiz',
+        variant: 'destructive',
+      });
     }
-  }
+  };
 
   const startEditing = (quiz: Quiz) => {
-    setEditingQuiz(JSON.parse(JSON.stringify(quiz))); // Deep copy
+    if (!quiz) return;
+    
+    // Create a deep copy of the quiz to edit
+    const quizCopy = JSON.parse(JSON.stringify(quiz));
+    setEditingQuiz(quizCopy);
+    setCurrentQuestionIndex(0);
+    
+    // Open the edit dialog
+    const editDialog = document.createElement('dialog');
+    editDialog.id = 'edit-dialog';
+    document.body.appendChild(editDialog);
+    editDialog.showModal();
   };
 
   const cancelEditing = () => {
@@ -476,28 +502,77 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
 
           <DialogFooter className="border-t pt-4 bg-gray-50">
             <div className="flex justify-between w-full">
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={closeQuizDetails}>
+              <div className="flex items-center space-x-2">
+                <Button size="sm" variant="outline" onClick={closeQuizDetails}>
                   Close
                 </Button>
-              </div>
-              <div className="flex gap-2">
+                <div className="border-l h-4 mx-2" />
                 <Button
+                  size="sm"
                   variant="outline"
                   onClick={() => {
-                    startEditing(selectedQuiz!);
-                    setCurrentQuestionIndex(0);
+                    if (selectedQuiz) {
+                      handleExport(selectedQuiz, 'doc');
+                    }
                   }}
+                  className="flex items-center"
                 >
-                  <Edit className="h-4 w-4 mr-2" />
+                  <FileText className="h-4 w-4 mr-1" />
+                  Export DOC
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (selectedQuiz) {
+                      handleExport(selectedQuiz, 'csv');
+                    }
+                  }}
+                  className="flex items-center"
+                >
+                  <FileText className="h-4 w-4 mr-1" />
+                  Export CSV
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (selectedQuiz) {
+                      handleExport(selectedQuiz, 'anki');
+                    }
+                  }}
+                  className="flex items-center"
+                >
+                  <FileText className="h-4 w-4 mr-1" />
+                  Export Anki
+                </Button>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (selectedQuiz) {
+                      startEditing(selectedQuiz);
+                      closeQuizDetails();
+                    }
+                  }}
+                  className="flex items-center"
+                >
+                  <Edit className="h-4 w-4 mr-1" />
                   Edit Quiz
                 </Button>
                 <Button
+                  size="sm"
                   variant="outline"
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  onClick={() => openDeleteConfirmation(selectedQuiz!)}
+                  onClick={() => {
+                    if (selectedQuiz) {
+                      openDeleteConfirmation(selectedQuiz);
+                    }
+                  }}
+                  className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50"
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
+                  <Trash2 className="h-4 w-4 mr-1" />
                   Delete Quiz
                 </Button>
               </div>
