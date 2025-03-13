@@ -13,8 +13,9 @@ export default function PrivacyPage() {
         
         <h2 className="text-2xl font-semibold mt-8 mb-4">1. Introduction</h2>
         <p>
+          This privacy notice for Sean Gardner Consulting LLC (doing business as QuizLab AI) describes the privacy policy.
           At QuizLab AI, we respect your privacy and are committed to protecting your personal data. 
-          This Privacy Policy explains how we collect, use, and safeguard your information when you use our service.
+          The following information explains how we collect, use, and safeguard your information when you use our service.
         </p>
         
         <h2 className="text-2xl font-semibold mt-8 mb-4">2. Information We Collect</h2>

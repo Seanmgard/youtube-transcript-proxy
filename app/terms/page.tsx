@@ -13,7 +13,8 @@ export default function TermsPage() {
         
         <h2 className="text-2xl font-semibold mt-8 mb-4">1. Introduction</h2>
         <p>
-          Welcome to QuizLab AI. These Terms of Service govern your use of our website and services. 
+          Welcome to QuizLab AI. These Terms of Service govern your use of our website and services.
+          These terms constitute a legally binding agreement between you and Sean Gardner Consulting LLC (doing business as QuizLab AI) concerning your access to and use of the the https://quizlabai.com website and any related services (collectively, the "Service").
           By accessing or using QuizLab AI, you agree to be bound by these Terms.
         </p>
         
