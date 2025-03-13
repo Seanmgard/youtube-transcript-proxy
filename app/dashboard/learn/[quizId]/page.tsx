@@ -430,9 +430,9 @@ export default function LearnQuizPage() {
         <h1 className="text-2xl font-bold">{quiz.title}</h1>
       </div>
 
-      <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+      <div className="p-6 bg-white rounded-lg shadow-md">
         <div className="flex justify-between items-center mb-4">
-          <div className="text-sm">
+          <div className="text-sm text-gray-600">
             Question {currentQuestionIndex + 1} of {totalQuestions}
           </div>
           <Button variant="outline" size="sm" onClick={resetQuiz}>
@@ -443,13 +443,13 @@ export default function LearnQuizPage() {
 
         <Progress 
           value={progress} 
-          className="h-2 mb-4 bg-gray-200 dark:bg-gray-700" 
+          className="h-2 mb-4 bg-gray-100" 
           style={{ "--progress-foreground": "rgb(21, 128, 61)" } as React.CSSProperties}
         />
 
         {/* Flashcard */}
         <div
-          className={`relative w-full rounded-lg border bg-card text-card-foreground shadow-sm perspective-1000 ${flipped ? 'rotate-y-180' : ''} transform-style-preserve-3d transition-all duration-500 cursor-pointer`}
+          className={`relative w-full rounded-lg border bg-white text-gray-900 shadow-sm perspective-1000 ${flipped ? 'rotate-y-180' : ''} transform-style-preserve-3d transition-all duration-500 cursor-pointer`}
           style={{ minHeight: '190px', height: '270px', maxHeight: '270px' }}
           onClick={handleFlip}
           tabIndex={0}
@@ -458,16 +458,16 @@ export default function LearnQuizPage() {
           aria-label="Flashcard, press space or click to flip"
         >
           {/* Front of card (Question) */}
-          <div className={`absolute w-full h-full backface-hidden ${!flipped ? 'visible' : 'invisible'} overflow-auto p-3`}>
-            <h3 className="font-medium text-sm mb-1">Question {currentQuestionIndex + 1}</h3>
-            <p className="mb-2 text-sm">{currentQuestion?.text}</p>
+          <div className={`absolute w-full h-full backface-hidden ${!flipped ? 'visible' : 'invisible'} overflow-auto p-6 bg-white`}>
+            <h3 className="font-medium text-sm text-gray-700 mb-1">Question {currentQuestionIndex + 1}</h3>
+            <p className="mb-2 text-gray-900">{currentQuestion?.text}</p>
             
             {currentQuestion?.type === 'multiple_choice' && currentQuestion?.options && (
               <>
-                <p className="text-xs text-muted-foreground mb-1">Options:</p>
+                <p className="text-xs text-gray-600 mb-1">Options:</p>
                 <ul className="space-y-1 mb-2">
                   {currentQuestion.options.map((option, index) => (
-                    <li key={index} className="text-sm py-1 px-3 rounded-md bg-secondary">
+                    <li key={index} className="text-sm py-1 px-3 rounded-md bg-gray-50 text-gray-700">
                       {option}
                     </li>
                   ))}
@@ -481,11 +481,11 @@ export default function LearnQuizPage() {
           </div>
           
           {/* Back of card (Answer) */}
-          <div className={`absolute w-full h-full backface-hidden rotate-y-180 ${flipped ? 'visible' : 'invisible'} overflow-auto p-3 flex flex-col`}>
-            <h3 className="font-medium text-sm mb-1">Answer</h3>
+          <div className={`absolute w-full h-full backface-hidden rotate-y-180 ${flipped ? 'visible' : 'invisible'} overflow-auto p-6 flex flex-col bg-white`}>
+            <h3 className="font-medium text-sm text-gray-700 mb-1">Answer</h3>
             
             <div className="flex-grow flex items-center justify-center">
-              <p className="text-sm font-medium">{currentQuestion?.correctAnswer}</p>
+              <p className="text-sm font-medium text-gray-900">{currentQuestion?.correctAnswer}</p>
             </div>
             
             <div className="mt-4 text-center text-xs text-gray-500">
@@ -513,31 +513,31 @@ export default function LearnQuizPage() {
         </div>
       </div>
 
-      <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
-        <h2 className="text-xl font-semibold mb-4">Your Progress</h2>
+      <div className="p-6 bg-white rounded-lg shadow-md">
+        <h2 className="text-xl font-semibold mb-4 text-gray-900">Your Progress</h2>
         
         <div className="space-y-4">
           <div>
-            <div className="flex justify-between text-sm mb-1">
+            <div className="flex justify-between text-sm mb-1 text-gray-700">
               <span>Cards Viewed</span>
               <span>{Object.values(questionStats).filter(stat => stat.last_studied).length} of {quiz.questions.length}</span>
             </div>
             <Progress 
               value={(Object.values(questionStats).filter(stat => stat.last_studied).length / quiz.questions.length) * 100} 
-              className="h-2 bg-gray-200 dark:bg-gray-700" 
+              className="h-2 bg-gray-100" 
               style={{ "--progress-foreground": "rgb(21, 128, 61)" } as React.CSSProperties}
             />
           </div>
           
           <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 bg-gray-50 rounded-lg dark:bg-gray-700">
-              <h3 className="text-sm font-medium mb-1">Completed Sessions</h3>
-              <p className="text-2xl font-bold">{learningProgress?.completed_sessions || 0}</p>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <h3 className="text-sm font-medium mb-1 text-gray-700">Completed Sessions</h3>
+              <p className="text-2xl font-bold text-gray-900">{learningProgress?.completed_sessions || 0}</p>
             </div>
             
-            <div className="p-4 bg-gray-50 rounded-lg dark:bg-gray-700">
-              <h3 className="text-sm font-medium mb-1">Last Studied</h3>
-              <p className="text-sm">
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <h3 className="text-sm font-medium mb-1 text-gray-700">Last Studied</h3>
+              <p className="text-sm text-gray-600">
                 {learningProgress?.last_studied 
                   ? new Date(learningProgress.last_studied).toLocaleDateString() 
                   : 'Never'}

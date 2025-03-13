@@ -6,7 +6,7 @@ import { useSupabase } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Quiz } from '@/lib/types'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, Edit, Trash2, Tag, Calendar, FileText, BarChart3, Clock, Check } from 'lucide-react'
+import { Loader2, Edit, Trash2, Tag, Calendar, FileText, BarChart3, Clock, Check, AlertCircle } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -54,6 +54,7 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
 
   // Combine loading states
   const isLoading = loading || supabaseLoading;
@@ -141,6 +142,19 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
     fetchQuizzes();
   }, [user, supabase, toast, limit]);
 
+  useEffect(() => {
+    // Check if device is mobile or tablet
+    const checkDevice = () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobile = /iphone|ipad|ipod|android|blackberry|windows phone/g.test(userAgent);
+      setIsMobileOrTablet(isMobile);
+    };
+
+    checkDevice();
+    window.addEventListener('resize', checkDevice);
+    return () => window.removeEventListener('resize', checkDevice);
+  }, []);
+
   const handleExport = async (quiz: Quiz, format: 'doc' | 'csv' | 'anki') => {
     try {
       const response = await fetch(`/api/export-quiz?id=${quiz.id}&format=${format}`, {
@@ -176,6 +190,19 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
         variant: 'destructive',
       });
     }
+  };
+
+  const handleAnkiExport = (quiz: Quiz) => {
+    if (isMobileOrTablet) {
+      toast({
+        title: "Desktop Only Feature",
+        description: "Exporting to Anki is only available on desktop computers. Please use your computer to export to Anki.",
+        variant: "default",
+        duration: 5000,
+      });
+      return;
+    }
+    handleExport(quiz, 'anki');
   };
 
   const startEditing = (quiz: Quiz) => {
@@ -538,12 +565,21 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
                   variant="outline"
                   onClick={() => {
                     if (selectedQuiz) {
-                      handleExport(selectedQuiz, 'anki');
+                      handleAnkiExport(selectedQuiz);
                     }
                   }}
-                  className="flex items-center"
+                  className={`flex items-center ${
+                    isMobileOrTablet 
+                      ? 'opacity-60 cursor-help' 
+                      : ''
+                  }`}
                 >
-                  <FileText className="h-4 w-4 mr-1" />
+                  {isMobileOrTablet && (
+                    <AlertCircle className="h-4 w-4 mr-1 text-gray-400" />
+                  )}
+                  {!isMobileOrTablet && (
+                    <FileText className="h-4 w-4 mr-1" />
+                  )}
                   Export Anki
                 </Button>
               </div>
