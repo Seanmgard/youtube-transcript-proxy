@@ -6,7 +6,7 @@ import { useSupabase } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Quiz } from '@/lib/types'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, Edit, Trash2 } from 'lucide-react'
+import { Loader2, Edit, Trash2, Tag, Calendar, FileText, BarChart3, Clock, Check } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -34,6 +34,9 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
   const [quizToDelete, setQuizToDelete] = useState<Quiz | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null)
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
 
   // Combine loading states
   const isLoading = loading || supabaseLoading;
@@ -297,6 +300,16 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
     }
   };
 
+  const openQuizDetails = (quiz: Quiz) => {
+    setSelectedQuiz(quiz);
+    setIsDialogOpen(true);
+  };
+
+  const closeQuizDetails = () => {
+    setSelectedQuiz(null);
+    setIsDialogOpen(false);
+  };
+
   if (loading) {
     return <div className="text-center py-4">Loading your quiz history...</div>
   }
@@ -315,150 +328,163 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
         {quizzes.map((quiz) => (
           <div
             key={quiz.id}
-            className="p-4 bg-gray-50 rounded-lg dark:bg-gray-700"
+            className={`p-4 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer ${
+              quiz.subject && quiz.color 
+                ? 'border-l-4' 
+                : 'bg-gray-50'
+            }`}
+            style={quiz.subject && quiz.color ? {
+              borderLeftColor: quiz.color,
+              backgroundColor: `${quiz.color}20`, // Add 20% opacity to the color
+            } : {}}
+            onClick={() => openQuizDetails(quiz)}
           >
-            <div className="flex justify-between items-start">
+            <div className="flex flex-col">
+              {quiz.subject ? (
+                <div className="mb-2">
+                  <div 
+                    className="inline-flex items-center px-3 py-1 rounded-md text-sm"
+                    style={{ 
+                      backgroundColor: quiz.color || '#E5E7EB', 
+                      color: quiz.color ? getContrastColor(quiz.color) : '#374151' 
+                    }}
+                  >
+                    <Tag className="h-3 w-3 mr-2" />
+                    {quiz.subject}
+                  </div>
+                </div>
+              ) : null}
+              
               <div>
                 <h3 className="font-semibold">{quiz.title}</h3>
-                <p className="text-sm text-gray-500">
-                  Created: {new Date(quiz.created_at).toLocaleDateString()}
-                </p>
-                <p className="text-sm text-gray-500">
-                  {quiz.questions.length} questions • {quiz.settings.difficulty} difficulty
-                </p>
-              </div>
-              <div className="flex space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => startEditing(quiz)}
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openDeleteConfirmation(quiz)}
-                  className="text-red-500 hover:text-red-700"
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Delete
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleExport(quiz, 'doc')}
-                >
-                  Export DOC
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleExport(quiz, 'csv')}
-                >
-                  Export CSV
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleExport(quiz, 'anki')}
-                >
-                  Export Anki
-                </Button>
+                <div className="flex flex-wrap gap-x-4 mt-1">
+                  <p className="text-sm text-gray-500 flex items-center">
+                    <Calendar className="h-3.5 w-3.5 mr-1" />
+                    {new Date(quiz.created_at).toLocaleDateString()}
+                  </p>
+                  <p className="text-sm text-gray-500 flex items-center">
+                    <FileText className="h-3.5 w-3.5 mr-1" />
+                    {quiz.questions.length} questions
+                  </p>
+                  <p className="text-sm text-gray-500 flex items-center">
+                    <BarChart3 className="h-3.5 w-3.5 mr-1" />
+                    {quiz.settings.difficulty} difficulty
+                  </p>
+                  <p className="text-sm text-gray-500 flex items-center">
+                    <Clock className="h-3.5 w-3.5 mr-1" />
+                    {quiz.settings.questionType} questions
+                  </p>
+                </div>
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Edit Quiz Dialog */}
-      <Dialog open={!!editingQuiz} onOpenChange={(open: boolean) => !open && cancelEditing()}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader className="pb-4">
-            <DialogTitle>Edit Quiz</DialogTitle>
-          </DialogHeader>
-          {editingQuiz && (
-            <div className="space-y-4 overflow-y-auto pr-4 flex-grow">
-              <div>
-                <Label htmlFor="title" className="text-base font-semibold">Quiz Title</Label>
-                <Input
-                  id="title"
-                  value={editingQuiz.title}
-                  onChange={(e) => updateQuizTitle(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div className="space-y-4">
-                {editingQuiz.questions.map((question, index) => (
-                  <div key={index} className="space-y-3 p-3 border rounded-lg bg-gray-50 dark:bg-gray-800">
-                    <div className="flex items-center justify-between mb-2">
-                      <Label className="text-base font-semibold">Question {index + 1}</Label>
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <Label className="text-sm">Question Text</Label>
-                      <Textarea
-                        value={question.text}
-                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateQuestionText(index, e.target.value)}
-                        className="mt-1"
-                        rows={2}
-                      />
-                    </div>
-
-                    {question.type === 'open_ended' ? (
-                      <div className="space-y-1">
-                        <Label className="text-sm">Answer</Label>
-                        <Textarea
-                          value={question.correctAnswer || ''}
-                          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateQuestionAnswer(index, e.target.value)}
-                          className="mt-1"
-                          rows={2}
-                        />
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <Label className="text-sm">Answer Options</Label>
-                        {(question.options || []).map((option, optionIndex) => (
-                          <div key={optionIndex} className="flex items-center space-x-2">
-                            <Input
-                              value={option}
-                              onChange={(e) => updateQuestionOptions(index, optionIndex, e.target.value)}
-                              className="flex-grow"
-                              placeholder={`Option ${optionIndex + 1}`}
-                            />
-                            <Button
-                              type="button"
-                              variant={question.correctAnswer === option ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setCorrectAnswer(index, optionIndex)}
-                              className="w-16 shrink-0"
-                            >
-                              {question.correctAnswer === option ? "✓" : "Set"}
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+      {/* Quiz Details Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={closeQuizDetails}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col bg-white">
+          <DialogHeader className="border-b pb-4">
+            <DialogTitle className="space-y-2">
+              {selectedQuiz?.subject && (
+                <div className="mb-2">
+                  <div 
+                    className="inline-flex items-center px-3 py-1 rounded-md text-sm"
+                    style={{ 
+                      backgroundColor: selectedQuiz.color || '#E5E7EB', 
+                      color: selectedQuiz.color ? getContrastColor(selectedQuiz.color) : '#374151' 
+                    }}
+                  >
+                    <Tag className="h-3 w-3 mr-2" />
+                    {selectedQuiz.subject}
                   </div>
-                ))}
+                </div>
+              )}
+              <div className="text-xl font-semibold text-gray-900">{selectedQuiz?.title}</div>
+            </DialogTitle>
+            <DialogDescription className="flex flex-wrap gap-4 text-gray-500">
+              <span className="flex items-center">
+                <Calendar className="h-3.5 w-3.5 mr-1" />
+                Created: {selectedQuiz && new Date(selectedQuiz.created_at).toLocaleDateString()}
+              </span>
+              <span className="flex items-center">
+                <FileText className="h-3.5 w-3.5 mr-1" />
+                {selectedQuiz?.questions.length} questions
+              </span>
+              <span className="flex items-center">
+                <BarChart3 className="h-3.5 w-3.5 mr-1" />
+                {selectedQuiz?.settings.difficulty} difficulty
+              </span>
+              <span className="flex items-center">
+                <Clock className="h-3.5 w-3.5 mr-1" />
+                {selectedQuiz?.settings.questionType} questions
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto py-4">
+            <div className="space-y-6">
+              {selectedQuiz?.questions.map((question, index) => (
+                <div key={index} className="p-4 bg-gray-50 rounded-lg">
+                  <p className="font-medium text-gray-900 mb-3">
+                    {index + 1}. {question.text}
+                  </p>
+                  {question.type === 'multiple_choice' && question.options && (
+                    <ul className="space-y-2 ml-6">
+                      {question.options.map((option, optIndex) => (
+                        <li key={optIndex} className="flex items-start">
+                          <span className={`${
+                            option === question.correctAnswer 
+                              ? 'bg-green-50 text-green-700 px-2 py-1 rounded-md' 
+                              : 'text-gray-600'
+                          }`}>
+                            • {option}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {question.correctAnswer && question.type !== 'multiple_choice' && (
+                    <div className="mt-3 ml-6">
+                      <strong className="text-gray-700">Answer: </strong>
+                      <span className="bg-green-50 text-green-700 px-2 py-1 rounded-md">
+                        {question.correctAnswer}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter className="border-t pt-4 bg-gray-50">
+            <div className="flex justify-between w-full">
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={closeQuizDetails}>
+                  Close
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    startEditing(selectedQuiz!);
+                    setCurrentQuestionIndex(0);
+                  }}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Quiz
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  onClick={() => openDeleteConfirmation(selectedQuiz!)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Quiz
+                </Button>
               </div>
             </div>
-          )}
-          <DialogFooter className="mt-4 pt-2 border-t">
-            <Button variant="outline" onClick={cancelEditing}>
-              Cancel
-            </Button>
-            <Button onClick={saveQuiz} disabled={saving}>
-              {saving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save Changes'
-              )}
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
