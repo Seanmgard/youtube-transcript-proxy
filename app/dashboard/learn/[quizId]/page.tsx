@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, KeyboardEvent } from 'react';
-import { Loader2, ArrowLeft, ThumbsUp, ThumbsDown, RotateCcw, ChevronLeft, ChevronRight, Check, X, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, ThumbsUp, ThumbsDown, RotateCcw, ChevronLeft, ChevronRight, Check, X, CheckCircle, XCircle, AlertCircle, FileText } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import Link from 'next/link';
 import { Quiz, Question, LearningProgress, QuestionStat } from '@/lib/types';
@@ -31,6 +31,7 @@ export default function LearnQuizPage() {
   const { toast } = useToast();
   const router = useRouter();
   const { user: authUser } = useAuth();
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
   
   // Combine loading states
   const isLoading = contentLoading || supabaseLoading;
@@ -387,6 +388,76 @@ export default function LearnQuizPage() {
     };
   }, [handleKeyDown]);
 
+  // Add useEffect for mobile detection
+  useEffect(() => {
+    const checkDevice = () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobile = /iphone|ipad|ipod|android|blackberry|windows phone/g.test(userAgent);
+      setIsMobileOrTablet(isMobile);
+    };
+
+    checkDevice();
+    window.addEventListener('resize', checkDevice);
+    return () => window.removeEventListener('resize', checkDevice);
+  }, []);
+
+  const handleExport = async (quiz: Quiz, format: 'doc' | 'csv' | 'anki') => {
+    try {
+      const response = await fetch(`/api/export-quiz?id=${quiz.id}&format=${format}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Export failed: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${quiz.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: 'Export Successful',
+        description: `Quiz exported as ${format.toUpperCase()} successfully`,
+      });
+    } catch (error) {
+      console.error('Error exporting quiz:', error);
+      toast({
+        title: 'Export Failed',
+        description: error instanceof Error ? error.message : 'Failed to export quiz',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAnkiExport = (quiz: Quiz) => {
+    if (isMobileOrTablet) {
+      toast({
+        title: "Desktop Only Feature",
+        description: "Exporting to Anki is only available on desktop computers. Please use your computer to export to Anki.",
+        variant: "default",
+        className: "bg-white border-gray-200 text-gray-900",
+        duration: 5000,
+        style: {
+          backgroundColor: 'white',
+          color: '#111827', // text-gray-900
+          border: '1px solid #E5E7EB', // border-gray-200
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        }
+      });
+      return;
+    }
+    handleExport(quiz, 'anki');
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-[70vh]">
@@ -556,6 +627,35 @@ export default function LearnQuizPage() {
                 Saving...
               </>
             ) : 'Save Progress'}
+          </Button>
+        </div>
+      </div>
+
+      <div className="p-6 bg-white rounded-lg shadow-md">
+        <h2 className="text-xl font-semibold mb-4 text-gray-900">Export Quiz</h2>
+        
+        <div className="space-y-4">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (quiz) {
+                handleAnkiExport(quiz);
+              }
+            }}
+            className={`flex items-center ${
+              isMobileOrTablet 
+                ? 'opacity-60 cursor-help' 
+                : ''
+            }`}
+          >
+            {isMobileOrTablet && (
+              <AlertCircle className="h-4 w-4 mr-1 text-gray-400" />
+            )}
+            {!isMobileOrTablet && (
+              <FileText className="h-4 w-4 mr-1" />
+            )}
+            Export Anki
           </Button>
         </div>
       </div>
