@@ -269,14 +269,14 @@ export default function LearnPage() {
           <TabsTrigger value="exams">Test Yourself</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="quizzes" className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+        <TabsContent value="quizzes" className="p-6 bg-white rounded-lg shadow-md">
           <h2 className="text-xl font-semibold mb-6">Your Study Materials</h2>
           
           {quizzes.length === 0 ? (
             <div className="text-center py-8">
               <BookOpen className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">No quizzes available for learning yet.</p>
-              <p className="text-gray-500 dark:text-gray-400 mt-2">Generate a quiz from the dashboard to get started!</p>
+              <p className="text-gray-500">No quizzes available for learning yet.</p>
+              <p className="text-gray-500 mt-2">Generate a quiz from the dashboard to get started!</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -320,11 +320,11 @@ export default function LearnPage() {
                         Quiz details
                       </CardDescription>
                       <div className="flex flex-wrap gap-x-4 mt-1">
-                        <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
+                        <span className="text-sm text-gray-500 flex items-center">
                           <Calendar className="h-3.5 w-3.5 mr-1" />
                           {new Date(quiz.created_at).toLocaleDateString()}
                         </span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
+                        <span className="text-sm text-gray-500 flex items-center">
                           <Clock className="h-3.5 w-3.5 mr-1" />
                           {quiz.questions?.length || 0} questions
                         </span>
@@ -338,7 +338,7 @@ export default function LearnPage() {
                         </div>
                         <Progress 
                           value={masteryPercentage} 
-                          className="h-2 bg-gray-200 dark:bg-gray-700" 
+                          className="h-2 bg-gray-200" 
                           style={{ "--progress-foreground": "rgb(21, 128, 61)" } as React.CSSProperties}
                         />
                         <p className="text-xs text-gray-500 mt-2">
@@ -360,7 +360,7 @@ export default function LearnPage() {
           )}
         </TabsContent>
         
-        <TabsContent value="exams" className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+        <TabsContent value="exams" className="p-6 bg-white rounded-lg shadow-md">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold">Your Exams</h2>
             <Link href="/dashboard/learn/exams/create">
@@ -374,8 +374,8 @@ export default function LearnPage() {
           {exams.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">No exams available yet.</p>
-              <p className="text-gray-500 dark:text-gray-400 mt-2">Create an exam by combining your quizzes!</p>
+              <p className="text-gray-500">No exams available yet.</p>
+              <p className="text-gray-500 mt-2">Create an exam by combining your quizzes!</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -387,11 +387,11 @@ export default function LearnPage() {
                       {exam.description || 'No description'}
                     </CardDescription>
                     <div className="flex flex-wrap gap-x-4 mt-1">
-                      <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
+                      <span className="text-sm text-gray-500 flex items-center">
                         <Calendar className="h-3.5 w-3.5 mr-1" />
                         {new Date(exam.created_at).toLocaleDateString()}
                       </span>
-                      <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
+                      <span className="text-sm text-gray-500 flex items-center">
                         <FileText className="h-3.5 w-3.5 mr-1" />
                         {exam.quiz_ids.length} quizzes
                       </span>

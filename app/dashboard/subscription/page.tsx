@@ -339,16 +339,16 @@ export default function SubscriptionPage() {
       <div className="space-y-6 max-w-6xl mx-auto">
         <div>
           <h1 className="text-3xl font-bold mb-2">Manage Subscription</h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-gray-600">
             View and manage your subscription plan.
           </p>
         </div>
         
-        <div className="p-6 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 mb-6">
+        <div className="p-6 bg-amber-50 rounded-lg border border-amber-200 mb-6">
           <div className="flex">
             <AlertCircle className="h-5 w-5 text-amber-500 mr-2 flex-shrink-0" />
             <div>
-              <p className="text-sm text-amber-800 dark:text-amber-200">
+              <p className="text-sm text-amber-800">
                 {(error as any).toString().includes('temporary') 
                   ? 'Using temporary free subscription. Your account will be updated automatically.'
                   : 'There was an issue loading your subscription information. You can still use the free features.'}
@@ -362,7 +362,7 @@ export default function SubscriptionPage() {
           {plans.map((plan) => (
             <div 
               key={plan.name} 
-              className={`bg-white rounded-lg shadow-md dark:bg-gray-800 p-6 border-2 ${
+              className={`bg-white rounded-lg shadow-md p-6 border-2 ${
                 plan.current 
                   ? 'border-primary' 
                   : 'border-transparent'
@@ -373,7 +373,7 @@ export default function SubscriptionPage() {
                   <h2 className="text-xl font-bold">{plan.name}</h2>
                   <div className="mt-1">
                     <span className="text-2xl font-bold">{plan.price}</span>
-                    <span className="text-gray-500 dark:text-gray-400 text-sm"> {plan.period}</span>
+                    <span className="text-gray-500 text-sm"> {plan.period}</span>
                   </div>
                   {plan.savings && (
                     <div className="mt-1">
@@ -388,7 +388,7 @@ export default function SubscriptionPage() {
                 )}
               </div>
               
-              <p className="text-gray-600 dark:text-gray-300 mb-4">
+              <p className="text-gray-600 mb-4">
                 {plan.description}
               </p>
               
@@ -398,7 +398,7 @@ export default function SubscriptionPage() {
                   {plan.features.map((feature, index) => (
                     <li key={index} className="flex items-start">
                       <Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
-                      <span className="text-sm text-gray-600 dark:text-gray-300">{feature}</span>
+                      <span className="text-sm text-gray-600">{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -411,7 +411,7 @@ export default function SubscriptionPage() {
                     {plan.limitations.map((limitation, index) => (
                       <li key={index} className="flex items-start">
                         <X className="h-5 w-5 text-red-500 mr-2 flex-shrink-0" />
-                        <span className="text-sm text-gray-600 dark:text-gray-300">{limitation}</span>
+                        <span className="text-sm text-gray-600">{limitation}</span>
                       </li>
                     ))}
                   </ul>
@@ -447,7 +447,7 @@ export default function SubscriptionPage() {
         </div>
         
         {subscription && (subscription.stripe_subscription_id || subscription.stripe_customer_id) && (
-          <div className="bg-white rounded-lg shadow-md dark:bg-gray-800 p-6">
+          <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center mb-4">
               <CreditCard className="h-6 w-6 text-primary mr-2" />
               <h2 className="text-xl font-semibold">Billing Information</h2>
@@ -458,7 +458,7 @@ export default function SubscriptionPage() {
                 <div className="flex items-center">
                   <Calendar className="h-5 w-5 text-gray-500 mr-2" />
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                    <p className="text-sm text-gray-600">
                       Your subscription renews on <span className="font-medium">{formatSubscriptionEndDate()}</span>
                     </p>
                   </div>
@@ -507,21 +507,21 @@ export default function SubscriptionPage() {
     <div className="space-y-6 max-w-6xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold mb-2">Manage Subscription</h1>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600">
           View and manage your subscription plan.
         </p>
       </div>
       
       {/* Display current subscription status */}
-      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
         <div className="flex items-center">
           <CreditCard className="h-5 w-5 text-blue-500 mr-2 flex-shrink-0" />
           <div className="flex-1">
-            <p className="text-sm text-blue-800 dark:text-blue-200 font-medium">
+            <p className="text-sm text-blue-800 font-medium">
               Current Plan: <span className="font-bold">{subscription?.plan_type === 'premium' ? 'Premium' : 'Free'}</span>
             </p>
             {subscription?.current_period_end && (
-              <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+              <p className="text-sm text-blue-700 mt-1">
                 {subscription.plan_type === 'premium' 
                   ? `Your subscription renews on ${formatSubscriptionEndDate()}`
                   : 'Upgrade to Premium for unlimited access'}
@@ -533,7 +533,7 @@ export default function SubscriptionPage() {
       
       {/* Billing cycle toggle */}
       <div className="flex justify-center mb-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-3 inline-flex items-center space-x-4">
+        <div className="bg-white rounded-lg shadow-sm p-3 inline-flex items-center space-x-4">
           <span className={`text-sm ${billingCycle === 'monthly' ? 'font-medium text-primary' : 'text-gray-500'}`}>
             Monthly
           </span>
@@ -545,7 +545,7 @@ export default function SubscriptionPage() {
             Annual
           </span>
           {billingCycle === 'annual' && (
-            <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100 px-2 py-0.5 rounded-full">
+            <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
               Save 15%
             </span>
           )}
@@ -556,7 +556,7 @@ export default function SubscriptionPage() {
         {plans.map((plan) => (
           <div 
             key={plan.name} 
-            className={`bg-white rounded-lg shadow-md dark:bg-gray-800 p-6 border-2 ${
+            className={`bg-white rounded-lg shadow-md p-6 border-2 ${
               plan.current 
                 ? 'border-primary' 
                 : 'border-transparent'
@@ -567,7 +567,7 @@ export default function SubscriptionPage() {
                 <h2 className="text-xl font-bold">{plan.name}</h2>
                 <div className="mt-1">
                   <span className="text-2xl font-bold">{plan.price}</span>
-                  <span className="text-gray-500 dark:text-gray-400 text-sm"> {plan.period}</span>
+                  <span className="text-gray-500 text-sm"> {plan.period}</span>
                 </div>
                 {plan.savings && (
                   <div className="mt-1">
@@ -582,7 +582,7 @@ export default function SubscriptionPage() {
               )}
             </div>
             
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
+            <p className="text-gray-600 mb-4">
               {plan.description}
             </p>
             
@@ -592,7 +592,7 @@ export default function SubscriptionPage() {
                 {plan.features.map((feature, index) => (
                   <li key={index} className="flex items-start">
                     <Check className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
-                    <span className="text-sm text-gray-600 dark:text-gray-300">{feature}</span>
+                    <span className="text-sm text-gray-600">{feature}</span>
                   </li>
                 ))}
               </ul>
@@ -605,7 +605,7 @@ export default function SubscriptionPage() {
                   {plan.limitations.map((limitation, index) => (
                     <li key={index} className="flex items-start">
                       <X className="h-5 w-5 text-red-500 mr-2 flex-shrink-0" />
-                      <span className="text-sm text-gray-600 dark:text-gray-300">{limitation}</span>
+                      <span className="text-sm text-gray-600">{limitation}</span>
                     </li>
                   ))}
                 </ul>
@@ -641,7 +641,7 @@ export default function SubscriptionPage() {
       </div>
       
       {subscription && (subscription.stripe_subscription_id || subscription.stripe_customer_id) && (
-        <div className="bg-white rounded-lg shadow-md dark:bg-gray-800 p-6">
+        <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center mb-4">
             <CreditCard className="h-6 w-6 text-primary mr-2" />
             <h2 className="text-xl font-semibold">Billing Information</h2>
@@ -652,7 +652,7 @@ export default function SubscriptionPage() {
               <div className="flex items-center">
                 <Calendar className="h-5 w-5 text-gray-500 mr-2" />
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                  <p className="text-sm text-gray-600">
                     Your subscription renews on <span className="font-medium">{formatSubscriptionEndDate()}</span>
                   </p>
                 </div>
@@ -672,14 +672,14 @@ export default function SubscriptionPage() {
       
       {/* Add a more prominent refresh notice if returning from Stripe */}
       {searchParams.get('success') === 'true' && (
-        <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+        <div className="mt-6 p-4 bg-amber-50 rounded-lg border border-amber-200">
           <div className="flex items-center">
             <AlertCircle className="h-5 w-5 text-amber-500 mr-2 flex-shrink-0" />
             <div className="flex-1">
-              <p className="text-sm text-amber-800 dark:text-amber-200 font-medium">
+              <p className="text-sm text-amber-800 font-medium">
                 Payment successful! If your subscription status hasn't updated yet:
               </p>
-              <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+              <p className="text-sm text-amber-700 mt-1">
                 It may take a few moments for our system to process your payment. Your subscription status will update automatically.
               </p>
             </div>
@@ -693,7 +693,7 @@ export default function SubscriptionPage() {
                   window.history.replaceState({}, document.title, window.location.pathname);
                 }
               }}
-              className="bg-white dark:bg-gray-800"
+              className="bg-white"
             >
               Close
             </Button>

@@ -301,7 +301,7 @@ export default function Dashboard() {
   const renderQuizContent = () => {
     if (!currentQuiz) {
       return (
-        <div className="text-gray-500 dark:text-gray-400 text-center">
+        <div className="text-gray-500 text-center">
           <p className="mb-2">Your quiz will appear here after generation</p>
           <p className="text-sm">Configure your settings and click "Generate Quiz" to begin</p>
         </div>
@@ -310,7 +310,7 @@ export default function Dashboard() {
 
     if (currentQuiz.loading) {
       return (
-        <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+        <div className="flex flex-col items-center justify-center h-full text-gray-500">
           <Loader2 className="h-8 w-8 animate-spin mb-4" />
           <p>Generating your quiz...</p>
           <p className="text-sm mt-2">This may take a minute depending on the document size</p>
@@ -320,7 +320,7 @@ export default function Dashboard() {
 
     if (currentQuiz.title === 'Error') {
       return (
-        <div className="text-red-500 dark:text-red-400 text-center">
+        <div className="text-red-500 text-center">
           <p className="font-semibold mb-2">Error generating quiz</p>
           <p className="text-sm">{currentQuiz.questions[0]?.text || 'Unknown error'}</p>
         </div>
@@ -388,7 +388,7 @@ export default function Dashboard() {
         
         {/* Questions and Options Section */}
         <div className="mb-4">
-          <h4 className="text-sm font-medium mb-2 text-gray-600 dark:text-gray-400">Questions</h4>
+          <h4 className="text-sm font-medium mb-2 text-gray-600">Questions</h4>
           {questions.map((question: any, index: number) => (
             <div key={index} className="mb-3">
               <p className="text-sm font-medium mb-1">
@@ -410,7 +410,7 @@ export default function Dashboard() {
         {/* Answers Section */}
         {questions.length > 0 && (
           <div>
-            <h4 className="text-sm font-medium mb-2 text-gray-600 dark:text-gray-400 border-t pt-2">Answers</h4>
+            <h4 className="text-sm font-medium mb-2 text-gray-600 border-t pt-2">Answers</h4>
             {questions.map((question: any, index: number) => (
               <div key={index} className="mb-2">
                 <p className="text-xs">
@@ -434,7 +434,7 @@ export default function Dashboard() {
         <>
           <div>
             <h1 className="text-3xl font-bold mb-2">Welcome back!</h1>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-gray-600">
               Upload your materials to generate your quiz.
               <br />
               Use the selections below to refine your choices.
@@ -442,7 +442,7 @@ export default function Dashboard() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
-            <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+            <div className="p-6 bg-white rounded-lg shadow-md">
               <h2 className="text-xl font-semibold mb-4">Create New Quiz</h2>
               <QuizUploader 
                 onQuizGenerated={handleQuizGenerated} 
@@ -450,15 +450,15 @@ export default function Dashboard() {
               />
             </div>
 
-            <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+            <div className="p-6 bg-white rounded-lg shadow-md">
               <h2 className="text-xl font-semibold mb-4">Quiz Preview</h2>
-              <div className="h-[400px] p-6 bg-gray-50 rounded-lg dark:bg-gray-700 overflow-auto">
+              <div className="h-[400px] p-6 bg-gray-50 rounded-lg overflow-auto">
                 {renderQuizContent()}
               </div>
             </div>
           </div>
 
-          <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+          <div className="p-6 bg-white rounded-lg shadow-md">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Recent Quizzes</h2>
               <Link href="/dashboard/history">

@@ -120,19 +120,19 @@ export default function SuggestFeaturePage() {
       <div className="space-y-6 max-w-6xl mx-auto">
         <div>
           <h1 className="text-3xl font-bold mb-2">Suggest a Feature</h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-gray-600">
             Have an idea for improving QuizLab AI? We'd love to hear it!
           </p>
         </div>
         
-        <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 p-6">
+        <div className="bg-amber-50 rounded-lg border border-amber-200 p-6">
           <div className="flex items-center">
             <AlertCircle className="h-5 w-5 text-amber-500 mr-2 flex-shrink-0" />
             <div>
-              <p className="text-sm text-amber-800 dark:text-amber-200 font-medium">
+              <p className="text-sm text-amber-800 font-medium">
                 Authentication required
               </p>
-              <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+              <p className="text-sm text-amber-700 mt-1">
                 You must be logged in to submit a feature suggestion. Redirecting to login page...
               </p>
             </div>
@@ -146,13 +146,13 @@ export default function SuggestFeaturePage() {
     <div className="space-y-6 max-w-6xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold mb-2">Suggest a Feature</h1>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600">
           Have an idea for improving QuizLab AI? We'd love to hear it!
         </p>
       </div>
       
       <div className="grid gap-6 md:grid-cols-2">
-        <div className="bg-white rounded-lg shadow-md dark:bg-gray-800 p-6">
+        <div className="bg-white rounded-lg shadow-md p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="title">Feature Title</Label>
@@ -183,13 +183,13 @@ export default function SuggestFeaturePage() {
           </form>
         </div>
         
-        <div className="bg-white rounded-lg shadow-md dark:bg-gray-800 p-6">
+        <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center mb-4">
             <Lightbulb className="h-6 w-6 text-yellow-500 mr-2" />
             <h2 className="text-xl font-semibold">How We Process Suggestions</h2>
           </div>
           
-          <div className="space-y-4 text-gray-600 dark:text-gray-300">
+          <div className="space-y-4 text-gray-600">
             <p>
               We review all feature suggestions on a regular basis and prioritize them based on:
             </p>

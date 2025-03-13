@@ -175,7 +175,7 @@ export function QuizCounter() {
   const progressValue = quizLimit === Infinity ? 0 : (quizCount / quizLimit) * 100;
   
   return (
-    <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+    <div className="px-4 py-3 border-t border-gray-200">
       <div className="flex items-center mb-2">
         <FileText className="h-4 w-4 mr-2 text-primary" />
         <span className="text-sm font-medium">Quiz Usage</span>
@@ -183,7 +183,7 @@ export function QuizCounter() {
       
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <span className="text-xs text-gray-500 dark:text-gray-400">
+          <span className="text-xs text-gray-500">
             {quizCount} / {isPremium ? '∞' : quizLimit} this month
           </span>
           {!isPremium && quizCount >= quizLimit && (
@@ -204,14 +204,14 @@ export function QuizCounter() {
         />
         
         {!isPremium && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-xs text-gray-500 mt-1">
             {quizLimit - quizCount <= 0 
               ? 'Upgrade to Premium for unlimited quizzes' 
               : `${quizLimit - quizCount} quizzes remaining`}
           </p>
         )}
         {isPremium && (
-          <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+          <p className="text-xs text-green-600 mt-1">
             Premium plan - Unlimited quizzes
           </p>
         )}

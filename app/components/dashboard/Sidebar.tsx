@@ -138,7 +138,7 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
   };
 
   return (
-    <div className="min-h-screen w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col fixed top-0 left-0 pt-16">
+    <div className="min-h-screen w-64 bg-white border-r border-gray-200 flex flex-col fixed top-0 left-0 pt-16">
       {/* Navigation */}
       <nav className="flex-1 p-4 pt-6 space-y-1">
         {navItems.map((item) => {
@@ -150,7 +150,7 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
               className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                 isActive
                   ? 'bg-primary/10 text-primary'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  : 'text-gray-700 hover:bg-gray-100'
               }`}
             >
               <item.icon className="mr-3 h-5 w-5" />
@@ -164,10 +164,10 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
       <QuizCounter />
 
       {/* User Profile */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+      <div className="p-4 border-t border-gray-200 flex-shrink-0">
         <div className="flex items-center">
           <div className="relative">
-            <div className="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex items-center justify-center">
+            <div className="h-10 w-10 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center">
               {avatarUrl ? (
                 <Image 
                   src={avatarUrl} 
@@ -177,7 +177,7 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
                   className="object-cover"
                 />
               ) : (
-                <User className="h-6 w-6 text-gray-500 dark:text-gray-400" />
+                <User className="h-6 w-6 text-gray-500" />
               )}
             </div>
             <label 
@@ -196,10 +196,10 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
             </label>
           </div>
           <div className="ml-3 overflow-hidden">
-            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+            <p className="text-sm font-medium text-gray-900 truncate">
               {userName || 'User'}
             </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+            <p className="text-xs text-gray-500 truncate">
               {userEmail || 'user@example.com'}
             </p>
           </div>
@@ -207,7 +207,7 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
         <Button 
           variant="ghost" 
           size="sm" 
-          className="mt-4 w-full justify-start text-gray-700 dark:text-gray-300"
+          className="mt-4 w-full justify-start text-gray-700"
           onClick={handleSignOut}
         >
           <LogOut className="mr-2 h-4 w-4" />
