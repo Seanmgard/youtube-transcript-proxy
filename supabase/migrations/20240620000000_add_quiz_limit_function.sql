@@ -1,3 +1,7 @@
+-- Add deleted_at column to quizzes table
+ALTER TABLE IF EXISTS public.quizzes 
+ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+
 -- Create a function to check if a user has reached their monthly quiz limit
 CREATE OR REPLACE FUNCTION public.check_quiz_limit()
 RETURNS TRIGGER AS $$
@@ -17,7 +21,7 @@ BEGIN
     RETURN NEW;
   END IF;
   
-  -- Count quizzes created by the user in the current month
+  -- Count ALL quizzes created by the user in the current month, including deleted ones
   SELECT COUNT(*) INTO monthly_quiz_count
   FROM public.quizzes
   WHERE 
@@ -26,8 +30,6 @@ BEGIN
     created_at < date_trunc('month', CURRENT_DATE) + INTERVAL '1 month';
   
   -- If the user has reached their limit, prevent the quiz creation
-  -- We need to check if the count is already at or above the limit
-  -- since this is a BEFORE INSERT trigger
   IF monthly_quiz_count >= quiz_limit THEN
     RAISE EXCEPTION 'You have reached your monthly quiz limit. Please upgrade to Premium for unlimited quizzes.';
   END IF;
