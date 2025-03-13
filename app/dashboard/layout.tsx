@@ -7,18 +7,23 @@ import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useSubscription } from '@/hooks/useSubscription';
 import React from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, signOut } = useAuth();
   const { fetchSubscription } = useSubscription();
   const [profile, setProfile] = useState<any>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasAttemptedFetch = useRef(false);
+  const router = useRouter();
 
   // Refresh subscription data when the dashboard loads
   useEffect(() => {
@@ -115,6 +120,46 @@ export default function DashboardLayout({
   
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header - Fixed at the top */}
+      <header className="h-16 bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
+        <div className="flex items-center justify-between h-full px-4">
+          <div className="flex items-center">
+            <Link href="/" className="flex items-center">
+              <Image 
+                src="/images/logo.png" 
+                alt="QuizLab AI Logo" 
+                width={32} 
+                height={32} 
+                className="mr-2" 
+              />
+              <span className="text-xl font-bold text-gray-900">QuizLab AI</span>
+            </Link>
+          </div>
+          <div className="flex items-center space-x-4">
+            <Link href="/dashboard">
+              <Button variant="outline" size="sm" className="text-primary hover:text-primary hover:bg-primary/10">
+                Dashboard
+              </Button>
+            </Link>
+            <Button 
+              variant="default"
+              size="sm"
+              className="bg-primary hover:bg-primary/90"
+              onClick={async () => {
+                try {
+                  await signOut();
+                  router.push('/auth/sign-in');
+                } catch (error) {
+                  console.error('Error signing out:', error);
+                }
+              }}
+            >
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </header>
+
       {/* Sidebar */}
       <Sidebar 
         userName={displayName}
@@ -123,17 +168,17 @@ export default function DashboardLayout({
       />
       
       {/* Main Content */}
-      <div className="ml-64 min-h-screen pt-16">
+      <main className="transition-all duration-300 md:ml-64 pt-16 min-h-screen">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mx-6 mt-6">
             <p>{error}</p>
             <p className="text-sm mt-1">You can continue using the dashboard with limited functionality.</p>
           </div>
         )}
-        <div className="container mx-auto p-6 md:p-8">
+        <div className="container mx-auto p-4 md:p-6 lg:p-8">
           {children}
         </div>
-      </div>
+      </main>
     </div>
   );
 } 

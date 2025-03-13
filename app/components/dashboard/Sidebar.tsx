@@ -12,7 +12,9 @@ import {
   LogOut, 
   Upload,
   User,
-  BookOpen
+  BookOpen,
+  Menu,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -33,6 +35,7 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(userAvatar || null);
   const [isUploading, setIsUploading] = useState(false);
   const [supabase, setSupabase] = useState<any>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const initSupabase = async () => {
@@ -138,82 +141,110 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
   };
 
   return (
-    <div className="min-h-screen w-64 bg-white border-r border-gray-200 flex flex-col fixed top-0 left-0 pt-16">
-      {/* Navigation */}
-      <nav className="flex-1 p-4 pt-6 space-y-1">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <item.icon className="mr-3 h-5 w-5" />
-              {item.name}
-            </Link>
-          );
-        })}
-      </nav>
+    <>
+      {/* Mobile Menu Toggle Button - Only visible on iPhone */}
+      <button
+        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        className="fixed top-4 left-4 z-[60] p-2 rounded-md bg-white shadow-md md:hidden"
+      >
+        {isMobileMenuOpen ? (
+          <X className="h-6 w-6 text-gray-600" />
+        ) : (
+          <Menu className="h-6 w-6 text-gray-600" />
+        )}
+      </button>
 
-      {/* Quiz Counter */}
-      <QuizCounter />
+      {/* Backdrop for mobile menu */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[45] md:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
 
-      {/* User Profile */}
-      <div className="p-4 border-t border-gray-200 flex-shrink-0">
-        <div className="flex items-center">
-          <div className="relative">
-            <div className="h-10 w-10 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center">
-              {avatarUrl ? (
-                <Image 
-                  src={avatarUrl} 
-                  alt="User avatar" 
-                  width={40} 
-                  height={40} 
-                  className="object-cover"
+      <aside className={`
+        min-h-[calc(100vh-4rem)] w-64 bg-white border-r border-gray-200 flex flex-col fixed top-16 left-0 z-40
+        transform transition-transform duration-300 ease-in-out
+        md:translate-x-0 md:shadow-none
+        ${isMobileMenuOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full'}
+      `}>
+        {/* Navigation */}
+        <nav className="flex-1 p-4 space-y-1">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <item.icon className="mr-3 h-5 w-5" />
+                {item.name}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Quiz Counter */}
+        <QuizCounter />
+
+        {/* User Profile */}
+        <div className="p-4 border-t border-gray-200 flex-shrink-0">
+          <div className="flex items-center">
+            <div className="relative">
+              <div className="h-10 w-10 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center">
+                {avatarUrl ? (
+                  <Image 
+                    src={avatarUrl} 
+                    alt="User avatar" 
+                    width={40} 
+                    height={40} 
+                    className="object-cover"
+                  />
+                ) : (
+                  <User className="h-6 w-6 text-gray-500" />
+                )}
+              </div>
+              <label 
+                htmlFor="avatar-upload" 
+                className="absolute -bottom-1 -right-1 h-5 w-5 bg-primary rounded-full flex items-center justify-center cursor-pointer"
+              >
+                <Upload className="h-3 w-3 text-white" />
+                <input 
+                  id="avatar-upload" 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={handleAvatarUpload}
+                  disabled={isUploading}
                 />
-              ) : (
-                <User className="h-6 w-6 text-gray-500" />
-              )}
+              </label>
             </div>
-            <label 
-              htmlFor="avatar-upload" 
-              className="absolute -bottom-1 -right-1 h-5 w-5 bg-primary rounded-full flex items-center justify-center cursor-pointer"
-            >
-              <Upload className="h-3 w-3 text-white" />
-              <input 
-                id="avatar-upload" 
-                type="file" 
-                accept="image/*" 
-                className="hidden" 
-                onChange={handleAvatarUpload}
-                disabled={isUploading}
-              />
-            </label>
+            <div className="ml-3 overflow-hidden">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {userName || 'User'}
+              </p>
+              <p className="text-xs text-gray-500 truncate">
+                {userEmail || 'user@example.com'}
+              </p>
+            </div>
           </div>
-          <div className="ml-3 overflow-hidden">
-            <p className="text-sm font-medium text-gray-900 truncate">
-              {userName || 'User'}
-            </p>
-            <p className="text-xs text-gray-500 truncate">
-              {userEmail || 'user@example.com'}
-            </p>
-          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="mt-4 w-full justify-start text-gray-700"
+            onClick={handleSignOut}
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Sign out
+          </Button>
         </div>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="mt-4 w-full justify-start text-gray-700"
-          onClick={handleSignOut}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Sign out
-        </Button>
-      </div>
-    </div>
+      </aside>
+    </>
   );
 } 
