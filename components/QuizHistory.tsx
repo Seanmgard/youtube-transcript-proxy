@@ -19,6 +19,23 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
+// Add the getContrastColor utility function
+function getContrastColor(hexColor: string): string {
+  // Default to dark text if no color is provided
+  if (!hexColor) return '#374151';
+  
+  // Convert hex to RGB
+  const r = parseInt(hexColor.slice(1, 3), 16);
+  const g = parseInt(hexColor.slice(3, 5), 16);
+  const b = parseInt(hexColor.slice(5, 7), 16);
+  
+  // Calculate relative luminance
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  
+  // Return white for dark backgrounds, dark gray for light backgrounds
+  return luminance > 0.5 ? '#374151' : '#FFFFFF';
+}
+
 interface QuizHistoryProps {
   limit?: number;
 }
