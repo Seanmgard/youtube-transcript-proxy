@@ -96,7 +96,7 @@ export function MainHeader() {
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
+      className={`fixed inset-x-0 top-0 z-[100] transition-all duration-300 ${
         scrolled || !isLandingPage
           ? 'bg-white/80 backdrop-blur-md shadow-sm'
           : 'bg-transparent'
@@ -136,7 +136,7 @@ export function MainHeader() {
             </Link>
           ))}
         </div>
-        <div className="hidden lg:flex lg:flex-1 lg:justify-end lg:gap-x-4 items-center">
+        <div className="hidden lg:flex lg:flex-1 lg:justify-end lg:gap-x-4">
           {loading ? (
             <div className="h-9 w-16 bg-gray-200 rounded-md animate-pulse"></div>
           ) : user ? (
@@ -176,17 +176,28 @@ export function MainHeader() {
 
       {/* Mobile menu */}
       {mobileMenuOpen && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          transition={{ duration: 0.2 }}
-          className="lg:hidden"
-        >
-          <div className="fixed inset-0 z-50" />
-          <div className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-white px-6 py-6 sm:max-w-sm sm:ring-1 sm:ring-gray-900/10">
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[101] bg-black/20 backdrop-blur-sm"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          
+          {/* Menu panel */}
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-y-0 right-0 z-[102] w-full overflow-y-auto bg-white px-6 py-6 sm:max-w-sm shadow-xl"
+            style={{ height: '100dvh', maxHeight: '100dvh' }}
+          >
             <div className="flex items-center justify-between">
-              <Link href="/" className="-m-1.5 p-1.5 flex items-center">
+              <Link href="/" className="-m-1.5 p-1.5 flex items-center" onClick={() => setMobileMenuOpen(false)}>
                 <Image 
                   src="/images/logo.png" 
                   alt="QuizLab AI Logo" 
@@ -205,63 +216,67 @@ export function MainHeader() {
                 <X className="h-6 w-6" aria-hidden="true" />
               </button>
             </div>
-            <div className="mt-6 flow-root">
-              <div className="-my-6 divide-y divide-gray-500/10">
-                {!isAuthPage && (
-                  <div className="space-y-2 py-6">
-                    {navigationItems.map((item) => (
+            <div className="-my-6 divide-y divide-gray-500/10">
+              {!isAuthPage && (
+                <div className="space-y-2 py-6">
+                  {navigationItems.map((item) => (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className="-mx-3 block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      {item.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
+              <div className="py-6 space-y-3">
+                {loading ? (
+                  <div className="h-9 w-full bg-gray-200 rounded-md animate-pulse"></div>
+                ) : user ? (
+                  <>
+                    <Link
+                      href="/dashboard"
+                      className="-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Dashboard
+                    </Link>
+                    <button
+                      onClick={() => {
+                        handleSignOut();
+                        setMobileMenuOpen(false);
+                      }}
+                      className="-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50 w-full text-left"
+                    >
+                      Sign out
+                    </button>
+                  </>
+                ) : (
+                  !isAuthPage && (
+                    <>
                       <Link
-                        key={item.name}
-                        href={item.href}
-                        className="-mx-3 block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
+                        href="/auth/sign-in"
+                        className="-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
                         onClick={() => setMobileMenuOpen(false)}
                       >
-                        {item.name}
+                        Sign in
                       </Link>
-                    ))}
-                  </div>
-                )}
-                <div className="py-6 space-y-3">
-                  <div className="flex items-center">
-                  </div>
-                  
-                  {!loading && (
-                    user ? (
-                      <button
-                        onClick={() => {
-                          handleSignOut();
-                          setMobileMenuOpen(false);
-                        }}
-                        className="-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50 w-full text-left"
+                      <Link
+                        href="/auth/sign-up"
+                        className="-mx-3 block rounded-lg bg-indigo-600 px-3 py-2.5 text-base font-semibold leading-7 text-white hover:bg-indigo-500"
+                        onClick={() => setMobileMenuOpen(false)}
                       >
-                        Sign out
-                      </button>
-                    ) : (
-                      !isAuthPage && (
-                        <>
-                          <Link
-                            href="/auth/sign-in"
-                            className="-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
-                            onClick={() => setMobileMenuOpen(false)}
-                          >
-                            Sign in
-                          </Link>
-                          <Link
-                            href="/auth/sign-up"
-                            className="-mx-3 block rounded-lg bg-indigo-600 px-3 py-2.5 text-base font-semibold leading-7 text-white hover:bg-indigo-500"
-                            onClick={() => setMobileMenuOpen(false)}
-                          >
-                            Get started
-                          </Link>
-                        </>
-                      )
-                    )
-                  )}
-                </div>
+                        Get started
+                      </Link>
+                    </>
+                  )
+                )}
               </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </>
       )}
     </header>
   );
