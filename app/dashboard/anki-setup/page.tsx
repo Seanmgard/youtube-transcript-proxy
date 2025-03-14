@@ -52,7 +52,10 @@ export default function AnkiSetupPage() {
                 <li>Select <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">Tools</code> → <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">Add-ons</code> → <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">Get Add-ons...</code></li>
                 <li>Enter the code: <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">2055492159</code></li>
                 <li>Click <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">OK</code></li>
-                <li>Restart Anki when prompted</li>
+                <li>After installation, click <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">View Files</code></li>
+                <li>Open the <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">config.json</code> file</li>
+                <li>Add <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">"https://quizlabai.com"</code> to the <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">webCorsOriginList</code> array</li>
+                <li>Save the file and restart Anki</li>
               </ul>
             </li>
             

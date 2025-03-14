@@ -77,10 +77,11 @@ export async function POST(request: Request) {
     });
 
     // Try to create the deck first if it doesn't exist
-    const createDeckResponse = await fetch('http://localhost:8765', {
+    const createDeckResponse = await fetch('http://127.0.0.1:8765', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Origin': 'https://quizlabai.com'
       },
       body: JSON.stringify({
         action: 'createDeck',
@@ -107,10 +108,11 @@ export async function POST(request: Request) {
     }
 
     // Send notes to Anki
-    const response = await fetch('http://localhost:8765', {
+    const response = await fetch('http://127.0.0.1:8765', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Origin': 'https://quizlabai.com'
       },
       body: JSON.stringify({
         action: 'addNotes',
