@@ -61,7 +61,7 @@ export function Hero() {
               Transform Study Materials into Interactive Quizzes
             </h1>
             <p className="mt-4 sm:mt-6 text-base sm:text-lg leading-7 sm:leading-8 text-gray-600 px-4 sm:px-0">
-              Upload your PDF study materials and let our AI generate personalized quizzes. Learn smarter, not harder with QuizLab AI.
+              Upload your PDF study materials and let our AI generate personalized quizzes. Export directly to Anki and other formats. Learn smarter, not harder with QuizLab AI.
             </p>
             <div className="mt-6 sm:mt-8 flex items-center justify-center gap-x-4 sm:gap-x-6">
               <Link
