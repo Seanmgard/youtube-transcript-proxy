@@ -217,7 +217,27 @@ export default function CreateExamPage() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
-          <h2 className="text-xl font-semibold mb-4">Exam Details</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Exam Details</h2>
+            <div className="flex gap-2">
+              <Link href="/dashboard/learn">
+                <Button variant="outline" type="button">
+                  Cancel
+                </Button>
+              </Link>
+              <Button 
+                type="submit" 
+                disabled={submitting || selectedQuizIds.length === 0}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : 'Create Exam'}
+              </Button>
+            </div>
+          </div>
           
           <div className="space-y-4">
             <div>
@@ -296,25 +316,6 @@ export default function CreateExamPage() {
               </div>
             </div>
           )}
-        </div>
-        
-        <div className="flex justify-end gap-2">
-          <Link href="/dashboard/learn">
-            <Button variant="outline" type="button">
-              Cancel
-            </Button>
-          </Link>
-          <Button 
-            type="submit" 
-            disabled={submitting || selectedQuizIds.length === 0}
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Creating...
-              </>
-            ) : 'Create Exam'}
-          </Button>
         </div>
       </form>
     </div>
