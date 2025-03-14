@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, KeyboardEvent } from 'react';
-import { Loader2, ArrowLeft, ThumbsUp, ThumbsDown, RotateCcw, ChevronLeft, ChevronRight, Check, X, CheckCircle, XCircle, AlertCircle, FileText } from 'lucide-react';
+import { Loader2, ArrowLeft, ThumbsUp, ThumbsDown, RotateCcw, ChevronLeft, ChevronRight, Check, X, CheckCircle, XCircle, AlertCircle, FileText, Send } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import Link from 'next/link';
 import { Quiz, Question, LearningProgress, QuestionStat } from '@/lib/types';
@@ -11,6 +11,16 @@ import { v4 as uuidv4 } from 'uuid';
 import { useSupabase } from '@/utils/supabase/client';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription,
+  DialogFooter
+} from '@/app/components/ui/dialog'
+import { Input } from '@/app/components/ui/input'
+import { Label } from '@/app/components/ui/label'
 
 export default function LearnQuizPage() {
   // Use the useParams hook to get route parameters in a client component
@@ -32,6 +42,9 @@ export default function LearnQuizPage() {
   const router = useRouter();
   const { user: authUser } = useAuth();
   const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
+  const [ankiDeckName, setAnkiDeckName] = useState('');
+  const [isAnkiDialogOpen, setIsAnkiDialogOpen] = useState(false);
+  const [sendingToAnki, setSendingToAnki] = useState(false);
   
   // Combine loading states
   const isLoading = contentLoading || supabaseLoading;
@@ -455,7 +468,58 @@ export default function LearnQuizPage() {
       });
       return;
     }
-    handleExport(quiz, 'anki');
+    
+    // Open the Anki dialog instead of exporting a file
+    setAnkiDeckName(quiz.title.replace(/[^a-z0-9]/gi, ' ').trim());
+    setIsAnkiDialogOpen(true);
+  };
+
+  const handleSendToAnki = async () => {
+    if (!quiz || !ankiDeckName.trim()) return;
+    
+    try {
+      setSendingToAnki(true);
+      toast({
+        title: "Sending to Anki",
+        description: "Connecting to Anki...",
+      });
+      
+      const response = await fetch('/api/send-to-anki', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          quizId: quiz.id,
+          deckName: ankiDeckName.trim()
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to send quiz to Anki');
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: "Success",
+        description: result.message || `Quiz sent to Anki deck "${ankiDeckName}"`,
+      });
+      
+      setIsAnkiDialogOpen(false);
+    } catch (error) {
+      console.error('Error sending to Anki:', error);
+      toast({
+        title: "Failed to send to Anki",
+        description: error instanceof Error 
+          ? error.message 
+          : "Make sure Anki is running with the Anki-Connect plugin installed",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingToAnki(false);
+    }
   };
 
   if (isLoading) {
@@ -643,7 +707,7 @@ export default function LearnQuizPage() {
                 handleAnkiExport(quiz);
               }
             }}
-            className={`flex items-center ${
+            className={`flex items-center bg-white text-black border border-gray-200 hover:bg-gray-50 ${
               isMobileOrTablet 
                 ? 'opacity-60 cursor-help' 
                 : ''
@@ -653,12 +717,68 @@ export default function LearnQuizPage() {
               <AlertCircle className="h-4 w-4 mr-1 text-gray-400" />
             )}
             {!isMobileOrTablet && (
-              <FileText className="h-4 w-4 mr-1" />
+              <Send className="h-4 w-4 mr-1" />
             )}
-            Export Anki
+            Send to Anki
           </Button>
         </div>
       </div>
+
+      {/* Anki Dialog */}
+      <Dialog open={isAnkiDialogOpen} onOpenChange={setIsAnkiDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Send to Anki</DialogTitle>
+            <DialogDescription>
+              Enter the name of the Anki deck where you want to send this quiz.
+              Make sure Anki is running with the Anki-Connect plugin installed.
+              <Link href="/dashboard/anki-setup" className="text-blue-600 dark:text-blue-400 hover:underline block mt-2">
+                Learn how to set up Anki integration
+              </Link>
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="deckName" className="text-right">
+                Deck Name
+              </Label>
+              <Input
+                id="deckName"
+                value={ankiDeckName}
+                onChange={(e) => setAnkiDeckName(e.target.value)}
+                className="col-span-3"
+                placeholder="Enter deck name"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsAnkiDialogOpen(false)}
+              disabled={sendingToAnki}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="button" 
+              onClick={handleSendToAnki}
+              disabled={!ankiDeckName.trim() || sendingToAnki}
+            >
+              {sendingToAnki ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                'Send to Anki'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

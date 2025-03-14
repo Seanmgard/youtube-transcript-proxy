@@ -6,7 +6,7 @@ import { useSupabase } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Quiz } from '@/lib/types'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, Edit, Trash2, Tag, Calendar, FileText, BarChart3, Clock, Check, AlertCircle } from 'lucide-react'
+import { Loader2, Edit, Trash2, Tag, Calendar, FileText, BarChart3, Clock, Check, AlertCircle, Send } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import Link from 'next/link'
 
 // Add the getContrastColor utility function
 function getContrastColor(hexColor: string): string {
@@ -55,6 +56,9 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
+  const [ankiDeckName, setAnkiDeckName] = useState('');
+  const [isAnkiDialogOpen, setIsAnkiDialogOpen] = useState(false);
+  const [sendingToAnki, setSendingToAnki] = useState(false);
 
   // Combine loading states
   const isLoading = loading || supabaseLoading;
@@ -202,128 +206,61 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
       });
       return;
     }
-    handleExport(quiz, 'anki');
+    // Instead of exporting as a file, open the Anki Connect dialog
+    openSendToAnkiDialog(quiz);
   };
 
-  const startEditing = (quiz: Quiz) => {
-    if (!quiz) return;
-    
-    // Create a deep copy of the quiz to edit
-    const quizCopy = JSON.parse(JSON.stringify(quiz));
-    setEditingQuiz(quizCopy);
-    setCurrentQuestionIndex(0);
-    
-    // Open the edit dialog
-    const editDialog = document.createElement('dialog');
-    editDialog.id = 'edit-dialog';
-    document.body.appendChild(editDialog);
-    editDialog.showModal();
+  const openSendToAnkiDialog = (quiz: Quiz) => {
+    setSelectedQuiz(quiz);
+    setAnkiDeckName(quiz.title.replace(/[^a-z0-9]/gi, ' ').trim());
+    setIsAnkiDialogOpen(true);
   };
 
-  const cancelEditing = () => {
-    setEditingQuiz(null);
-  };
-
-  const updateQuizTitle = (value: string) => {
-    if (editingQuiz) {
-      setEditingQuiz({
-        ...editingQuiz,
-        title: value
-      });
-    }
-  };
-
-  const updateQuestionText = (index: number, value: string) => {
-    if (editingQuiz) {
-      const updatedQuestions = [...editingQuiz.questions];
-      updatedQuestions[index] = {
-        ...updatedQuestions[index],
-        text: value
-      };
-      setEditingQuiz({
-        ...editingQuiz,
-        questions: updatedQuestions
-      });
-    }
-  };
-
-  const updateQuestionAnswer = (index: number, value: string) => {
-    if (editingQuiz) {
-      const updatedQuestions = [...editingQuiz.questions];
-      updatedQuestions[index] = {
-        ...updatedQuestions[index],
-        correctAnswer: value
-      };
-      setEditingQuiz({
-        ...editingQuiz,
-        questions: updatedQuestions
-      });
-    }
-  };
-
-  const updateQuestionOptions = (index: number, optionIndex: number, value: string) => {
-    if (editingQuiz) {
-      const updatedQuestions = [...editingQuiz.questions];
-      const options = [...(updatedQuestions[index].options || [])];
-      options[optionIndex] = value;
-      updatedQuestions[index] = {
-        ...updatedQuestions[index],
-        options
-      };
-      setEditingQuiz({
-        ...editingQuiz,
-        questions: updatedQuestions
-      });
-    }
-  };
-
-  const setCorrectAnswer = (index: number, optionIndex: number) => {
-    if (editingQuiz) {
-      const updatedQuestions = [...editingQuiz.questions];
-      const options = updatedQuestions[index].options || [];
-      updatedQuestions[index] = {
-        ...updatedQuestions[index],
-        correctAnswer: options[optionIndex]
-      };
-      setEditingQuiz({
-        ...editingQuiz,
-        questions: updatedQuestions
-      });
-    }
-  };
-
-  const saveQuiz = async () => {
-    if (!editingQuiz) return;
+  const handleSendToAnki = async () => {
+    if (!selectedQuiz || !ankiDeckName.trim()) return;
     
     try {
-      setSaving(true);
-      
-      const { error } = await supabase
-        .from('quizzes')
-        .update({
-          title: editingQuiz.title,
-          questions: editingQuiz.questions
-        })
-        .eq('id', editingQuiz.id);
-      
-      if (error) throw error;
-      
-      setQuizzes(quizzes.map(q => q.id === editingQuiz.id ? editingQuiz : q));
-      setEditingQuiz(null);
-      
+      setSendingToAnki(true);
       toast({
-        title: 'Success',
-        description: 'Quiz updated successfully',
+        title: "Sending to Anki",
+        description: "Connecting to Anki...",
       });
-    } catch (error) {
-      console.error('Error updating quiz:', error);
+      
+      const response = await fetch('/api/send-to-anki', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          quizId: selectedQuiz.id,
+          deckName: ankiDeckName.trim()
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to send quiz to Anki');
+      }
+
+      const result = await response.json();
+      
       toast({
-        title: 'Error',
-        description: 'Failed to update quiz',
-        variant: 'destructive',
+        title: "Success",
+        description: result.message || `Quiz sent to Anki deck "${ankiDeckName}"`,
+      });
+      
+      setIsAnkiDialogOpen(false);
+    } catch (error) {
+      console.error('Error sending to Anki:', error);
+      toast({
+        title: "Failed to send to Anki",
+        description: error instanceof Error 
+          ? error.message 
+          : "Make sure Anki is running with the Anki-Connect plugin installed",
+        variant: "destructive",
       });
     } finally {
-      setSaving(false);
+      setSendingToAnki(false);
     }
   };
 
@@ -568,7 +505,7 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
                       handleAnkiExport(selectedQuiz);
                     }
                   }}
-                  className={`flex items-center ${
+                  className={`flex items-center bg-white text-black border border-gray-200 hover:bg-gray-50 ${
                     isMobileOrTablet 
                       ? 'opacity-60 cursor-help' 
                       : ''
@@ -578,26 +515,12 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
                     <AlertCircle className="h-4 w-4 mr-1 text-gray-400" />
                   )}
                   {!isMobileOrTablet && (
-                    <FileText className="h-4 w-4 mr-1" />
+                    <Send className="h-4 w-4 mr-1" />
                   )}
-                  Export Anki
+                  Send to Anki
                 </Button>
               </div>
               <div className="flex items-center space-x-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (selectedQuiz) {
-                      startEditing(selectedQuiz);
-                      closeQuizDetails();
-                    }
-                  }}
-                  className="flex items-center"
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Edit Quiz
-                </Button>
                 <Button
                   size="sm"
                   variant="outline"
@@ -642,6 +565,65 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
                 </>
               ) : (
                 'Delete Quiz'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Anki Dialog */}
+      <Dialog open={isAnkiDialogOpen} onOpenChange={() => {
+        setIsAnkiDialogOpen(false);
+        setSelectedQuiz(null);
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Send to Anki</DialogTitle>
+            <DialogDescription>
+              Enter the name of the Anki deck where you want to send this quiz.
+              Make sure Anki is running with the Anki-Connect plugin installed.
+              <Link href="/dashboard/anki-setup" className="text-blue-600 dark:text-blue-400 hover:underline block mt-2">
+                Learn how to set up Anki integration
+              </Link>
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="deckName" className="text-right">
+                Deck Name
+              </Label>
+              <Input
+                id="deckName"
+                value={ankiDeckName}
+                onChange={(e) => setAnkiDeckName(e.target.value)}
+                className="col-span-3"
+                placeholder="Enter deck name"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsAnkiDialogOpen(false)}
+              disabled={sendingToAnki}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="button" 
+              onClick={handleSendToAnki}
+              disabled={!ankiDeckName.trim() || sendingToAnki}
+            >
+              {sendingToAnki ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                'Send to Anki'
               )}
             </Button>
           </DialogFooter>

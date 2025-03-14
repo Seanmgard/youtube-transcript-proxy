@@ -50,7 +50,6 @@ export default function QuizHistory({ limit }: { limit?: number }) {
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null)
-  const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [exporting, setExporting] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -66,6 +65,21 @@ export default function QuizHistory({ limit }: { limit?: number }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const { user } = useAuth()
   const { supabase, loading: supabaseLoading } = useSupabase()
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState(false)
+
+  // Add useEffect for mobile detection
+  useEffect(() => {
+    // Check if device is mobile or tablet
+    const checkDevice = () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobile = /iphone|ipad|ipod|android|blackberry|windows phone/g.test(userAgent);
+      setIsMobileOrTablet(isMobile);
+    };
+
+    checkDevice();
+    window.addEventListener('resize', checkDevice);
+    return () => window.removeEventListener('resize', checkDevice);
+  }, []);
 
   // Combine loading states
   const isLoading = loading || supabaseLoading;
@@ -205,201 +219,8 @@ export default function QuizHistory({ limit }: { limit?: number }) {
 
   const openQuizDetails = (quiz: Quiz) => {
     setSelectedQuiz(quiz);
-    setEditingQuiz(null);
     setCategorizingQuiz(null);
     setIsDialogOpen(true);
-  }
-
-  const startEditing = (quiz: Quiz) => {
-    if (!quiz) return;
-    
-    // Create a deep copy of the quiz to edit
-    setEditingQuiz(JSON.parse(JSON.stringify(quiz)));
-    
-    // Reset the current question index to 0
-    setCurrentQuestionIndex(0);
-    
-    // Initialize the subject if the quiz already has one
-    if (quiz.subject && quiz.color) {
-      setEditSubject({
-        id: 'temp-id',
-        name: quiz.subject,
-        color: quiz.color,
-        user_id: '',
-        created_at: ''
-      });
-    } else {
-      setEditSubject(null);
-    }
-  };
-
-  const cancelEditing = () => {
-    setEditingQuiz(null);
-  }
-
-  const updateQuizTitle = (value: string) => {
-    if (editingQuiz) {
-      setEditingQuiz({
-        ...editingQuiz,
-        title: value
-      })
-    }
-  }
-
-  const updateQuestionText = (index: number, value: string) => {
-    if (editingQuiz) {
-      const updatedQuestions = [...editingQuiz.questions]
-      updatedQuestions[index] = {
-        ...updatedQuestions[index],
-        text: value
-      }
-      setEditingQuiz({
-        ...editingQuiz,
-        questions: updatedQuestions
-      })
-    }
-  }
-
-  const updateQuestionOption = (questionIndex: number, optionIndex: number, value: string) => {
-    if (editingQuiz) {
-      const updatedQuestions = [...editingQuiz.questions]
-      const question = updatedQuestions[questionIndex]
-      
-      if (question.type === 'multiple_choice' && question.options) {
-        const updatedOptions = [...question.options]
-        updatedOptions[optionIndex] = value
-        
-        // If this option was the correct answer, update the correct answer too
-        let correctAnswer = question.correctAnswer
-        if (question.correctAnswer === question.options[optionIndex]) {
-          correctAnswer = value
-        }
-        
-        updatedQuestions[questionIndex] = {
-          ...question,
-          options: updatedOptions,
-          correctAnswer: correctAnswer
-        }
-        
-        setEditingQuiz({
-          ...editingQuiz,
-          questions: updatedQuestions
-        })
-      }
-    }
-  }
-
-  const updateCorrectAnswer = (questionIndex: number, value: string) => {
-    if (editingQuiz) {
-      const updatedQuestions = [...editingQuiz.questions]
-      updatedQuestions[questionIndex] = {
-        ...updatedQuestions[questionIndex],
-        correctAnswer: value
-      }
-      setEditingQuiz({
-        ...editingQuiz,
-        questions: updatedQuestions
-      })
-    }
-  }
-
-  const saveQuiz = async () => {
-    if (!editingQuiz) return;
-    
-    try {
-      setSaving(true);
-      
-      const { error } = await supabase
-        .from('quizzes')
-        .update({
-          title: editingQuiz.title,
-          questions: editingQuiz.questions,
-          subject: editSubject?.name || null,
-          color: editSubject?.color || null
-        })
-        .eq('id', editingQuiz.id);
-      
-      if (error) throw error;
-      
-      // Update the local state with proper type casting
-      const updatedQuiz: Quiz = {
-        ...editingQuiz,
-        subject: editSubject?.name,
-        color: editSubject?.color
-      };
-      
-      setQuizzes(quizzes.map(q => q.id === editingQuiz.id ? updatedQuiz : q));
-      setSelectedQuiz(updatedQuiz);
-      setEditingQuiz(null);
-      
-      toast({
-        title: 'Success',
-        description: 'Quiz updated successfully',
-      });
-    } catch (error) {
-      console.error('Error updating quiz:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update quiz',
-        variant: 'destructive',
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const openSendToAnkiDialog = (quiz: Quiz) => {
-    setSelectedQuiz(quiz)
-    setAnkiDeckName(quiz.title.replace(/[^a-z0-9]/gi, ' ').trim())
-    setIsAnkiDialogOpen(true)
-  }
-
-  const handleSendToAnki = async () => {
-    if (!selectedQuiz || !ankiDeckName.trim()) return
-    
-    try {
-      setSendingToAnki(true)
-      toast({
-        title: "Sending to Anki",
-        description: "Connecting to Anki...",
-      })
-      
-      const response = await fetch('/api/send-to-anki', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          quizId: selectedQuiz.id,
-          deckName: ankiDeckName.trim()
-        })
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(errorText || 'Failed to send quiz to Anki')
-      }
-
-      const result = await response.json()
-      
-      toast({
-        title: "Success",
-        description: result.message || `Quiz sent to Anki deck "${ankiDeckName}"`,
-      })
-      
-      setIsAnkiDialogOpen(false)
-    } catch (error) {
-      console.error('Error sending to Anki:', error)
-      toast({
-        title: "Failed to send to Anki",
-        description: error instanceof Error 
-          ? error.message 
-          : "Make sure Anki is running with the Anki-Connect plugin installed",
-        variant: "destructive",
-      })
-    } finally {
-      setSendingToAnki(false)
-    }
   }
 
   const startCategorizing = (quiz: Quiz) => {
@@ -511,12 +332,12 @@ export default function QuizHistory({ limit }: { limit?: number }) {
   };
 
   const deleteQuestion = (questionIndex: number) => {
-    if (editingQuiz && editingQuiz.questions.length > 1) {
-      const updatedQuestions = [...editingQuiz.questions];
+    if (selectedQuiz && selectedQuiz.questions.length > 1) {
+      const updatedQuestions = [...selectedQuiz.questions];
       updatedQuestions.splice(questionIndex, 1);
       
-      setEditingQuiz({
-        ...editingQuiz,
+      setSelectedQuiz({
+        ...selectedQuiz,
         questions: updatedQuestions
       });
       
@@ -539,15 +360,15 @@ export default function QuizHistory({ limit }: { limit?: number }) {
   };
 
   const addNewQuestion = () => {
-    if (editingQuiz) {
+    if (selectedQuiz) {
       // Create a new question based on the quiz's question type setting
-      const questionType = editingQuiz.settings.questionType === 'mixed' 
+      const questionType = selectedQuiz.settings.questionType === 'mixed' 
         ? 'multiple_choice' // Default to multiple choice for mixed quizzes
-        : editingQuiz.settings.questionType;
+        : selectedQuiz.settings.questionType;
       
       const newQuestion: Question = {
         id: `temp-${Date.now()}`, // Temporary ID
-        quizId: editingQuiz.id,
+        quizId: selectedQuiz.id,
         text: '',
         type: questionType as 'multiple_choice' | 'open_ended',
         correctAnswer: '',
@@ -558,10 +379,10 @@ export default function QuizHistory({ limit }: { limit?: number }) {
         newQuestion.options = ['', '', '', ''];
       }
       
-      const updatedQuestions = [...editingQuiz.questions, newQuestion];
+      const updatedQuestions = [...selectedQuiz.questions, newQuestion];
       
-      setEditingQuiz({
-        ...editingQuiz,
+      setSelectedQuiz({
+        ...selectedQuiz,
         questions: updatedQuestions
       });
       
@@ -574,6 +395,74 @@ export default function QuizHistory({ limit }: { limit?: number }) {
       });
     }
   };
+
+  const handleAnkiExport = (quiz: Quiz) => {
+    if (isMobileOrTablet) {
+      toast({
+        title: "Desktop Only Feature",
+        description: "Exporting to Anki is only available on desktop computers. Please use your computer to export to Anki.",
+        variant: "default",
+        duration: 5000,
+      });
+      return;
+    }
+    // Instead of exporting as a file, open the Anki Connect dialog
+    openSendToAnkiDialog(quiz);
+  };
+
+  const openSendToAnkiDialog = (quiz: Quiz) => {
+    setSelectedQuiz(quiz)
+    setAnkiDeckName(quiz.title.replace(/[^a-z0-9]/gi, ' ').trim())
+    setIsAnkiDialogOpen(true)
+  }
+
+  const handleSendToAnki = async () => {
+    if (!selectedQuiz || !ankiDeckName.trim()) return
+    
+    try {
+      setSendingToAnki(true)
+      toast({
+        title: "Sending to Anki",
+        description: "Connecting to Anki...",
+      })
+      
+      const response = await fetch('/api/send-to-anki', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          quizId: selectedQuiz.id,
+          deckName: ankiDeckName.trim()
+        })
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || 'Failed to send quiz to Anki')
+      }
+
+      const result = await response.json()
+      
+      toast({
+        title: "Success",
+        description: result.message || `Quiz sent to Anki deck "${ankiDeckName}"`,
+      })
+      
+      setIsAnkiDialogOpen(false)
+    } catch (error) {
+      console.error('Error sending to Anki:', error)
+      toast({
+        title: "Failed to send to Anki",
+        description: error instanceof Error 
+          ? error.message 
+          : "Make sure Anki is running with the Anki-Connect plugin installed",
+        variant: "destructive",
+      })
+    } finally {
+      setSendingToAnki(false)
+    }
+  }
 
   if (loading) {
     return <div className="text-center py-4">Loading your quiz history...</div>
@@ -680,7 +569,6 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
                         onClick={(e) => {
                           e.stopPropagation();
                           openDeleteConfirmation(quiz);
@@ -792,8 +680,6 @@ export default function QuizHistory({ limit }: { limit?: number }) {
       onOpenChange={(open) => {
         setIsDialogOpen(open);
         if (!open) {
-          setEditingQuiz(null);
-          setCategorizingQuiz(null);
           setCurrentQuestionIndex(0);
         }
       }}
@@ -801,13 +687,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>
-            {editingQuiz ? (
-              <Input 
-                value={editingQuiz.title} 
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateQuizTitle(e.target.value)}
-                className="font-bold text-xl"
-              />
-            ) : categorizingQuiz ? (
+            {categorizingQuiz ? (
               <div className="flex items-center justify-between">
                 <span className="flex-1 mr-4">{categorizingQuiz.title}</span>
                 <span className="text-sm text-gray-500">Categorize Quiz</span>
@@ -853,153 +733,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
         </DialogHeader>
         
         <div className="overflow-y-auto flex-grow pr-2 mt-4">
-          {editingQuiz ? (
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  value={editingQuiz.title}
-                  onChange={(e) => updateQuizTitle(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              
-              <div className="border rounded-md p-4">
-                <SubjectManager
-                  onSelectSubject={setEditSubject}
-                  selectedSubjectId={editSubject?.id}
-                />
-              </div>
-              
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center">
-                  <h3 className="text-lg font-medium">Questions</h3>
-                  <span className="ml-2 text-sm text-gray-500">
-                    {currentQuestionIndex + 1} of {editingQuiz.questions.length}
-                  </span>
-                </div>
-                <div className="flex space-x-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
-                    disabled={currentQuestionIndex === 0}
-                  >
-                    Previous
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setCurrentQuestionIndex(Math.min(editingQuiz.questions.length - 1, currentQuestionIndex + 1))}
-                    disabled={currentQuestionIndex === editingQuiz.questions.length - 1}
-                  >
-                    Next
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={addNewQuestion}
-                  >
-                    Add Question
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => deleteQuestion(currentQuestionIndex)}
-                    disabled={editingQuiz.questions.length <= 1}
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                  >
-                    Delete Question
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="mb-6 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-                <div className="mb-3">
-                  <label className="block text-sm font-medium mb-1">Question {currentQuestionIndex + 1}</label>
-                  <Textarea 
-                    value={editingQuiz.questions[currentQuestionIndex].text} 
-                    onChange={(e) => updateQuestionText(currentQuestionIndex, e.target.value)}
-                    className="w-full"
-                    rows={2}
-                    placeholder="Enter your question here..."
-                  />
-                </div>
-                
-                {editingQuiz.questions[currentQuestionIndex].type === 'multiple_choice' && 
-                 editingQuiz.questions[currentQuestionIndex].options && (
-                  <div className="mb-3">
-                    <label className="block text-sm font-medium mb-1">Options</label>
-                    {editingQuiz.questions[currentQuestionIndex].options.map((option, optIndex) => (
-                      <div key={optIndex} className="flex items-center mb-2">
-                        <span className="mr-2">{String.fromCharCode(97 + optIndex)})</span>
-                        <Input 
-                          value={option} 
-                          onChange={(e) => updateQuestionOption(currentQuestionIndex, optIndex, e.target.value)}
-                          className="flex-grow"
-                          placeholder={`Option ${String.fromCharCode(97 + optIndex)}`}
-                        />
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant={option === editingQuiz.questions[currentQuestionIndex].correctAnswer ? "default" : "outline"}
-                                size="sm"
-                                className="ml-2"
-                                onClick={() => updateCorrectAnswer(currentQuestionIndex, option)}
-                              >
-                                {option === editingQuiz.questions[currentQuestionIndex].correctAnswer ? "Correct" : "Set as correct"}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Mark this as the correct answer</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {editingQuiz.questions[currentQuestionIndex].type !== 'multiple_choice' && (
-                  <div className="mb-3">
-                    <label className="block text-sm font-medium mb-1">Correct Answer</label>
-                    <Input 
-                      value={editingQuiz.questions[currentQuestionIndex].correctAnswer} 
-                      onChange={(e) => updateCorrectAnswer(currentQuestionIndex, e.target.value)}
-                      className="w-full"
-                      placeholder="Enter the correct answer"
-                    />
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex justify-end space-x-2 mt-4">
-                <Button variant="outline" onClick={() => setEditingQuiz(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={saveQuiz}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Changes
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          ) : categorizingQuiz ? (
+          {categorizingQuiz ? (
             <div className="space-y-4">
               <div className="border rounded-md p-4">
                 <h3 className="text-lg font-medium mb-4">Categorize Quiz</h3>
@@ -1064,36 +798,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
         
         <DialogFooter className="mt-4">
           <div className="flex space-x-2">
-            {editingQuiz ? (
-              <>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={saveQuiz}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Changes
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={cancelEditing}
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
-              </>
-            ) : categorizingQuiz ? (
+            {categorizingQuiz ? (
               null
             ) : (
               <>
@@ -1106,24 +811,10 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                   size="sm"
                   onClick={() => {
                     setCategorizingQuiz(selectedQuiz);
-                    setEditingQuiz(null);
                   }}
                 >
                   <BookmarkPlus className="mr-2 h-4 w-4" />
                   Categorize
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    startEditing(selectedQuiz!);
-                    setCurrentQuestionIndex(0); // Reset the current question index
-                  }}
-                  disabled={!selectedQuiz}
-                >
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit Quiz
                 </Button>
                 
                 <Button
@@ -1308,6 +999,6 @@ export default function QuizHistory({ limit }: { limit?: number }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-    </>
-  )
+  </>
+)
 } 

@@ -16,6 +16,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/app/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/app/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export default function Dashboard() {
   const [currentQuiz, setCurrentQuiz] = useState<any>(null);
@@ -25,6 +35,9 @@ export default function Dashboard() {
   const [exporting, setExporting] = useState<string | null>(null);
   const { toast } = useToast();
   const { fetchSubscription, isOnPlan } = useSubscription();
+  const [isAnkiDialogOpen, setIsAnkiDialogOpen] = useState(false);
+  const [ankiDeckName, setAnkiDeckName] = useState('');
+  const [sendingToAnki, setSendingToAnki] = useState(false);
 
   useEffect(() => {
     setLoading(false);
@@ -221,17 +234,13 @@ export default function Dashboard() {
       return;
     }
 
-    try {
-      setExporting('anki-send');
-      toast({
-        title: "Sending to Anki",
-        description: "Connecting to Anki...",
-      });
-      
-      // First save the quiz if it's not already saved
-      let quizId = currentQuiz.id;
-      
-      if (!quizId) {
+    // First save the quiz if it's not already saved
+    let quizId = currentQuiz.id;
+    
+    if (!quizId) {
+      try {
+        setExporting('anki-save');
+        
         // Save the quiz first
         const { data, error } = await supabase
           .from('quizzes')
@@ -259,9 +268,36 @@ export default function Dashboard() {
           ...currentQuiz,
           id: quizId
         });
+      } catch (error) {
+        console.error('Error saving quiz:', error);
+        toast({
+          title: "Failed to save quiz",
+          description: error instanceof Error ? error.message : "An unknown error occurred",
+          variant: "destructive",
+        });
+        setExporting(null);
+        return;
+      } finally {
+        setExporting(null);
       }
+    }
+    
+    // Set the default deck name and open the dialog
+    setAnkiDeckName(currentQuiz.title.replace(/[^a-z0-9]/gi, ' ').trim());
+    setIsAnkiDialogOpen(true);
+  };
+
+  const sendToAnki = async () => {
+    if (!currentQuiz || !ankiDeckName.trim()) return;
+    
+    try {
+      setSendingToAnki(true);
+      setExporting('anki-send');
       
-      const deckName = currentQuiz.title.replace(/[^a-z0-9]/gi, ' ').trim();
+      toast({
+        title: "Sending to Anki",
+        description: "Connecting to Anki...",
+      });
       
       const response = await fetch('/api/send-to-anki', {
         method: 'POST',
@@ -269,8 +305,8 @@ export default function Dashboard() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          quizId: quizId,
-          deckName: deckName
+          quizId: currentQuiz.id,
+          deckName: ankiDeckName.trim()
         })
       });
 
@@ -283,16 +319,21 @@ export default function Dashboard() {
       
       toast({
         title: "Success",
-        description: result.message || `Quiz sent to Anki deck "${deckName}"`,
+        description: result.message || `Quiz sent to Anki deck "${ankiDeckName}"`,
       });
+      
+      setIsAnkiDialogOpen(false);
     } catch (error) {
       console.error('Error sending to Anki:', error);
       toast({
         title: "Failed to send to Anki",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description: error instanceof Error 
+          ? error.message 
+          : "Make sure Anki is running with the Anki-Connect plugin installed",
         variant: "destructive",
       });
     } finally {
+      setSendingToAnki(false);
       setExporting(null);
     }
   };
@@ -380,7 +421,7 @@ export default function Dashboard() {
                 className="cursor-pointer"
               >
                 <Send className="mr-2 h-4 w-4" />
-                Send directly to Anki
+                Send to Anki
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -469,6 +510,62 @@ export default function Dashboard() {
           </div>
         </>
       )}
+
+      {/* Anki Dialog */}
+      <Dialog open={isAnkiDialogOpen} onOpenChange={setIsAnkiDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Send to Anki</DialogTitle>
+            <DialogDescription>
+              Enter the name of the Anki deck where you want to send this quiz.
+              Make sure Anki is running with the Anki-Connect plugin installed.
+              <Link href="/dashboard/anki-setup" className="text-blue-600 dark:text-blue-400 hover:underline block mt-2">
+                Learn how to set up Anki integration
+              </Link>
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="deckName" className="text-right">
+                Deck Name
+              </Label>
+              <Input
+                id="deckName"
+                value={ankiDeckName}
+                onChange={(e) => setAnkiDeckName(e.target.value)}
+                className="col-span-3"
+                placeholder="Enter deck name"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsAnkiDialogOpen(false)}
+              disabled={sendingToAnki}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="button" 
+              onClick={sendToAnki}
+              disabled={!ankiDeckName.trim() || sendingToAnki}
+            >
+              {sendingToAnki ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                'Send to Anki'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 
