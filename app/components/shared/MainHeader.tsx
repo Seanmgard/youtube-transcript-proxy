@@ -98,7 +98,7 @@ export function MainHeader() {
     <header
       className={`fixed inset-x-0 top-0 z-[100] transition-all duration-300 ${
         scrolled || !isLandingPage
-          ? 'bg-white/80 backdrop-blur-md shadow-sm'
+          ? 'bg-white shadow-sm'
           : 'bg-transparent'
       }`}
     >
