@@ -97,10 +97,13 @@ export async function POST(request: Request) {
       );
     });
 
-    if (!createDeckResponse.ok) {
-      const errorData = await createDeckResponse.json();
-      console.error('Error creating Anki deck:', errorData);
-      return new NextResponse(`Error creating Anki deck: ${JSON.stringify(errorData)}`, { status: 500 });
+    // Parse the response even if the HTTP status is not OK
+    const createDeckData = await createDeckResponse.json();
+    
+    // Check for Anki-Connect specific errors
+    if (createDeckData.error) {
+      console.error('Anki-Connect error creating deck:', createDeckData.error);
+      throw new Error(`Anki-Connect error: ${createDeckData.error}`);
     }
 
     // Send notes to Anki
@@ -124,18 +127,13 @@ export async function POST(request: Request) {
       );
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Error sending notes to Anki:', errorData);
-      return new NextResponse(`Error sending notes to Anki: ${JSON.stringify(errorData)}`, { status: 500 });
-    }
-
+    // Parse the response even if the HTTP status is not OK
     const result = await response.json();
     
     // Check if there was an error in the Anki-Connect response
     if (result.error) {
       console.error('Anki-Connect error:', result.error);
-      return new NextResponse(`Anki-Connect error: ${result.error}`, { status: 500 });
+      throw new Error(`Anki-Connect error: ${result.error}`);
     }
 
     return NextResponse.json({ 

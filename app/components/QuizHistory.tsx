@@ -417,14 +417,14 @@ export default function QuizHistory({ limit }: { limit?: number }) {
   }
 
   const handleSendToAnki = async () => {
-    if (!selectedQuiz || !ankiDeckName.trim()) return
+    if (!selectedQuiz || !ankiDeckName.trim()) return;
     
     try {
-      setSendingToAnki(true)
+      setSendingToAnki(true);
       toast({
         title: "Sending to Anki",
         description: "Connecting to Anki...",
-      })
+      });
       
       const response = await fetch('/api/send-to-anki', {
         method: 'POST',
@@ -435,34 +435,58 @@ export default function QuizHistory({ limit }: { limit?: number }) {
           quizId: selectedQuiz.id,
           deckName: ankiDeckName.trim()
         })
-      })
+      });
 
       if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(errorText || 'Failed to send quiz to Anki')
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to send quiz to Anki');
       }
 
-      const result = await response.json()
+      const result = await response.json();
       
       toast({
         title: "Success",
         description: result.message || `Quiz sent to Anki deck "${ankiDeckName}"`,
-      })
+      });
       
-      setIsAnkiDialogOpen(false)
+      setIsAnkiDialogOpen(false);
     } catch (error) {
-      console.error('Error sending to Anki:', error)
+      console.error('Error sending to Anki:', error);
+      
+      // Check if the error is related to connection issues
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const isConnectionError = errorMessage.includes('Could not connect to Anki') || 
+                               errorMessage.includes('Failed to fetch');
+      
       toast({
         title: "Failed to send to Anki",
-        description: error instanceof Error 
-          ? error.message 
-          : "Make sure Anki is running with the Anki-Connect plugin installed",
+        description: (
+          <div>
+            <p>{isConnectionError ? 
+              "Could not connect to Anki. Please make sure:" : 
+              errorMessage}
+            </p>
+            {isConnectionError && (
+              <ul className="list-disc pl-5 mt-2 text-sm">
+                <li>Anki is running on your computer</li>
+                <li>The Anki-Connect plugin is installed</li>
+                <li>You've restarted Anki after installing the plugin</li>
+              </ul>
+            )}
+            <p className="mt-2">
+              <a href="/dashboard/anki-setup" className="underline">
+                View setup instructions
+              </a>
+            </p>
+          </div>
+        ),
         variant: "destructive",
-      })
+        duration: 10000,
+      });
     } finally {
-      setSendingToAnki(false)
+      setSendingToAnki(false);
     }
-  }
+  };
 
   if (loading) {
     return <div className="text-center py-4">Loading your quiz history...</div>
