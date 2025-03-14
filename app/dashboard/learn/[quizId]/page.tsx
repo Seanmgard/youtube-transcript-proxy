@@ -21,6 +21,7 @@ import {
 } from '@/app/components/ui/dialog'
 import { Input } from '@/app/components/ui/input'
 import { Label } from '@/app/components/ui/label'
+import { AnkiExportDialog } from '@/app/components/AnkiExportDialog'
 
 export default function LearnQuizPage() {
   // Use the useParams hook to get route parameters in a client component
@@ -457,93 +458,22 @@ export default function LearnQuizPage() {
         title: "Desktop Only Feature",
         description: "Exporting to Anki is only available on desktop computers. Please use your computer to export to Anki.",
         variant: "default",
-        className: "bg-white border-gray-200 text-gray-900",
         duration: 5000,
-        style: {
-          backgroundColor: 'white',
-          color: '#111827', // text-gray-900
-          border: '1px solid #E5E7EB', // border-gray-200
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-        }
       });
       return;
     }
-    
-    // Open the Anki dialog instead of exporting a file
-    setAnkiDeckName(quiz.title.replace(/[^a-z0-9]/gi, ' ').trim());
+    // Instead of exporting as a file, open the Anki Connect dialog
+    openAnkiDialog();
+  };
+
+  const openAnkiDialog = () => {
+    console.log('Opening Anki dialog for quiz:', quiz?.id);
     setIsAnkiDialogOpen(true);
   };
 
-  const handleSendToAnki = async () => {
-    if (!quiz || !ankiDeckName.trim()) return;
-    
-    try {
-      setSendingToAnki(true);
-      toast({
-        title: "Sending to Anki",
-        description: "Connecting to Anki...",
-      });
-      
-      const response = await fetch('/api/send-to-anki', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          quizId: quiz.id,
-          deckName: ankiDeckName.trim()
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Failed to send quiz to Anki');
-      }
-
-      const result = await response.json();
-      
-      toast({
-        title: "Success",
-        description: result.message || `Quiz sent to Anki deck "${ankiDeckName}"`,
-      });
-      
-      setIsAnkiDialogOpen(false);
-    } catch (error) {
-      console.error('Error sending to Anki:', error);
-      
-      // Check if the error is related to connection issues
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const isConnectionError = errorMessage.includes('Could not connect to Anki') || 
-                               errorMessage.includes('Failed to fetch');
-      
-      toast({
-        title: "Failed to send to Anki",
-        description: (
-          <div>
-            <p>{isConnectionError ? 
-              "Could not connect to Anki. Please make sure:" : 
-              errorMessage}
-            </p>
-            {isConnectionError && (
-              <ul className="list-disc pl-5 mt-2 text-sm">
-                <li>Anki is running on your computer</li>
-                <li>The Anki-Connect plugin is installed</li>
-                <li>You've restarted Anki after installing the plugin</li>
-              </ul>
-            )}
-            <p className="mt-2">
-              <a href="/dashboard/anki-setup" className="underline">
-                View setup instructions
-              </a>
-            </p>
-          </div>
-        ),
-        variant: "destructive",
-        duration: 10000,
-      });
-    } finally {
-      setSendingToAnki(false);
-    }
+  const closeAnkiDialog = () => {
+    console.log('Closing Anki dialog');
+    setIsAnkiDialogOpen(false);
   };
 
   if (isLoading) {
@@ -743,66 +673,19 @@ export default function LearnQuizPage() {
             {!isMobileOrTablet && (
               <Send className="h-4 w-4 mr-1" />
             )}
-            Send to Anki
+            Export to Anki
           </Button>
         </div>
       </div>
 
-      {/* Anki Dialog */}
-      <Dialog open={isAnkiDialogOpen} onOpenChange={setIsAnkiDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Send to Anki</DialogTitle>
-            <DialogDescription>
-              Enter the name of the Anki deck where you want to send this quiz.
-              Make sure Anki is running with the Anki-Connect plugin installed.
-              <Link href="/dashboard/anki-setup" className="text-blue-600 dark:text-blue-400 hover:underline block mt-2">
-                Learn how to set up Anki integration
-              </Link>
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="deckName" className="text-right">
-                Deck Name
-              </Label>
-              <Input
-                id="deckName"
-                value={ankiDeckName}
-                onChange={(e) => setAnkiDeckName(e.target.value)}
-                className="col-span-3"
-                placeholder="Enter deck name"
-              />
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsAnkiDialogOpen(false)}
-              disabled={sendingToAnki}
-            >
-              Cancel
-            </Button>
-            <Button 
-              type="button" 
-              onClick={handleSendToAnki}
-              disabled={!ankiDeckName.trim() || sendingToAnki}
-            >
-              {sendingToAnki ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                'Send to Anki'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Replace the old Anki Dialog with our new AnkiExportDialog component */}
+      {quiz && (
+        <AnkiExportDialog
+          isOpen={isAnkiDialogOpen}
+          onClose={closeAnkiDialog}
+          quizId={quiz.id}
+        />
+      )}
     </div>
   );
 }

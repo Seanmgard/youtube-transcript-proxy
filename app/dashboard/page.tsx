@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { useSupabase } from '@/utils/supabase/client';
 import QuizUploader from '@/app/components/QuizUploader';
@@ -26,6 +27,12 @@ import {
 } from '@/app/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { generateQuiz } from '@/utils/api-client';
+import { QuizSettings } from '@/lib/types';
+import { AnkiExportDialog } from '@/app/components/AnkiExportDialog';
 
 export default function Dashboard() {
   const [currentQuiz, setCurrentQuiz] = useState<any>(null);
@@ -38,6 +45,7 @@ export default function Dashboard() {
   const [isAnkiDialogOpen, setIsAnkiDialogOpen] = useState(false);
   const [ankiDeckName, setAnkiDeckName] = useState('');
   const [sendingToAnki, setSendingToAnki] = useState(false);
+  const [selectedQuizId, setSelectedQuizId] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(false);
@@ -362,6 +370,17 @@ export default function Dashboard() {
     }
   };
 
+  const openAnkiDialog = (quizId: string) => {
+    console.log('Opening Anki dialog for quiz:', quizId);
+    setSelectedQuizId(quizId);
+    setIsAnkiDialogOpen(true);
+  };
+
+  const closeAnkiDialog = () => {
+    console.log('Closing Anki dialog');
+    setIsAnkiDialogOpen(false);
+  };
+
   // Function to render the quiz content
   const renderQuizContent = () => {
     if (!currentQuiz) {
@@ -535,61 +554,14 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* Anki Dialog */}
-      <Dialog open={isAnkiDialogOpen} onOpenChange={setIsAnkiDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Send to Anki</DialogTitle>
-            <DialogDescription>
-              Enter the name of the Anki deck where you want to send this quiz.
-              Make sure Anki is running with the Anki-Connect plugin installed.
-              <Link href="/dashboard/anki-setup" className="text-blue-600 dark:text-blue-400 hover:underline block mt-2">
-                Learn how to set up Anki integration
-              </Link>
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="deckName" className="text-right">
-                Deck Name
-              </Label>
-              <Input
-                id="deckName"
-                value={ankiDeckName}
-                onChange={(e) => setAnkiDeckName(e.target.value)}
-                className="col-span-3"
-                placeholder="Enter deck name"
-              />
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsAnkiDialogOpen(false)}
-              disabled={sendingToAnki}
-            >
-              Cancel
-            </Button>
-            <Button 
-              type="button" 
-              onClick={sendToAnki}
-              disabled={!ankiDeckName.trim() || sendingToAnki}
-            >
-              {sendingToAnki ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                'Send to Anki'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Replace the old Anki Dialog with our new AnkiExportDialog component */}
+      {selectedQuizId && (
+        <AnkiExportDialog
+          isOpen={isAnkiDialogOpen}
+          onClose={closeAnkiDialog}
+          quizId={selectedQuizId}
+        />
+      )}
     </div>
   );
 } 

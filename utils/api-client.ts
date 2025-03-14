@@ -97,6 +97,33 @@ export async function exportQuiz(quizId: string, format: string): Promise<Blob> 
 }
 
 /**
+ * Fetches quiz data from the server
+ * @param quizId The ID of the quiz to fetch
+ * @returns The quiz data
+ */
+export async function fetchQuizData(quizId: string) {
+  const response = await fetch('/api/send-to-anki', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ quizId })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `Failed to fetch quiz data: ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (!data.quiz) {
+    throw new Error('No quiz data received from server');
+  }
+
+  return data.quiz;
+}
+
+/**
  * Sends a quiz to Anki
  * @param quizId The ID of the quiz to send to Anki
  * @param deckName The name of the Anki deck to create/use
@@ -107,37 +134,29 @@ export async function sendToAnki(quizId: string, deckName: string): Promise<{
   addedNotes: number;
   message: string;
 }> {
-  // First, fetch the quiz data from our API
-  const response = await fetch('/api/send-to-anki', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ quizId })
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || 'Failed to fetch quiz data');
-  }
-
-  const { quiz } = await response.json();
+  console.log('API CLIENT: Starting sendToAnki...', { quizId, deckName });
 
   try {
-    // Now send the quiz to Anki using our utility function
-    const { sendQuizToAnki } = await import('./anki-connect');
-    const result = await sendQuizToAnki(quiz, deckName);
+    // First, fetch the quiz data from our API
+    console.log('API CLIENT: Fetching quiz data...');
+    const quiz = await fetchQuizData(quizId);
+    console.log('API CLIENT: Received quiz data:', quiz);
+
+    // Dynamically import the anki-connect module (client-side only)
+    console.log('API CLIENT: Importing anki-connect module...');
+    const ankiModule = await import('./anki-connect');
+    console.log('API CLIENT: anki-connect module imported:', Object.keys(ankiModule));
+    
+    // Send the quiz to Anki
+    console.log('API CLIENT: Sending quiz to Anki...');
+    const result = await ankiModule.sendQuizToAnki(quiz, deckName);
+    console.log('API CLIENT: Anki result:', result);
+    
     return result;
   } catch (error) {
-    if (error instanceof Error && error.message.includes('Failed to fetch')) {
-      throw new Error(
-        'Could not connect to Anki. Please make sure:\n' +
-        '- Anki is running on your computer\n' +
-        '- The Anki-Connect plugin is installed\n' +
-        '- You\'ve restarted Anki after installing the plugin\n\n' +
-        'Visit /dashboard/anki-setup for setup instructions.'
-      );
-    }
+    console.error('API CLIENT: Error in sendToAnki:', error);
+    
+    // Just rethrow the error - we'll handle specific error messages in the UI
     throw error;
   }
 } 
