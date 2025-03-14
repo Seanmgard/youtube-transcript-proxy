@@ -1,0 +1,16 @@
+# Allow all crawlers
+User-agent: *
+Allow: /
+Allow: /blog
+Allow: /about
+Allow: /contact
+Allow: /pricing
+
+# Protect sensitive routes
+Disallow: /dashboard
+Disallow: /api/
+Disallow: /auth/
+Disallow: /_next/
+
+# Sitemap location
+Sitemap: https://quizlabai.com/sitemap.xml 
