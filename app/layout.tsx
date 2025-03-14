@@ -33,7 +33,7 @@ export const metadata = {
     description: "QuizLab AI transforms your study materials into engaging interactive quizzes using artificial intelligence. Create custom quizzes instantly and export directly to Anki for spaced repetition learning. Perfect for students and educators.",
     siteName: "QuizLab AI",
     images: [{
-      url: `${siteUrl}/images/og-image.png`,
+      url: `${siteUrl}/images/Main_Image.png`,
       width: 1200,
       height: 630,
       alt: "QuizLab AI - Transform Study Materials into Interactive Quizzes"
@@ -43,7 +43,7 @@ export const metadata = {
     card: "summary_large_image",
     title: "QuizLab AI - Transform Study Materials into Interactive Quizzes",
     description: "QuizLab AI transforms your study materials into engaging interactive quizzes using artificial intelligence. Create custom quizzes instantly and export directly to Anki for spaced repetition learning. Perfect for students and educators.",
-    images: [`${siteUrl}/images/og-image.png`],
+    images: [`${siteUrl}/images/Main_Image.png`],
   },
   robots: {
     index: true,
@@ -94,7 +94,7 @@ export default function RootLayout({
                 "Anki integration and direct export",
                 "Spaced repetition learning"
               ],
-              "screenshot": `${siteUrl}/images/og-image.png`,
+              "screenshot": `${siteUrl}/images/Main_Image.png`,
               "creator": {
                 "@type": "Organization",
                 "name": "QuizLab AI",
