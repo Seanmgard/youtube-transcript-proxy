@@ -99,17 +99,45 @@ export async function exportQuiz(quizId: string, format: string): Promise<Blob> 
 /**
  * Sends a quiz to Anki
  * @param quizId The ID of the quiz to send to Anki
+ * @param deckName The name of the Anki deck to create/use
+ * @returns Promise containing the result of the Anki operation
  */
-export async function sendToAnki(quizId: string): Promise<void> {
-  // Get the Supabase client to ensure authentication is included
-  const supabase = await createClient();
-  
-  const response = await fetch(`/api/send-to-anki?id=${quizId}`, {
+export async function sendToAnki(quizId: string, deckName: string): Promise<{
+  success: boolean;
+  addedNotes: number;
+  message: string;
+}> {
+  // First, fetch the quiz data from our API
+  const response = await fetch('/api/send-to-anki', {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ quizId })
   });
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.message || 'Failed to send quiz to Anki');
+    throw new Error(errorData.message || 'Failed to fetch quiz data');
+  }
+
+  const { quiz } = await response.json();
+
+  try {
+    // Now send the quiz to Anki using our utility function
+    const { sendQuizToAnki } = await import('./anki-connect');
+    const result = await sendQuizToAnki(quiz, deckName);
+    return result;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Failed to fetch')) {
+      throw new Error(
+        'Could not connect to Anki. Please make sure:\n' +
+        '- Anki is running on your computer\n' +
+        '- The Anki-Connect plugin is installed\n' +
+        '- You\'ve restarted Anki after installing the plugin\n\n' +
+        'Visit /dashboard/anki-setup for setup instructions.'
+      );
+    }
+    throw error;
   }
 } 
