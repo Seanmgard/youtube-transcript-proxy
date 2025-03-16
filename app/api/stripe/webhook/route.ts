@@ -76,25 +76,79 @@ export async function POST(request: Request) {
         
         console.log(`Checkout completed for customer ${customerId}, subscription ${subscriptionId}`);
         
-        // Get the subscription details
+        // Get the subscription details with expanded price data
         let subscription;
-        try {
-          subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          console.log('Retrieved subscription details:', {
-            id: subscription.id,
-            status: subscription.status,
-            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-            items: subscription.items.data.map(item => ({
-              id: item.id,
-              price: item.price.id,
-              product: item.price.product
-            }))
-          });
-        } catch (error) {
-          console.error(`Error retrieving subscription ${subscriptionId}:`, error);
-          return new NextResponse('Error retrieving subscription', { status: 500 });
-        }
+        let retryCount = 0;
+        const maxRetries = 3;
         
+        while (retryCount < maxRetries) {
+          try {
+            subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+              expand: [
+                'items.data.price',
+                'latest_invoice',
+                'latest_invoice.payment_intent',
+                'discount',
+                'customer'
+              ]
+            });
+            
+            // Log complete subscription details for debugging
+            console.log('Full subscription details:', JSON.stringify({
+              id: subscription.id,
+              status: subscription.status,
+              customer: typeof subscription.customer === 'string' ? {
+                id: subscription.customer,
+                metadata: null
+              } : {
+                id: (subscription.customer as Stripe.Customer).id,
+                metadata: (subscription.customer as Stripe.Customer).metadata
+              },
+              current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+              items: subscription.items.data.map(item => ({
+                id: item.id,
+                price: item.price.id,
+                product: item.price.product
+              })),
+              discount: subscription.discount ? {
+                coupon: subscription.discount.coupon.id,
+                amount_off: subscription.discount.coupon.amount_off,
+                percent_off: subscription.discount.coupon.percent_off
+              } : null,
+              latest_invoice: subscription.latest_invoice && typeof subscription.latest_invoice !== 'string' ? {
+                status: (subscription.latest_invoice as Stripe.Invoice).status,
+                payment_status: (subscription.latest_invoice as Stripe.Invoice).payment_intent && 
+                  typeof (subscription.latest_invoice as Stripe.Invoice).payment_intent !== 'string' ? 
+                  ((subscription.latest_invoice as Stripe.Invoice).payment_intent as Stripe.PaymentIntent).status : 
+                  null,
+                amount_paid: (subscription.latest_invoice as Stripe.Invoice).amount_paid
+              } : null
+            }, null, 2));
+            
+            break; // Exit retry loop if successful
+          } catch (error) {
+            retryCount++;
+            console.error(`Attempt ${retryCount} failed to retrieve subscription:`, error);
+            if (retryCount === maxRetries) throw error;
+            // Exponential backoff
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+          }
+        }
+
+        // Verify payment is successful by checking the invoice status
+        if (!subscription) {
+          throw new Error('Failed to retrieve subscription after retries');
+        }
+
+        if (typeof subscription.latest_invoice === 'string') {
+          throw new Error('Unexpected string value for latest_invoice');
+        }
+        const invoice = subscription.latest_invoice as Stripe.Invoice;
+        if (invoice.status !== 'paid') {
+          console.error(`Payment not successful. Invoice status: ${invoice.status}`);
+          return new NextResponse('Payment not completed', { status: 400 });
+        }
+
         const priceId = subscription.items.data[0].price.id;
         
         // Determine plan type based on price ID
@@ -105,150 +159,100 @@ export async function POST(request: Request) {
           planType = 'premium';
         }
         
-        console.log(`Checkout completed for customer ${customerId}, subscription ${subscriptionId}, plan ${planType}, priceId ${priceId}`);
-        console.log(`Expected premium price IDs: premium=${PRICE_IDS.premium}, premium_annual=${PRICE_IDS.premium_annual}`);
+        console.log(`Price ID check: Expected premium IDs [${PRICE_IDS.premium}, ${PRICE_IDS.premium_annual}], Got: ${priceId}, Result: ${planType}`);
         
-        // Update the subscription in the database
-        const { data: existingSubscription, error: fetchError } = await supabase
-          .from('subscriptions')
-          .select('id, user_id')
-          .eq('stripe_customer_id', customerId)
-          .single();
+        // Get the user ID with retries
+        let userId;
+        retryCount = 0;
         
-        if (fetchError) {
-          console.error('Error fetching subscription:', fetchError);
-          
-          // Try to find by customer ID directly from Stripe
+        while (retryCount < maxRetries) {
           try {
-            const customer = await stripe.customers.retrieve(customerId);
-            if (customer && !customer.deleted && customer.metadata && customer.metadata.userId) {
-              const userId = customer.metadata.userId;
-              console.log(`Found user ID ${userId} from customer metadata`);
-              
-              // Check if user has a subscription record
-              const { data: userSubscription, error: userSubError } = await supabase
-                .from('subscriptions')
-                .select('id')
-                .eq('user_id', userId)
-                .single();
-                
-              if (userSubError && userSubError.code !== 'PGRST116') {
-                console.error('Error checking for user subscription:', userSubError);
-              }
-              
-              if (userSubscription) {
-                // Update existing subscription
-                const updateData = {
-                  stripe_customer_id: customerId,
-                  stripe_subscription_id: subscriptionId,
-                  stripe_price_id: priceId,
-                  status: subscription.status,
-                  plan_type: planType,
-                  current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-                  current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-                  cancel_at_period_end: subscription.cancel_at_period_end,
-                  updated_at: new Date().toISOString(),
-                };
-                
-                console.log(`Updating subscription for user ${userId} with data:`, updateData);
-                
-                const { error: updateError } = await supabase
-                  .from('subscriptions')
-                  .update(updateData)
-                  .eq('id', userSubscription.id);
-                  
-                if (updateError) {
-                  console.error('Error updating user subscription:', updateError);
-                  return new NextResponse('Error updating subscription', { status: 500 });
-                } else {
-                  console.log(`Successfully updated subscription for user ${userId} to plan ${planType}`);
-                  
-                  // Verify the update was successful
-                  const { data: verifySubscription } = await supabase
-                    .from('subscriptions')
-                    .select('*')
-                    .eq('id', userSubscription.id)
-                    .single();
-                    
-                  console.log('Updated subscription data:', JSON.stringify(verifySubscription));
-                  return new NextResponse('Webhook received and processed', { status: 200 });
-                }
-              } else {
-                // Create new subscription
-                const insertData = {
-                  user_id: userId,
-                  stripe_customer_id: customerId,
-                  stripe_subscription_id: subscriptionId,
-                  stripe_price_id: priceId,
-                  status: subscription.status,
-                  plan_type: planType,
-                  current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-                  current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-                  cancel_at_period_end: subscription.cancel_at_period_end,
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                };
-                
-                console.log(`Creating subscription for user ${userId} with data:`, insertData);
-                
-                const { error: insertError } = await supabase
-                  .from('subscriptions')
-                  .insert(insertData);
-                  
-                if (insertError) {
-                  console.error('Error creating subscription record:', insertError);
-                  return new NextResponse('Error creating subscription', { status: 500 });
-                } else {
-                  console.log(`Successfully created subscription for user ${userId} with plan ${planType}`);
-                  return new NextResponse('Webhook received and processed', { status: 200 });
-                }
-              }
+            // First try to get userId from customer metadata
+            if (subscription.customer && 
+                typeof subscription.customer !== 'string' && 
+                'metadata' in subscription.customer && 
+                subscription.customer.metadata?.userId) {
+              userId = subscription.customer.metadata.userId;
+              console.log(`Found userId ${userId} in customer metadata`);
+              break;
             }
+            
+            // If not in metadata, try to find in subscriptions table
+            const { data: existingSubscription, error } = await supabase
+              .from('subscriptions')
+              .select('user_id')
+              .eq('stripe_customer_id', customerId)
+              .single();
+            
+            if (error) {
+              console.error(`Attempt ${retryCount + 1} failed to find user_id:`, error);
+              throw error;
+            }
+            
+            if (existingSubscription) {
+              userId = existingSubscription.user_id;
+              console.log(`Found userId ${userId} in subscriptions table`);
+              break;
+            }
+            
+            throw new Error('No user_id found in metadata or subscriptions table');
           } catch (error) {
-            console.error('Error retrieving customer or creating subscription:', error);
-            return new NextResponse('Error processing webhook', { status: 500 });
+            retryCount++;
+            if (retryCount === maxRetries) throw error;
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
           }
         }
-        
-        if (existingSubscription) {
-          const updateData = {
-            stripe_subscription_id: subscriptionId,
-            stripe_price_id: priceId,
-            status: subscription.status,
-            plan_type: planType,
-            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-            cancel_at_period_end: subscription.cancel_at_period_end,
-            updated_at: new Date().toISOString(),
-          };
-          
-          console.log(`Updating subscription for user ${existingSubscription.user_id} with data:`, updateData);
-          
-          const { error: updateError } = await supabase
-            .from('subscriptions')
-            .update(updateData)
-            .eq('id', existingSubscription.id);
-            
-          if (updateError) {
-            console.error('Error updating subscription:', updateError);
-            return new NextResponse('Error updating subscription', { status: 500 });
-          }
-          
-          console.log(`Successfully updated subscription for user ${existingSubscription.user_id} to plan ${planType}`);
-          
-          // Verify the update was successful
-          const { data: verifySubscription } = await supabase
-            .from('subscriptions')
-            .select('*')
-            .eq('id', existingSubscription.id)
-            .single();
-            
-          console.log('Updated subscription data:', JSON.stringify(verifySubscription));
-        } else {
-          console.error('No subscription found for customer:', customerId);
-          return new NextResponse('No subscription found', { status: 404 });
+
+        if (!userId) {
+          console.error('Could not find user_id after all attempts');
+          return new NextResponse('User ID not found', { status: 400 });
         }
+
+        // Update subscription in database with retries
+        const updateData = {
+          stripe_subscription_id: subscriptionId,
+          stripe_customer_id: customerId,
+          stripe_price_id: priceId,
+          status: subscription.status,
+          plan_type: planType,
+          current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+          current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+          cancel_at_period_end: subscription.cancel_at_period_end,
+          updated_at: new Date().toISOString(),
+        };
         
+        console.log(`Attempting to update subscription for user ${userId}:`, updateData);
+        
+        retryCount = 0;
+        while (retryCount < maxRetries) {
+          try {
+            const { error: updateError } = await supabase
+              .from('subscriptions')
+              .update(updateData)
+              .eq('user_id', userId);
+              
+            if (updateError) throw updateError;
+            
+            // Verify the update was successful
+            const { data: verifySubscription, error: verifyError } = await supabase
+              .from('subscriptions')
+              .select('*')
+              .eq('user_id', userId)
+              .single();
+              
+            if (verifyError) throw verifyError;
+            
+            console.log('Subscription update verified:', verifySubscription);
+            break;
+          } catch (error) {
+            retryCount++;
+            console.error(`Attempt ${retryCount} failed to update subscription:`, error);
+            if (retryCount === maxRetries) throw error;
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+          }
+        }
+
+        console.log(`Successfully processed checkout.session.completed for user ${userId}`);
         break;
       }
       

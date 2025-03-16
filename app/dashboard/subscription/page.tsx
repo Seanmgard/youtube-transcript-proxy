@@ -65,44 +65,96 @@ export default function SubscriptionPage() {
       const canceled = searchParams.get('canceled');
       
       if (success || canceled) {
-        // Force refresh subscription data after Stripe redirect
         setRefreshing(true);
         
         try {
-          // Only attempt to fetch once with a timeout
-          const fetchPromise = fetchSubscription(true);
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Subscription fetch timeout')), 5000)
-          );
+          // Implement enhanced polling with exponential backoff
+          const maxAttempts = 10; // Increase max attempts
+          const baseDelay = 1000; // Start with 1 second
+          let lastSubscription = null;
           
-          await Promise.race([fetchPromise, timeoutPromise]).catch(err => {
-            console.error('Error or timeout fetching subscription after redirect:', err);
-          });
+          for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            try {
+              // First update the subscription status
+              const response = await fetch('/api/stripe/update-subscription-status', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ forceUpdate: true }),
+              });
+              
+              if (!response.ok) {
+                throw new Error('Failed to update subscription status');
+              }
+              
+              // Then fetch the latest subscription data
+              lastSubscription = await fetchSubscription(true);
+              
+              console.log(`Attempt ${attempt + 1}: Subscription status:`, {
+                plan_type: lastSubscription?.plan_type,
+                status: lastSubscription?.status,
+                updated_at: lastSubscription?.updated_at
+              });
+              
+              // Check if subscription is properly updated
+              if (lastSubscription?.plan_type === 'premium' && lastSubscription?.status === 'active') {
+                console.log('Subscription successfully updated to premium');
+                toast({
+                  title: 'Subscription Activated',
+                  description: 'Your premium subscription is now active!',
+                  variant: 'default',
+                });
+                break;
+              }
+              
+              // If not successful, wait with exponential backoff
+              const delay = Math.min(baseDelay * Math.pow(2, attempt), 10000); // Cap at 10 seconds
+              console.log(`Waiting ${delay}ms before next attempt...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            } catch (err) {
+              console.error(`Attempt ${attempt + 1} failed:`, err);
+              if (attempt === maxAttempts - 1) throw err;
+              
+              // Wait before retrying
+              const delay = Math.min(baseDelay * Math.pow(2, attempt), 10000);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+          }
+          
+          // If we've exhausted all attempts but still have a subscription
+          if (lastSubscription && lastSubscription.plan_type !== 'premium') {
+            console.warn('Subscription update may be delayed');
+            toast({
+              title: 'Subscription Update in Progress',
+              description: 'Your subscription is being processed. Please refresh in a few moments.',
+              variant: 'default',
+            });
+          }
         } catch (err) {
           console.error('Error in subscription redirect effect:', err);
+          toast({
+            title: 'Subscription Status Check Failed',
+            description: 'Please refresh the page or contact support if the issue persists.',
+            variant: 'destructive',
+          });
         } finally {
           setRefreshing(false);
+          
+          // Clean up URL parameters
+          const url = new URL(window.location.href);
+          url.searchParams.delete('success');
+          url.searchParams.delete('canceled');
+          window.history.replaceState({}, document.title, url.toString());
         }
         
-        if (success) {
-          toast({
-            title: 'Subscription Updated',
-            description: 'Your subscription has been successfully updated.',
-            variant: 'default',
-          });
-        } else if (canceled) {
+        if (canceled) {
           toast({
             title: 'Subscription Update Canceled',
             description: 'You canceled the subscription update process.',
             variant: 'default',
           });
         }
-        
-        // Clean up URL parameters
-        const url = new URL(window.location.href);
-        url.searchParams.delete('success');
-        url.searchParams.delete('canceled');
-        window.history.replaceState({}, '', url.toString());
       }
     };
     
