@@ -68,74 +68,90 @@ export default function SubscriptionPage() {
         setRefreshing(true);
         
         try {
-          // Implement enhanced polling with exponential backoff
-          const maxAttempts = 10; // Increase max attempts
-          const baseDelay = 1000; // Start with 1 second
+          // Store the checkout time for verification
+          const checkoutTime = Date.now();
+          
+          // Initial delay to allow webhook processing
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Enhanced polling with longer duration
+          const maxAttempts = 15; // 30 seconds total with 2-second intervals
+          const interval = 2000;
           let lastSubscription = null;
+          let lastError = null;
           
           for (let attempt = 0; attempt < maxAttempts; attempt++) {
             try {
-              // First update the subscription status
+              // First try to force update from Stripe
               const response = await fetch('/api/stripe/update-subscription-status', {
                 method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ forceUpdate: true }),
               });
               
               if (!response.ok) {
-                throw new Error('Failed to update subscription status');
+                throw new Error(`Status update failed: ${response.status}`);
               }
               
-              // Then fetch the latest subscription data
-              lastSubscription = await fetchSubscription(true);
+              const result = await response.json();
+              console.log(`Update attempt ${attempt + 1} result:`, result);
               
-              console.log(`Attempt ${attempt + 1}: Subscription status:`, {
+              // Then fetch latest data
+              lastSubscription = await fetchSubscription(true);
+              console.log(`Fetch attempt ${attempt + 1} subscription:`, {
                 plan_type: lastSubscription?.plan_type,
                 status: lastSubscription?.status,
-                updated_at: lastSubscription?.updated_at
+                updated_at: lastSubscription?.updated_at,
+                stripe_subscription_id: lastSubscription?.stripe_subscription_id
               });
               
               // Check if subscription is properly updated
-              if (lastSubscription?.plan_type === 'premium' && lastSubscription?.status === 'active') {
-                console.log('Subscription successfully updated to premium');
-                toast({
-                  title: 'Subscription Activated',
-                  description: 'Your premium subscription is now active!',
-                  variant: 'default',
-                });
-                break;
+              if (lastSubscription?.plan_type === 'premium' && 
+                  lastSubscription?.status === 'active' &&
+                  lastSubscription?.stripe_subscription_id) {
+                
+                // Verify the update is recent
+                const updateTime = new Date(lastSubscription.updated_at).getTime();
+                if (updateTime > checkoutTime) {
+                  console.log('Subscription successfully updated to premium');
+                  toast({
+                    title: 'Premium Activated',
+                    description: 'Your premium subscription is now active. Enjoy the full features!',
+                    variant: 'default',
+                  });
+                  break;
+                } else {
+                  console.log('Found old subscription data, continuing polling');
+                }
               }
               
-              // If not successful, wait with exponential backoff
-              const delay = Math.min(baseDelay * Math.pow(2, attempt), 10000); // Cap at 10 seconds
-              console.log(`Waiting ${delay}ms before next attempt...`);
-              await new Promise(resolve => setTimeout(resolve, delay));
+              if (attempt < maxAttempts - 1) {
+                await new Promise(resolve => setTimeout(resolve, interval));
+              }
             } catch (err) {
               console.error(`Attempt ${attempt + 1} failed:`, err);
-              if (attempt === maxAttempts - 1) throw err;
+              lastError = err;
               
-              // Wait before retrying
-              const delay = Math.min(baseDelay * Math.pow(2, attempt), 10000);
-              await new Promise(resolve => setTimeout(resolve, delay));
+              if (attempt < maxAttempts - 1) {
+                await new Promise(resolve => setTimeout(resolve, interval));
+              }
             }
           }
           
-          // If we've exhausted all attempts but still have a subscription
-          if (lastSubscription && lastSubscription.plan_type !== 'premium') {
-            console.warn('Subscription update may be delayed');
+          // If we've exhausted all attempts
+          if (!lastSubscription?.stripe_subscription_id || lastSubscription?.plan_type !== 'premium') {
+            console.warn('Subscription update may be delayed', { lastError, lastSubscription });
             toast({
-              title: 'Subscription Update in Progress',
-              description: 'Your subscription is being processed. Please refresh in a few moments.',
+              title: 'Subscription Processing',
+              description: 'Your subscription is being processed. Please refresh the page in a few moments.',
               variant: 'default',
             });
           }
         } catch (err) {
           console.error('Error in subscription redirect effect:', err);
           toast({
-            title: 'Subscription Status Check Failed',
-            description: 'Please refresh the page or contact support if the issue persists.',
+            title: 'Update Check Failed',
+            description: 'Unable to verify your subscription status. Please refresh the page or contact support.',
             variant: 'destructive',
           });
         } finally {
@@ -150,7 +166,7 @@ export default function SubscriptionPage() {
         
         if (canceled) {
           toast({
-            title: 'Subscription Update Canceled',
+            title: 'Update Canceled',
             description: 'You canceled the subscription update process.',
             variant: 'default',
           });

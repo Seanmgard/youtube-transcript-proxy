@@ -134,22 +134,47 @@ export async function POST(request: Request) {
         console.log(`Created new Stripe customer: ${customerId} for user: ${userId}`);
 
         // Update the user's subscription record with the Stripe customer ID
-        const { error: updateError } = await supabase
+        const { data: existingSub } = await supabase
           .from('subscriptions')
-          .insert({
-            user_id: userId,
-            stripe_customer_id: customerId,
-            status: 'incomplete',
-            plan_type: planType,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-          
-        if (updateError) {
-          console.error('Error updating subscription with customer ID:', updateError);
-          // Continue anyway, as we have the customer ID
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+
+        if (!existingSub) {
+          // Only insert if no subscription exists
+          const { error: insertError } = await supabase
+            .from('subscriptions')
+            .insert({
+              user_id: userId,
+              stripe_customer_id: customerId,
+              status: 'incomplete',
+              plan_type: planType,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+            
+          if (insertError) {
+            console.error('Error creating initial subscription record:', insertError);
+            // Continue anyway as we have the customer ID
+          } else {
+            console.log(`Created initial subscription record for user ${userId}`);
+          }
         } else {
-          console.log(`Updated subscription record with Stripe customer ID: ${customerId}`);
+          // Update existing subscription with new customer ID
+          const { error: updateError } = await supabase
+            .from('subscriptions')
+            .update({
+              stripe_customer_id: customerId,
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', userId);
+            
+          if (updateError) {
+            console.error('Error updating subscription with customer ID:', updateError);
+            // Continue anyway as we have the customer ID
+          } else {
+            console.log(`Updated existing subscription record with Stripe customer ID: ${customerId}`);
+          }
         }
       } catch (error) {
         console.error('Error creating Stripe customer:', error);

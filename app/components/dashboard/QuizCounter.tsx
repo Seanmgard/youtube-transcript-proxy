@@ -8,6 +8,7 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from "@/components/ui/use-toast";
 import React from 'react';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export function QuizCounter() {
   const [quizCount, setQuizCount] = useState<number>(0);
@@ -105,19 +106,31 @@ export function QuizCounter() {
       // Initial fetch
       fetchQuizCount();
       
-      // Set up a subscription to listen for new quizzes
+      // Set up a subscription to listen for new quizzes and subscription changes
       const setupSubscription = async () => {
         try {
           const supabase = await createClient();
           
-          // Only listen for INSERT events since we're tracking all creations
+          // Create a channel that listens for both quiz and subscription changes
           const channel = supabase
-            .channel('quiz-counter')
+            .channel('quiz-and-subscription-counter')
             .on('postgres_changes', { 
               event: 'INSERT', 
               schema: 'public', 
               table: 'quizzes' 
             }, () => {
+              fetchQuizCount();
+            })
+            .on('postgres_changes', {
+              event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
+              schema: 'public',
+              table: 'subscriptions',
+              filter: `user_id=eq.${user.id}` // Only listen for this user's subscription changes
+            }, async (payload: RealtimePostgresChangesPayload<{ [key: string]: any }>) => {
+              console.log('Subscription change detected:', payload);
+              // Refresh subscription status
+              await fetchSubscription(true);
+              // Refresh quiz count to update UI
               fetchQuizCount();
             })
             .subscribe();
@@ -157,16 +170,8 @@ export function QuizCounter() {
         }
       };
     }
-  }, [user, isPremium]);
+  }, [user, isPremium, fetchSubscription]);
 
-  // Also listen for subscription changes
-  useEffect(() => {
-    // When subscription changes, refresh the quiz count
-    if (subscription) {
-      fetchQuizCount();
-    }
-  }, [subscription]);
-  
   // If no user, don't show the counter
   if (!user) {
     return null;
