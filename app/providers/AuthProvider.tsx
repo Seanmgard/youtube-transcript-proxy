@@ -26,7 +26,7 @@ export const useAuth = () => {
 
 // Public paths that don't require authentication
 const publicPaths = [
-  '/',
+  '/',  // Home page is always public
   '/auth/sign-in',
   '/sign-in',
   '/auth/sign-up',

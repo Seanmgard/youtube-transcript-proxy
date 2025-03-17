@@ -131,11 +131,6 @@ export async function middleware(request: NextRequest) {
       if (isAuthRoute && user) {
         return NextResponse.redirect(new URL('/dashboard', request.url));
       }
-
-      // If the user is authenticated and trying to access the home page, redirect to dashboard
-      if (request.nextUrl.pathname === '/' && user) {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-      }
     } catch (error) {
       console.error('Authentication error in middleware:', error);
       

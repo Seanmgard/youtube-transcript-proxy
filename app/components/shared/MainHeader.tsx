@@ -19,9 +19,7 @@ const landingNavigation = [
 ];
 
 // Navigation items for authenticated users
-const authenticatedNavigation = [
-  { name: 'Dashboard', href: '/dashboard' },
-];
+const authenticatedNavigation = [];
 
 export function MainHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -141,16 +139,15 @@ export function MainHeader() {
             <div className="h-9 w-16 bg-gray-200 rounded-md animate-pulse"></div>
           ) : user ? (
             <>
-              <Link
-                href="/dashboard"
-                className="text-sm font-semibold leading-6 text-gray-900 hover:text-indigo-600 mr-2"
-              >
-                Dashboard
+              <Link href="/dashboard">
+                <Button variant="outline" size="sm">
+                  Dashboard
+                </Button>
               </Link>
               <Button 
-                variant="outline" 
                 size="sm"
                 onClick={handleSignOut}
+                className="bg-gray-900 hover:bg-gray-800 text-white"
               >
                 Sign Out
               </Button>
@@ -216,64 +213,63 @@ export function MainHeader() {
                 <X className="h-6 w-6" aria-hidden="true" />
               </button>
             </div>
-            <div className="-my-6 divide-y divide-gray-500/10">
-              {!isAuthPage && (
-                <div className="space-y-2 py-6">
-                  {navigationItems.map((item) => (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      className="-mx-3 block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      {item.name}
-                    </Link>
-                  ))}
-                </div>
-              )}
-              <div className="py-6 space-y-3">
-                {loading ? (
-                  <div className="h-9 w-full bg-gray-200 rounded-md animate-pulse"></div>
-                ) : user ? (
+            
+            {!isAuthPage && (
+              <div className="space-y-2 py-6">
+                {navigationItems.map((item) => (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className="-mx-3 block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {item.name}
+                  </Link>
+                ))}
+              </div>
+            )}
+            <div className="py-6 space-y-3">
+              {loading ? (
+                <div className="h-9 w-full bg-gray-200 rounded-md animate-pulse"></div>
+              ) : user ? (
+                <>
+                  <Link
+                    href="/dashboard"
+                    className="-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 text-gray-900 border border-gray-200 hover:bg-gray-50"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Dashboard
+                  </Link>
+                  <button
+                    onClick={() => {
+                      handleSignOut();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 text-white bg-gray-900 hover:bg-gray-800 w-full text-left"
+                  >
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                !isAuthPage && (
                   <>
                     <Link
-                      href="/dashboard"
+                      href="/auth/sign-in"
                       className="-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
                       onClick={() => setMobileMenuOpen(false)}
                     >
-                      Dashboard
+                      Sign in
                     </Link>
-                    <button
-                      onClick={() => {
-                        handleSignOut();
-                        setMobileMenuOpen(false);
-                      }}
-                      className="-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50 w-full text-left"
+                    <Link
+                      href="/auth/sign-up"
+                      className="-mx-3 block rounded-lg bg-indigo-600 px-3 py-2.5 text-base font-semibold leading-7 text-white hover:bg-indigo-500"
+                      onClick={() => setMobileMenuOpen(false)}
                     >
-                      Sign out
-                    </button>
+                      Get started
+                    </Link>
                   </>
-                ) : (
-                  !isAuthPage && (
-                    <>
-                      <Link
-                        href="/auth/sign-in"
-                        className="-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        Sign in
-                      </Link>
-                      <Link
-                        href="/auth/sign-up"
-                        className="-mx-3 block rounded-lg bg-indigo-600 px-3 py-2.5 text-base font-semibold leading-7 text-white hover:bg-indigo-500"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        Get started
-                      </Link>
-                    </>
-                  )
-                )}
-              </div>
+                )
+              )}
             </div>
           </motion.div>
         </>
