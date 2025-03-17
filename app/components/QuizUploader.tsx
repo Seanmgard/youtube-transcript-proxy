@@ -34,7 +34,7 @@ export default function QuizUploader({ onQuizGenerated, initialQuiz, onSaveCompl
   const { isOnPlan } = useSubscription();
   const { user } = useAuth();
   const isPremium = isOnPlan('premium');
-  const maxQuestions = isPremium ? 30 : 10;
+  const maxQuestions = isPremium ? 50 : 10;
   
   const [file, setFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -48,7 +48,25 @@ export default function QuizUploader({ onQuizGenerated, initialQuiz, onSaveCompl
     numberOfQuestions: Math.min(5, maxQuestions),
     difficulty: 'medium',
     questionType: 'multiple_choice',
+    isLanguageLearning: false,
+    sourceLanguage: '',
+    targetLanguage: '',
+    extractionType: 'words'
   });
+
+  // Add state for available languages
+  const availableLanguages = [
+    { code: 'en', name: 'English' },
+    { code: 'es', name: 'Spanish' },
+    { code: 'fr', name: 'French' },
+    { code: 'de', name: 'German' },
+    { code: 'it', name: 'Italian' },
+    { code: 'pt', name: 'Portuguese' },
+    { code: 'ru', name: 'Russian' },
+    { code: 'zh', name: 'Chinese' },
+    { code: 'ja', name: 'Japanese' },
+    { code: 'ko', name: 'Korean' }
+  ];
 
   useEffect(() => {
     const initSupabase = async () => {
@@ -90,8 +108,8 @@ export default function QuizUploader({ onQuizGenerated, initialQuiz, onSaveCompl
               <ul className="mt-2 space-y-1">
                 {q.options.map((opt: string, idx: number) => (
                   <li key={idx} className="flex items-center">
-                    <span className={`${opt === q.correctAnswer ? 'bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md' : ''}`}>
-                      • {opt}
+                    <span className={`${opt === q.correctAnswer ? 'bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md w-full' : ''}`}>
+                      {String.fromCharCode(97 + idx)}. {opt}
                     </span>
                   </li>
                 ))}
@@ -511,91 +529,164 @@ export default function QuizUploader({ onQuizGenerated, initialQuiz, onSaveCompl
         />
       </div>
 
-      {/* Quiz Settings */}
-      <div className="grid grid-cols-1 gap-6">
-        {/* Number of Questions */}
-        <div>
-          <div className="flex justify-between mb-2">
-            <Label>Number of Questions</Label>
-            <span className="text-sm text-gray-500">
-              {settings.numberOfQuestions} questions
-              {!isPremium && (
-                <span className="ml-1 text-xs text-amber-500">
-                  (Max {maxQuestions} for free users)
-                </span>
-              )}
-            </span>
-          </div>
-          <Slider
-            value={[settings.numberOfQuestions]}
-            min={1}
-            max={maxQuestions}
-            step={1}
-            onValueChange={(value) => setSettings({ ...settings, numberOfQuestions: value[0] })}
-          />
-        </div>
-
-        {/* Difficulty Level */}
-        <div>
-          <Label className="block mb-2">Difficulty Level</Label>
-          <RadioGroup
-            value={settings.difficulty}
-            onValueChange={(value) => setSettings({ ...settings, difficulty: value as 'easy' | 'medium' | 'hard' })}
-            className="flex flex-col space-y-1"
-          >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="easy" id="easy" />
-              <Label htmlFor="easy">Easy</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="medium" id="medium" />
-              <Label htmlFor="medium">Medium</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="hard" id="hard" />
-              <Label htmlFor="hard">Hard</Label>
-            </div>
-          </RadioGroup>
-        </div>
-
-        {/* Question Type */}
-        <div>
-          <Label className="block mb-2">Question Type</Label>
-          <RadioGroup
-            value={settings.questionType}
-            onValueChange={(value) => setSettings({ ...settings, questionType: value as 'multiple_choice' | 'open_ended' | 'mixed' })}
-            className="flex flex-col space-y-1"
-          >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="multiple_choice" id="multiple_choice" />
-              <Label htmlFor="multiple_choice">Multiple Choice</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="open_ended" id="open_ended" />
-              <Label htmlFor="open_ended">Open Ended</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="mixed" id="mixed" />
-              <Label htmlFor="mixed">Mixed</Label>
-            </div>
-          </RadioGroup>
-        </div>
+      {/* Language Learning Toggle */}
+      <div className="flex items-center space-x-2">
+        <Label htmlFor="language-learning" className="cursor-pointer">Language Learning Mode</Label>
+        <input
+          type="checkbox"
+          id="language-learning"
+          checked={settings.isLanguageLearning}
+          onChange={(e) => setSettings({ ...settings, isLanguageLearning: e.target.checked })}
+          className="h-4 w-4 rounded border-gray-300"
+        />
       </div>
 
-      {/* Generate Button */}
+      {/* Language Learning Settings */}
+      {settings.isLanguageLearning && (
+        <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          {/* Source Language */}
+          <div>
+            <Label htmlFor="source-language">Document Language</Label>
+            <select
+              id="source-language"
+              value={settings.sourceLanguage}
+              onChange={(e) => setSettings({ ...settings, sourceLanguage: e.target.value })}
+              className="w-full mt-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select language</option>
+              {availableLanguages.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Target Language */}
+          <div>
+            <Label htmlFor="target-language">Translation Language</Label>
+            <select
+              id="target-language"
+              value={settings.targetLanguage}
+              onChange={(e) => setSettings({ ...settings, targetLanguage: e.target.value })}
+              className="w-full mt-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select language</option>
+              {availableLanguages.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Extraction Type */}
+          <div>
+            <Label className="block mb-2">Extract</Label>
+            <RadioGroup
+              value={settings.extractionType}
+              onValueChange={(value) => setSettings({ ...settings, extractionType: value as 'words' | 'sentences' })}
+              className="flex flex-col space-y-1"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="words" id="words" />
+                <Label htmlFor="words">Individual Words</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="sentences" id="sentences" />
+                <Label htmlFor="sentences">Full Sentences</Label>
+              </div>
+            </RadioGroup>
+          </div>
+        </div>
+      )}
+
+      {/* Number of Questions - Moved outside of quiz settings to be visible in both modes */}
+      <div>
+        <div className="flex justify-between mb-2">
+          <Label>Number of {settings.isLanguageLearning ? 'Flashcards' : 'Questions'}</Label>
+          <span className="text-sm text-gray-500">
+            {settings.numberOfQuestions} {settings.isLanguageLearning ? 'flashcards' : 'questions'}
+            {!isPremium && (
+              <span className="ml-1 text-xs text-amber-500">
+                (Max {maxQuestions} for free users)
+              </span>
+            )}
+          </span>
+        </div>
+        <Slider
+          value={[settings.numberOfQuestions]}
+          min={1}
+          max={maxQuestions}
+          step={1}
+          onValueChange={(value) => setSettings({ ...settings, numberOfQuestions: value[0] })}
+        />
+      </div>
+
+      {/* Quiz Settings */}
+      {!settings.isLanguageLearning && (
+        <div className="grid grid-cols-1 gap-6">
+          {/* Difficulty Level */}
+          <div>
+            <Label className="block mb-2">Difficulty Level</Label>
+            <RadioGroup
+              value={settings.difficulty}
+              onValueChange={(value) => setSettings({ ...settings, difficulty: value as 'easy' | 'medium' | 'hard' })}
+              className="flex flex-col space-y-1"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="easy" id="easy" />
+                <Label htmlFor="easy">Easy</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="medium" id="medium" />
+                <Label htmlFor="medium">Medium</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="hard" id="hard" />
+                <Label htmlFor="hard">Hard</Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {/* Question Type */}
+          <div>
+            <Label className="block mb-2">Question Type</Label>
+            <RadioGroup
+              value={settings.questionType}
+              onValueChange={(value) => setSettings({ ...settings, questionType: value as 'multiple_choice' | 'open_ended' | 'mixed' })}
+              className="flex flex-col space-y-1"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="multiple_choice" id="multiple_choice" />
+                <Label htmlFor="multiple_choice">Multiple Choice</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="open_ended" id="open_ended" />
+                <Label htmlFor="open_ended">Open Ended</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="mixed" id="mixed" />
+                <Label htmlFor="mixed">Mixed</Label>
+              </div>
+            </RadioGroup>
+          </div>
+        </div>
+      )}
+
       <div className="pt-2">
         <Button 
           type="submit" 
           className="w-full"
-          disabled={!file || isGenerating}
+          disabled={!file || isGenerating || (settings.isLanguageLearning && (!settings.sourceLanguage || !settings.targetLanguage))}
           onClick={handleSubmit}
         >
           {isGenerating ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating Quiz...
+              Generating {settings.isLanguageLearning ? 'Flashcards' : 'Quiz'}...
             </>
-          ) : 'Generate Quiz'}
+          ) : `Generate ${settings.isLanguageLearning ? 'Flashcards' : 'Quiz'}`}
         </Button>
       </div>
 

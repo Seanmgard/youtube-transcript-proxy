@@ -286,8 +286,8 @@ export default function Dashboard() {
       }
     }
     
-    // Set the default deck name and open the dialog
-    setAnkiDeckName(currentQuiz.title.replace(/[^a-z0-9]/gi, ' ').trim());
+    // Open the Anki dialog with the quiz ID
+    setSelectedQuizId(quizId);
     setIsAnkiDialogOpen(true);
   };
 

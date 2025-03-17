@@ -214,8 +214,8 @@ export async function POST(request: Request) {
         streamInfoMessage = JSON.stringify(infoMessage);
       }
     } else {
-      // For authenticated users, ensure numberOfQuestions is between 1 and 30
-      settings.numberOfQuestions = Math.max(1, Math.min(30, settings.numberOfQuestions));
+      // For authenticated users, ensure numberOfQuestions is between 1 and 50
+      settings.numberOfQuestions = Math.max(1, Math.min(50, settings.numberOfQuestions));
     }
     
     // Validate file
@@ -261,13 +261,27 @@ export async function POST(request: Request) {
           
           // Step A: Upload the PDF to OpenAI
           sendJson({ type: 'info', message: 'Uploading file to OpenAI...' });
-          const bytes = await file.arrayBuffer();
-          const buffer = Buffer.from(bytes);
+          
+          // Create a new FormData instance
+          const formData = new FormData();
+          formData.append('purpose', 'assistants');
+          formData.append('file', file);
 
-          const fileUpload = await openai.files.create({
-            file: new File([buffer], file.name, { type: 'application/pdf' }),
-            purpose: 'assistants',
+          // Make a direct fetch call to OpenAI's API
+          const response = await fetch('https://api.openai.com/v1/files', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.OPENAI_API_KEY!}`,
+            },
+            body: formData,
           });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(`File upload failed: ${error.error?.message || 'Unknown error'}`);
+          }
+
+          const fileUpload = await response.json();
           sendJson({ type: 'info', message: `File uploaded: ${fileUpload.id}` });
 
           // Step B: Create a vector store
@@ -280,15 +294,36 @@ export async function POST(request: Request) {
           // Step C: Add the file to the vector store
           sendJson({ type: 'info', message: 'Indexing PDF in vector store...' });
           await openai.beta.vectorStores.fileBatches.uploadAndPoll(vectorStore.id, {
-            files: [new File([buffer], file.name, { type: 'application/pdf' })],
+            files: [file],
           });
           sendJson({ type: 'info', message: 'File indexed in vector store.' });
 
           // Step D: Update the assistant to use that vector store
           sendJson({ type: 'info', message: 'Configuring assistant...' });
           await openai.beta.assistants.update(process.env.OPENAI_ASSISTANT_ID!, {
-            instructions:
-              'You are an expert quiz generator. When provided with a PDF file, thoroughly analyze its content and create thoughtful, challenging quiz questions based on the material. Focus on key concepts, important details, and relationships between ideas. Ensure questions test understanding rather than just recall. Your questions should be thought-provoking and require critical thinking. ALWAYS generate EXACTLY the number of questions requested - this is critical. Return only valid JSON with no markdown formatting or explanations.',
+            instructions: `You are an expert quiz and language learning content generator. When provided with a PDF file, analyze its content based on the requested mode:
+
+For regular quiz mode:
+- Create thoughtful, challenging quiz questions based on the material
+- Focus on key concepts, important details, and relationships between ideas
+- Ensure questions test understanding rather than just recall
+- Questions should be thought-provoking and require critical thinking
+- For multiple choice questions:
+  - Vary the length and complexity of answer options
+  - Some answers can be short (1-3 words) while others should be more detailed (full sentences or explanations)
+  - Make sure distractors are plausible and well-thought-out
+  - Avoid making the correct answer consistently longer or shorter than other options
+  - Each question should have exactly 4 options, labeled a, b, c, and d
+
+For language learning mode:
+- Extract key vocabulary words or sentences based on the specified extraction type
+- Focus on important and frequently used language elements
+- For words: Choose words that are essential for understanding the content
+- For sentences: Select complete, meaningful sentences that demonstrate proper usage
+- Always provide accurate translations between the specified source and target languages
+
+ALWAYS generate EXACTLY the number of questions/items requested - this is critical.
+Return only valid JSON with no markdown formatting or explanations.`,
             model: 'gpt-4o-mini',
             tools: [{ type: 'file_search' }],
             tool_resources: {
@@ -300,12 +335,36 @@ export async function POST(request: Request) {
           sendJson({ type: 'info', message: 'Assistant updated with vector store.' });
 
           // Step E: Create the thread (the "prompt")
-          sendJson({ type: 'info', message: 'Generating quiz from PDF...' });
-          const thread = await openai.beta.threads.create({
-            messages: [
-              {
-                role: 'user',
-                content: `
+          sendJson({ type: 'info', message: settings.isLanguageLearning ? 'Generating language flashcards from PDF...' : 'Generating quiz from PDF...' });
+          
+          let promptContent = '';
+          if (settings.isLanguageLearning) {
+            promptContent = `
+Extract ${settings.numberOfQuestions} ${settings.extractionType} from the PDF content for language learning.
+
+Requirements:
+- Source Language: ${settings.sourceLanguage}
+- Target Language: ${settings.targetLanguage}
+- Extract: ${settings.extractionType}
+- EXACTLY ${settings.numberOfQuestions} items
+
+Be concise and direct. Focus on important language elements from the PDF.
+For words, choose essential vocabulary that appears in the content.
+For sentences, select complete, meaningful sentences that demonstrate proper usage.
+
+Return JSON in this format:
+{
+  "title": "Language Learning Flashcards",
+  "questions": [
+    {
+      "text": "Source language text",
+      "type": "translation",
+      "correctAnswer": "Target language translation"
+    }
+  ]
+}`;
+          } else {
+            promptContent = `
 Create a quiz with EXACTLY ${settings.numberOfQuestions} questions based on the PDF content.
 
 Requirements:
@@ -328,10 +387,16 @@ Return JSON in this format:
       "correctAnswer": "Option A"
     }
   ]
-}
+}`;
+          }
 
-If no content found: {"title":"No Content Found","questions":[]}
-`,
+          promptContent += `\n\nIf no content found: {"title":"No Content Found","questions":[]}`;
+
+          const thread = await openai.beta.threads.create({
+            messages: [
+              {
+                role: 'user',
+                content: promptContent,
               },
             ],
             tool_resources: {
@@ -517,6 +582,15 @@ Example format (follow this exactly):
                       }
                     }
                     
+                    // Check if the quiz has more than 50 questions for any user
+                    if (settings.numberOfQuestions > 50) {
+                      sendJson({
+                        type: 'error',
+                        message: 'Maximum number of questions allowed is 50.',
+                      });
+                      return;
+                    }
+                    
                     // Now insert the quiz with proper typing
                     const quizId = uuidv4();
                     const quizData: Database['public']['Tables']['quizzes']['Insert'] = {
@@ -528,7 +602,12 @@ Example format (follow this exactly):
                       subject: null,
                       category: null,
                       created_at: new Date().toISOString(),
-                      updated_at: new Date().toISOString()
+                      updated_at: new Date().toISOString(),
+                      settings,
+                      is_language_learning: settings.isLanguageLearning || false,
+                      source_language: settings.sourceLanguage || null,
+                      target_language: settings.targetLanguage || null,
+                      extraction_type: settings.extractionType || null
                     };
 
                     const { error: dbError } = await supabase

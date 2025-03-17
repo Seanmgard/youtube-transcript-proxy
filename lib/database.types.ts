@@ -57,6 +57,11 @@ export interface Database {
           updated_at: string
           subject: string | null
           category: string | null
+          settings: Json
+          is_language_learning: boolean | null
+          source_language: string | null
+          target_language: string | null
+          extraction_type: string | null
         }
         Insert: {
           id?: string
@@ -68,6 +73,11 @@ export interface Database {
           updated_at?: string
           subject?: string | null
           category?: string | null
+          settings?: Json
+          is_language_learning?: boolean | null
+          source_language?: string | null
+          target_language?: string | null
+          extraction_type?: string | null
         }
         Update: {
           id?: string
@@ -79,6 +89,11 @@ export interface Database {
           updated_at?: string
           subject?: string | null
           category?: string | null
+          settings?: Json
+          is_language_learning?: boolean | null
+          source_language?: string | null
+          target_language?: string | null
+          extraction_type?: string | null
         }
       }
       learning_progress: {

@@ -29,6 +29,12 @@ import { User, SupabaseClient } from '@supabase/supabase-js'
 import { useAuth } from '@/app/providers/AuthProvider'
 import { useSupabase } from '@/utils/supabase/client'
 import { AnkiExportDialog } from './AnkiExportDialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/app/components/ui/dropdown-menu"
 
 // Helper function to determine text color based on background color
 const getContrastColor = (hexColor: string): string => {
@@ -407,19 +413,15 @@ export default function QuizHistory({ limit }: { limit?: number }) {
       });
       return;
     }
-    // Instead of exporting as a file, open the Anki Connect dialog
-    openSendToAnkiDialog(quiz);
-  };
 
-  const openSendToAnkiDialog = (quiz: Quiz) => {
-    console.log('Opening Anki dialog for quiz:', quiz.id);
+    // Set the selected quiz and open the dialog
     setSelectedQuiz(quiz);
     setIsAnkiDialogOpen(true);
   };
 
   const closeAnkiDialog = () => {
-    console.log('Closing Anki dialog');
     setIsAnkiDialogOpen(false);
+    setSelectedQuiz(null);
   };
 
   if (loading) {
@@ -541,91 +543,45 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                   </Tooltip>
                 </TooltipProvider>
 
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="whitespace-nowrap"
-                        disabled={exporting === `${quiz.id}-doc`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleExport(quiz, 'doc');
-                        }}
-                      >
-                        {exporting === `${quiz.id}-doc` ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            Exporting...
-                          </>
-                        ) : 'Export DOC'}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Export as a Word document (.docx)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="whitespace-nowrap"
-                        disabled={exporting === `${quiz.id}-csv`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleExport(quiz, 'csv');
-                        }}
-                      >
-                        {exporting === `${quiz.id}-csv` ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            Exporting...
-                          </>
-                        ) : 'Export CSV'}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Export as CSV (compatible with Quizlet)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="whitespace-nowrap"
-                        disabled={sendingToAnki && selectedQuiz?.id === quiz.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openSendToAnkiDialog(quiz);
-                        }}
-                      >
-                        {sendingToAnki && selectedQuiz?.id === quiz.id ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            Sending...
-                          </>
-                        ) : (
-                          <>
-                            <Send className="mr-2 h-3 w-3" />
-                            Export to Anki
-                          </>
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Export directly to Anki (requires Anki with Anki-Connect plugin)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <FileText className="mr-2 h-3 w-3" />
+                      Export
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleExport(quiz, 'doc');
+                      }}
+                    >
+                      Export as DOCX
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleExport(quiz, 'csv');
+                      }}
+                    >
+                      Export as CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleAnkiExport(quiz);
+                      }}
+                      className="flex items-center"
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      Export to Anki
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </div>
@@ -838,7 +794,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                         variant="outline"
                         size="sm"
                         disabled={sendingToAnki}
-                        onClick={() => selectedQuiz && openSendToAnkiDialog(selectedQuiz)}
+                        onClick={() => selectedQuiz && handleAnkiExport(selectedQuiz)}
                       >
                         {sendingToAnki ? (
                           <>

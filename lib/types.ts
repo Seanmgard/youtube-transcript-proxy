@@ -23,6 +23,10 @@ export interface QuizSettings {
   numberOfQuestions: number;
   difficulty: 'easy' | 'medium' | 'hard';
   questionType: 'multiple_choice' | 'open_ended' | 'mixed';
+  isLanguageLearning?: boolean;
+  sourceLanguage?: string;
+  targetLanguage?: string;
+  extractionType?: 'words' | 'sentences';
 }
 
 export interface UserProfile {
