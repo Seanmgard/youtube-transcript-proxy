@@ -5,7 +5,7 @@ import { VariantProps } from "class-variance-authority"
 
 // Define types locally
 type ToastProps = React.ComponentPropsWithoutRef<typeof Toast> & {
-  variant?: "default" | "destructive";
+  variant?: "default" | "destructive" | "success";
 }
 type ToastActionElement = React.ReactElement<any, any>
 

@@ -6,7 +6,7 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { useSupabase } from '@/utils/supabase/client';
 import QuizUploader from '@/app/components/QuizUploader';
 import QuizHistory from '@/components/QuizHistory';
-import { Loader2, FileDown, FileText, Send, Download } from 'lucide-react';
+import { Loader2, FileDown, FileText, Send, Download, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useToast } from '@/components/ui/use-toast';
@@ -145,10 +145,6 @@ export default function Dashboard() {
 
     try {
       setExporting(format);
-      toast({
-        title: "Exporting quiz",
-        description: `Preparing ${format.toUpperCase()} export...`,
-      });
       
       // First save the quiz if it's not already saved
       let quizId = currentQuiz.id;
@@ -206,10 +202,11 @@ export default function Dashboard() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
-      toast({
-        title: "Export successful",
-        description: `Your quiz has been exported as ${format.toUpperCase()}`,
-      });
+      // Show success indicator for 2 seconds
+      setExporting('success');
+      setTimeout(() => {
+        setExporting(null);
+      }, 2000);
     } catch (error) {
       console.error('Error exporting quiz:', error);
       toast({
@@ -217,7 +214,6 @@ export default function Dashboard() {
         description: error instanceof Error ? error.message : "An unknown error occurred",
         variant: "destructive",
       });
-    } finally {
       setExporting(null);
     }
   };
@@ -416,58 +412,80 @@ export default function Dashboard() {
 
     return (
       <div className="pr-2">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-md font-semibold">{currentQuiz.title}</h3>
+        <div className="flex justify-between items-center mb-3 relative">
+          <h3 className="text-md font-semibold flex-grow mr-4 truncate">{currentQuiz.title}</h3>
           
           {/* Export Dropdown Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="sm"
-                disabled={exporting !== null}
-                className="flex items-center"
+          <div className="flex-shrink-0">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  disabled={exporting !== null && exporting !== 'success'}
+                  className="flex items-center"
+                >
+                  {exporting === 'success' ? (
+                    <>
+                      <Check className="mr-2 h-4 w-4 text-green-600" />
+                      Exported
+                    </>
+                  ) : exporting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <FileDown className="mr-2 h-4 w-4" />
+                      Export
+                    </>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent 
+                align="end" 
+                side="left" 
+                alignOffset={-5}
+                sideOffset={80}
+                className="w-56 p-1"
               >
-                {exporting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Exporting...
-                  </>
-                ) : (
-                  <>
-                    <FileDown className="mr-2 h-4 w-4" />
-                    Export
-                  </>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem 
-                onClick={() => handleExport('doc')}
-                disabled={exporting !== null}
-                className="cursor-pointer"
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                Export as Word (.docx)
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={() => handleExport('csv')}
-                disabled={exporting !== null}
-                className="cursor-pointer"
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                Export as CSV (Quizlet)
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={handleSendToAnki}
-                disabled={exporting !== null}
-                className="cursor-pointer"
-              >
-                <Send className="mr-2 h-4 w-4" />
-                Send to Anki
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuItem 
+                  onClick={() => handleExport('doc')}
+                  disabled={exporting !== null && exporting !== 'success'}
+                  className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
+                >
+                  <FileText className="mr-2 h-4 w-4 text-gray-600" />
+                  <div>
+                    <div className="font-medium">Word Document</div>
+                    <div className="text-xs text-gray-500">Export as .docx</div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => handleExport('csv')}
+                  disabled={exporting !== null && exporting !== 'success'}
+                  className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
+                >
+                  <FileText className="mr-2 h-4 w-4 text-gray-600" />
+                  <div>
+                    <div className="font-medium">CSV File</div>
+                    <div className="text-xs text-gray-500">Compatible with Quizlet</div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={handleSendToAnki}
+                  disabled={exporting !== null && exporting !== 'success'}
+                  className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
+                >
+                  <Send className="mr-2 h-4 w-4 text-gray-600" />
+                  <div>
+                    <div className="font-medium">Anki Export</div>
+                    <div className="text-xs text-gray-500">Send directly to Anki</div>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
         
         {/* Questions and Options Section */}
