@@ -19,7 +19,12 @@ const landingNavigation = [
 ];
 
 // Navigation items for authenticated users
-const authenticatedNavigation = [];
+interface NavigationItem {
+  name: string;
+  href: string;
+}
+
+const authenticatedNavigation: NavigationItem[] = [];
 
 export function MainHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

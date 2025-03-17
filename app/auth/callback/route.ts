@@ -9,7 +9,7 @@ export async function GET(request: Request) {
     // https://supabase.com/docs/guides/auth/server-side/nextjs
     const { searchParams } = new URL(request.url)
     const code = searchParams.get('code')
-    const next = searchParams.get('next') ?? '/dashboard'
+    const next = searchParams.get('next') ?? '/auth/sign-in'
 
     if (code) {
       const cookieOptions = await getCookieOptions()
@@ -24,7 +24,8 @@ export async function GET(request: Request) {
       try {
         const { error } = await supabase.auth.exchangeCodeForSession(code)
         if (!error) {
-          return NextResponse.redirect(new URL(next, request.url))
+          // After successful email confirmation, redirect to sign-in page
+          return NextResponse.redirect(new URL('/auth/sign-in', request.url))
         }
       } catch (error) {
         console.error('Error exchanging code for session:', error)
