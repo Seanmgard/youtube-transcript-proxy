@@ -16,6 +16,7 @@ import { generateQuiz } from '@/utils/api-client';
 
 interface QuizUploaderProps {
   onQuizGenerated?: (quiz: any) => void;
+  onStreamingUpdate?: (text: string) => void;
   initialQuiz?: {
     title: string;
     questions: Question[];
@@ -28,7 +29,7 @@ interface CurrentQuiz {
   questions: Question[];
 }
 
-export default function QuizUploader({ onQuizGenerated, initialQuiz, onSaveComplete }: QuizUploaderProps) {
+export default function QuizUploader({ onQuizGenerated, onStreamingUpdate, initialQuiz, onSaveComplete }: QuizUploaderProps) {
   const [supabase, setSupabase] = useState<any>(null);
   const { toast } = useToast();
   const { isOnPlan } = useSubscription();
@@ -323,6 +324,11 @@ export default function QuizUploader({ onQuizGenerated, initialQuiz, onSaveCompl
 
     setIsGenerating(true);
     
+    // Clear any previous streaming text
+    if (onStreamingUpdate) {
+      onStreamingUpdate('');
+    }
+    
     if (onQuizGenerated) {
       onQuizGenerated({ loading: true });
     }
@@ -351,11 +357,7 @@ export default function QuizUploader({ onQuizGenerated, initialQuiz, onSaveCompl
 
     try {
       const worker = createQuizWorker();
-      let accumulatedContent = '';
-      let currentQuiz: CurrentQuiz = { 
-        title: 'Generating Quiz...', 
-        questions: [] 
-      };
+      let lastInfoMessage = '';
 
       worker.onmessage = async (e) => {
         if (e.data.type === 'error') {
@@ -388,58 +390,31 @@ export default function QuizUploader({ onQuizGenerated, initialQuiz, onSaveCompl
               try {
                 const parsed = JSON.parse(jsonString);
                 
-                if (parsed.type === 'delta') {
-                  accumulatedContent += parsed.chunk;
-                  
-                  try {
-                    const questionMatch = accumulatedContent.match(/\{[^{]*"text"[^}]*\}/g);
-                    if (questionMatch) {
-                      const questions = questionMatch
-                        .map(q => {
-                          try {
-                            const parsedQuestion = JSON.parse(q);
-                            // Validate the question structure
-                            if (
-                              typeof parsedQuestion.text === 'string' &&
-                              (parsedQuestion.type === 'multiple_choice' || 
-                               parsedQuestion.type === 'open_ended' || 
-                               parsedQuestion.type === 'error')
-                            ) {
-                              return parsedQuestion as Question;
-                            }
-                            return null;
-                          } catch {
-                            return null;
-                          }
-                        })
-                        .filter((q): q is Question => q !== null);
-
-                      if (questions.length > 0) {
-                        currentQuiz.questions = questions;
-                        setStreamingResponse(JSON.stringify(currentQuiz));
-                        
-                        if (onQuizGenerated) {
-                          onQuizGenerated(currentQuiz);
-                        }
-                      }
-                    }
-
-                    const titleMatch = accumulatedContent.match(/"title"\s*:\s*"([^"]*)"/);
-                    if (titleMatch && titleMatch[1]) {
-                      currentQuiz.title = titleMatch[1];
-                      setStreamingResponse(JSON.stringify(currentQuiz));
-                      
-                      if (onQuizGenerated) {
-                        onQuizGenerated(currentQuiz);
-                      }
-                    }
-                  } catch {
-                    // Continue accumulating if parsing fails
+                if (parsed.type === 'info') {
+                  // Show progress updates to user
+                  lastInfoMessage = parsed.message;
+                  if (onStreamingUpdate) {
+                    onStreamingUpdate(parsed.message);
+                  }
+                } else if (parsed.type === 'progress') {
+                  // Show question generation progress
+                  if (onStreamingUpdate) {
+                    onStreamingUpdate(parsed.message);
+                  }
+                } else if (parsed.type === 'warning') {
+                  // Show warning messages
+                  if (onStreamingUpdate) {
+                    onStreamingUpdate(parsed.message);
                   }
                 } else if (parsed.type === 'final') {
                   const finalQuiz = parsed.quiz as CurrentQuiz;
                   setStreamingResponse(JSON.stringify(finalQuiz));
                   setGeneratedQuiz(finalQuiz);
+                  
+                  // Clear streaming text when final quiz is ready
+                  if (onStreamingUpdate) {
+                    onStreamingUpdate('');
+                  }
                   
                   if (onQuizGenerated) {
                     onQuizGenerated(finalQuiz);

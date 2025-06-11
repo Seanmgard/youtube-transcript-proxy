@@ -36,6 +36,8 @@ import { AnkiExportDialog } from '@/app/components/AnkiExportDialog';
 
 export default function Dashboard() {
   const [currentQuiz, setCurrentQuiz] = useState<any>(null);
+  const [streamingText, setStreamingText] = useState<string>('');
+  const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const { user } = useAuth();
   const { supabase, loading: supabaseLoading } = useSupabase();
   const [loading, setLoading] = useState(true);
@@ -120,7 +122,20 @@ export default function Dashboard() {
   }, [user, toast, fetchSubscription]);
 
   const handleQuizGenerated = (quiz: any) => {
-    setCurrentQuiz(quiz);
+    if (quiz.loading) {
+      setIsStreaming(true);
+      setStreamingText('');
+      setCurrentQuiz(quiz);
+    } else {
+      setIsStreaming(false);
+      setCurrentQuiz(quiz);
+    }
+  };
+
+  // New function to handle streaming updates
+  const handleStreamingUpdate = (text: string) => {
+    setStreamingText(text);
+    setIsStreaming(true);
   };
 
   // Function to handle exporting the quiz
@@ -388,12 +403,45 @@ export default function Dashboard() {
       );
     }
 
-    if (currentQuiz.loading) {
+    if (currentQuiz.loading || isStreaming) {
       return (
-        <div className="flex flex-col items-center justify-center h-full text-gray-500">
-          <Loader2 className="h-8 w-8 animate-spin mb-4" />
-          <p>Generating your quiz...</p>
-          <p className="text-sm mt-2">This may take a minute depending on the document size</p>
+        <div className="space-y-4">
+          <div className="flex items-center mb-4">
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            <span className="text-sm text-gray-600">Generating your quiz...</span>
+          </div>
+          
+          {/* Progress message display */}
+          {streamingText && (
+            <div className="space-y-3">
+              <div className={`p-4 rounded-lg border ${
+                streamingText.includes('Generated') && streamingText.includes('of') 
+                  ? 'bg-green-50 border-green-200' 
+                  : streamingText.includes('Expected') || streamingText.includes('Only generated')
+                  ? 'bg-yellow-50 border-yellow-200'
+                  : 'bg-blue-50 border-blue-200'
+              }`}>
+                <div className={`text-sm font-medium ${
+                  streamingText.includes('Generated') && streamingText.includes('of')
+                    ? 'text-green-900'
+                    : streamingText.includes('Expected') || streamingText.includes('Only generated')
+                    ? 'text-yellow-900' 
+                    : 'text-blue-900'
+                }`}>
+                  {streamingText}
+                </div>
+              </div>
+              <div className="text-xs text-gray-500 italic">
+                Please wait while we process your PDF and generate questions...
+              </div>
+            </div>
+          )}
+          
+          {!streamingText && (
+            <div className="text-center text-gray-500">
+              <p className="text-sm">This may take a minute depending on the document size</p>
+            </div>
+          )}
         </div>
       );
     }
@@ -411,117 +459,37 @@ export default function Dashboard() {
     const questions = currentQuiz.questions || [];
 
     return (
-      <div className="pr-2">
-        <div className="flex justify-between items-center mb-3 relative">
-          <h3 className="text-md font-semibold flex-grow mr-4 truncate">{currentQuiz.title}</h3>
-          
-          {/* Export Dropdown Menu */}
-          <div className="flex-shrink-0">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  disabled={exporting !== null && exporting !== 'success'}
-                  className="flex items-center"
-                >
-                  {exporting === 'success' ? (
-                    <>
-                      <Check className="mr-2 h-4 w-4 text-green-600" />
-                      Exported
-                    </>
-                  ) : exporting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Exporting...
-                    </>
-                  ) : (
-                    <>
-                      <FileDown className="mr-2 h-4 w-4" />
-                      Export
-                    </>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent 
-                align="end" 
-                side="left" 
-                alignOffset={-5}
-                sideOffset={80}
-                className="w-56 p-1"
-              >
-                <DropdownMenuItem 
-                  onClick={() => handleExport('doc')}
-                  disabled={exporting !== null && exporting !== 'success'}
-                  className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
-                >
-                  <FileText className="mr-2 h-4 w-4 text-gray-600" />
-                  <div>
-                    <div className="font-medium">Word Document</div>
-                    <div className="text-xs text-gray-500">Export as .docx</div>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={() => handleExport('csv')}
-                  disabled={exporting !== null && exporting !== 'success'}
-                  className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
-                >
-                  <FileText className="mr-2 h-4 w-4 text-gray-600" />
-                  <div>
-                    <div className="font-medium">CSV File</div>
-                    <div className="text-xs text-gray-500">Compatible with Quizlet</div>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={handleSendToAnki}
-                  disabled={exporting !== null && exporting !== 'success'}
-                  className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
-                >
-                  <Send className="mr-2 h-4 w-4 text-gray-600" />
-                  <div>
-                    <div className="font-medium">Anki Export</div>
-                    <div className="text-xs text-gray-500">Send directly to Anki</div>
-                  </div>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+      <div className="space-y-4">
+        {/* Header with title only - export moved to section header */}
+        <div className="flex justify-between items-start">
+          <h3 className="text-lg font-semibold text-gray-900">{currentQuiz.title}</h3>
         </div>
         
-        {/* Questions and Options Section */}
-        <div className="mb-4">
-          <h4 className="text-sm font-medium mb-2 text-gray-600">Questions</h4>
+        {/* Questions Section */}
+        <div className="space-y-4">
           {questions.map((question: any, index: number) => (
-            <div key={index} className="mb-3">
-              <p className="text-sm font-medium mb-1">
+            <div key={index} className="border-b border-gray-100 pb-4 last:border-b-0">
+              <p className="text-base font-medium text-gray-900 mb-2">
                 {index + 1}. {question.text}
               </p>
+              
               {question.type === 'multiple_choice' && question.options && (
-                <ul className="space-y-0.5 ml-4 text-sm">
+                <div className="ml-4 space-y-1">
                   {question.options.map((option: string, optIndex: number) => (
-                    <li key={optIndex} className="flex items-start">
-                      <span className="text-xs">• {option}</span>
-                    </li>
+                    <div key={optIndex} className="text-sm text-gray-700">
+                      {String.fromCharCode(97 + optIndex)}) {option}
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
+              
+              <div className="mt-2 ml-4">
+                <span className="text-sm font-medium text-gray-600">Answer: </span>
+                <span className="text-sm text-gray-900">{question.correctAnswer}</span>
+              </div>
             </div>
           ))}
         </div>
-        
-        {/* Answers Section */}
-        {questions.length > 0 && (
-          <div>
-            <h4 className="text-sm font-medium mb-2 text-gray-600 border-t pt-2">Answers</h4>
-            {questions.map((question: any, index: number) => (
-              <div key={index} className="mb-2">
-                <p className="text-xs">
-                  <span className="font-medium">{index + 1}.</span> {question.correctAnswer}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     );
   };
@@ -547,14 +515,84 @@ export default function Dashboard() {
             <div className="p-6 bg-white rounded-lg shadow-md">
               <h2 className="text-xl font-semibold mb-4">Create New Quiz</h2>
               <QuizUploader 
-                onQuizGenerated={handleQuizGenerated} 
-                key={isOnPlan('premium') ? 'premium' : 'free'} 
+                onQuizGenerated={handleQuizGenerated}
+                onStreamingUpdate={handleStreamingUpdate}
               />
             </div>
 
             <div className="p-6 bg-white rounded-lg shadow-md">
-              <h2 className="text-xl font-semibold mb-4">Quiz Preview</h2>
-              <div className="h-[400px] p-6 bg-gray-50 rounded-lg overflow-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">Quiz Preview</h2>
+                
+                {/* Export Dropdown Menu - moved here to stay visible */}
+                {currentQuiz && !currentQuiz.loading && currentQuiz.title !== 'Error' && (
+                  <div className="flex-shrink-0">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          disabled={exporting !== null && exporting !== 'success'}
+                          className="flex items-center"
+                        >
+                          {exporting === 'success' ? (
+                            <>
+                              <Check className="mr-2 h-4 w-4 text-green-600" />
+                              Exported
+                            </>
+                          ) : exporting ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Exporting...
+                            </>
+                          ) : (
+                            <>
+                              <FileDown className="mr-2 h-4 w-4" />
+                              Export
+                            </>
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuItem 
+                          onClick={() => handleExport('doc')}
+                          disabled={exporting !== null && exporting !== 'success'}
+                          className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
+                        >
+                          <FileText className="mr-2 h-4 w-4 text-gray-600" />
+                          <div>
+                            <div className="font-medium">Word Document</div>
+                            <div className="text-xs text-gray-500">Download as .docx file</div>
+                          </div>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleExport('csv')}
+                          disabled={exporting !== null && exporting !== 'success'}
+                          className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
+                        >
+                          <Download className="mr-2 h-4 w-4 text-gray-600" />
+                          <div>
+                            <div className="font-medium">CSV Spreadsheet</div>
+                            <div className="text-xs text-gray-500">Download as .csv file</div>
+                          </div>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={handleSendToAnki}
+                          disabled={exporting !== null && exporting !== 'success'}
+                          className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
+                        >
+                          <Send className="mr-2 h-4 w-4 text-gray-600" />
+                          <div>
+                            <div className="font-medium">Anki Export</div>
+                            <div className="text-xs text-gray-500">Send directly to Anki</div>
+                          </div>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
+              </div>
+              <div className="h-[400px] p-6 bg-white rounded-lg overflow-auto border border-gray-200">
                 {renderQuizContent()}
               </div>
             </div>
