@@ -169,9 +169,27 @@ async function generateDocFormat(quiz: any) {
     
     // Add answers
     for (let i = 0; i < quiz.questions.length; i++) {
+      const question = quiz.questions[i];
+      let answerText = '';
+      
+      if (question.type === 'multiple_choice' && question.options) {
+        // Find which option matches the correct answer
+        const correctIndex = question.options.findIndex((option: string) => option === question.correctAnswer);
+        if (correctIndex !== -1) {
+          const letter = String.fromCharCode(97 + correctIndex).toUpperCase();
+          answerText = `${letter}) ${question.correctAnswer}`;
+        } else {
+          // Fallback if we can't find the exact match
+          answerText = question.correctAnswer;
+        }
+      } else {
+        // For open-ended questions, just show the answer
+        answerText = question.correctAnswer;
+      }
+      
       answerKeyParagraphs.push(
         new Paragraph({
-          text: `${i + 1}. ${quiz.questions[i].correctAnswer}`,
+          text: `${i + 1}. ${answerText}`,
         })
       );
     }

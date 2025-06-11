@@ -49,6 +49,7 @@
   "devDependencies": {
     "@types/node": "22.10.2",
     "@types/nodemailer": "^6.4.17",
+    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19.0.2",
     "@types/react-dom": "19.0.2",
     "@types/uuid": "^10.0.0",

@@ -22,12 +22,6 @@ function sseJson(obj: any) {
   return `data: ${JSON.stringify(obj)}\n\n`;
 }
 
-// Helper to send raw text chunks in a more readable format
-function formatRawChunk(chunk: string) {
-  // Replace any JSON-like structures with more readable versions
-  return chunk;
-}
-
 // A parsing function that gracefully falls back to an empty quiz if JSON parse fails.
 function parseAssistantResponse(response: string, maxQuestions: number = 10) {
   try {
@@ -79,63 +73,6 @@ function parseAssistantResponse(response: string, maxQuestions: number = 10) {
       console.log('Failed to parse fixed JSON');
     }
 
-    // 4) Last resort: Try to manually construct a valid quiz object
-    console.log('Attempting to manually extract quiz data');
-    try {
-      // Look for title
-      const titleMatch = cleanedResponse.match(/"title"\s*:\s*"([^"]*)"/);
-      const title = titleMatch ? titleMatch[1] : 'Extracted Quiz';
-      
-      // Look for questions
-      const questions = [];
-      let questionRegex = /"text"\s*:\s*"([^"]*)"/g;
-      let questionMatch;
-      
-      while ((questionMatch = questionRegex.exec(cleanedResponse)) !== null && questions.length < maxQuestions) {
-        const questionText = questionMatch[1];
-        const matchIndex = questionMatch.index;
-        
-        // Try to find options near this question if it's multiple choice
-        const optionsMatch = cleanedResponse.substring(matchIndex).match(/"options"\s*:\s*\[(.*?)\]/);
-        
-        if (optionsMatch) {
-          // It's a multiple choice question
-          const optionsStr = optionsMatch[1];
-          const options = optionsStr.split(',').map(opt => 
-            opt.trim().replace(/^"/, '').replace(/"$/, '')
-          );
-          
-          // Try to find correct answer
-          const correctMatch = cleanedResponse.substring(matchIndex).match(/"correctAnswer"\s*:\s*"([^"]*)"/);
-          const correctAnswer = correctMatch ? correctMatch[1] : options[0];
-          
-          questions.push({
-            text: questionText,
-            type: 'multiple_choice',
-            options,
-            correctAnswer
-          });
-        } else {
-          // It's an open-ended question
-          const correctMatch = cleanedResponse.substring(matchIndex).match(/"correctAnswer"\s*:\s*"([^"]*)"/);
-          const correctAnswer = correctMatch ? correctMatch[1] : '';
-          
-          questions.push({
-            text: questionText,
-            type: 'open_ended',
-            correctAnswer
-          });
-        }
-      }
-      
-      if (questions.length > 0) {
-        console.log(`Manually extracted ${questions.length} questions`);
-        return { title, questions };
-      }
-    } catch (e) {
-      console.log('Failed to manually extract quiz data:', e);
-    }
-
     // If we get here, we couldn't find valid JSON
     console.error('Could not extract valid JSON from response');
     console.log('Raw response:', response);
@@ -173,6 +110,19 @@ function parseAssistantResponse(response: string, maxQuestions: number = 10) {
 
 export async function POST(request: Request) {
   try {
+    // Validate required environment variables
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json({ 
+        error: 'OPENAI_API_KEY environment variable is not set. Please add it to your .env.local file.' 
+      }, { status: 500 });
+    }
+    
+    if (!process.env.OPENAI_ASSISTANT_ID) {
+      return NextResponse.json({ 
+        error: 'OPENAI_ASSISTANT_ID environment variable is not set. Please create an OpenAI Assistant and add the ID to your .env.local file.' 
+      }, { status: 500 });
+    }
+
     // Set headers for SSE
     const headers = new Headers({
       'Content-Type': 'text/event-stream',
@@ -184,47 +134,30 @@ export async function POST(request: Request) {
     const cookieStore = cookies();
     const supabase = await createClient();
     
-    // Initialize streamInfoMessage variable
-    let streamInfoMessage: string | null = null;
+    // Get user info for DB operations
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    let streamInfoMessage = '';
     
-    // Check if user is authenticated
-    const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user;
-    
-    // Parse form data
+    if (userError || !user) {
+      streamInfoMessage = 'Generating quiz without saving (user not authenticated).';
+    }
+
+    // Parse FormData from the request
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const settingsString = formData.get('settings') as string;
-    const settings = JSON.parse(settingsString);
+    const settingsJson = formData.get('settings') as string;
     
-    // For unauthenticated users, limit to 10 questions
-    if (!user) {
-      if (settings.numberOfQuestions > 10) {
-        settings.numberOfQuestions = 10;
-        // We'll send this message to the client
-        const infoMessage = {
-          type: 'info',
-          message: 'Free users are limited to 10 questions. Sign up for a free account to generate more!'
-        };
-        
-        // Make sure numberOfQuestions is at least 1 and at most 10 for unauthenticated users
-        settings.numberOfQuestions = Math.max(1, Math.min(10, settings.numberOfQuestions));
-        
-        // We'll send this info in the stream
-        streamInfoMessage = JSON.stringify(infoMessage);
-      }
-    } else {
-      // For authenticated users, ensure numberOfQuestions is between 1 and 50
-      settings.numberOfQuestions = Math.max(1, Math.min(50, settings.numberOfQuestions));
+    if (!file) {
+      return Response.json({ error: 'No file provided' }, { status: 400 });
     }
-    
-    // Validate file
-    if (!file || !file.type.includes('pdf')) {
-      return Response.json({ error: 'Please upload a PDF file' }, { status: 400 });
+
+    if (!settingsJson) {
+      return Response.json({ error: 'No settings provided' }, { status: 400 });
     }
-    
-    // Check file size (25MB limit)
-    if (file.size > 25 * 1024 * 1024) {
+
+    const settings = JSON.parse(settingsJson);
+
+    if (file.size > MAX_FILE_SIZE) {
       return Response.json({ error: 'File size exceeds 25MB limit' }, { status: 400 });
     }
 
@@ -260,12 +193,12 @@ export async function POST(request: Request) {
           }
           
           // Step A: Upload the PDF to OpenAI
-          sendJson({ type: 'info', message: 'Uploading file to OpenAI...' });
+          sendJson({ type: 'info', message: 'Uploading your PDF...' });
           
           // Create a new FormData instance
-          const formData = new FormData();
-          formData.append('purpose', 'assistants');
-          formData.append('file', file);
+          const uploadFormData = new FormData();
+          uploadFormData.append('purpose', 'assistants');
+          uploadFormData.append('file', file);
 
           // Make a direct fetch call to OpenAI's API
           const response = await fetch('https://api.openai.com/v1/files', {
@@ -273,7 +206,7 @@ export async function POST(request: Request) {
             headers: {
               'Authorization': `Bearer ${process.env.OPENAI_API_KEY!}`,
             },
-            body: formData,
+            body: uploadFormData,
           });
 
           if (!response.ok) {
@@ -282,48 +215,102 @@ export async function POST(request: Request) {
           }
 
           const fileUpload = await response.json();
-          sendJson({ type: 'info', message: `File uploaded: ${fileUpload.id}` });
+          sendJson({ type: 'info', message: `PDF uploaded successfully` });
 
-          // Step B: Create a vector store
-          sendJson({ type: 'info', message: 'Creating vector store...' });
-          const vectorStore = await openai.beta.vectorStores.create({
-            name: `Quiz Generation - ${file.name}`,
+          // Step B: Create a vector store using direct HTTP call
+          sendJson({ type: 'info', message: 'Preparing document for analysis...' });
+          const vectorStoreResponse = await fetch('https://api.openai.com/v1/vector_stores', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.OPENAI_API_KEY!}`,
+              'Content-Type': 'application/json',
+              'OpenAI-Beta': 'assistants=v2'
+            },
+            body: JSON.stringify({
+              name: `Quiz Generation - ${file.name}`,
+            }),
           });
-          sendJson({ type: 'info', message: `Vector store created: ${vectorStore.id}` });
 
-          // Step C: Add the file to the vector store
-          sendJson({ type: 'info', message: 'Indexing PDF in vector store...' });
-          await openai.beta.vectorStores.fileBatches.uploadAndPoll(vectorStore.id, {
-            files: [file],
+          if (!vectorStoreResponse.ok) {
+            const error = await vectorStoreResponse.json();
+            throw new Error(`Vector store creation failed: ${error.error?.message || 'Unknown error'}`);
+          }
+
+          const vectorStore = await vectorStoreResponse.json();
+          sendJson({ type: 'info', message: `Document preparation complete` });
+
+          // Step C: Add the file to the vector store using direct HTTP call
+          sendJson({ type: 'info', message: 'Reading through your document...' });
+          const addFileResponse = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStore.id}/files`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.OPENAI_API_KEY!}`,
+              'Content-Type': 'application/json',
+              'OpenAI-Beta': 'assistants=v2'
+            },
+            body: JSON.stringify({
+              file_id: fileUpload.id,
+            }),
           });
-          sendJson({ type: 'info', message: 'File indexed in vector store.' });
+
+          if (!addFileResponse.ok) {
+            const error = await addFileResponse.json();
+            throw new Error(`Adding file to vector store failed: ${error.error?.message || 'Unknown error'}`);
+          }
+
+          sendJson({ type: 'info', message: 'Document processed successfully' });
 
           // Step D: Update the assistant to use that vector store
-          sendJson({ type: 'info', message: 'Configuring assistant...' });
+          sendJson({ type: 'info', message: 'Setting up quiz generation...' });
+          
+          let questionTypeInstructions = '';
+          if (settings.questionType === 'multiple_choice') {
+            questionTypeInstructions = `
+QUESTION TYPE REQUIREMENTS:
+- Generate ONLY multiple choice questions
+- Every single question must be type "multiple_choice"
+- Each question must have exactly 4 options
+- Never generate open-ended questions`;
+          } else if (settings.questionType === 'open_ended') {
+            questionTypeInstructions = `
+QUESTION TYPE REQUIREMENTS:
+- Generate ONLY open-ended questions
+- Every single question must be type "open_ended"
+- Each question must have a complete answer in correctAnswer field
+- Never generate multiple choice questions`;
+          } else { // mixed
+            questionTypeInstructions = `
+QUESTION TYPE REQUIREMENTS:
+- Generate a mix of multiple choice and open-ended questions
+- Alternate between types: multiple_choice, open-ended, multiple_choice, etc.
+- For multiple choice: provide 4 options
+- For open-ended: provide complete answers`;
+          }
+          
           await openai.beta.assistants.update(process.env.OPENAI_ASSISTANT_ID!, {
-            instructions: `You are an expert quiz and language learning content generator. When provided with a PDF file, analyze its content based on the requested mode:
+            instructions: `You are an expert quiz generator. You MUST generate EXACTLY ${settings.numberOfQuestions} questions - no more, no less.
+
+CRITICAL REQUIREMENTS:
+- Generate EXACTLY ${settings.numberOfQuestions} questions
+- Count your questions as you generate them: 1, 2, 3... up to ${settings.numberOfQuestions}
+- Do not stop until you have exactly ${settings.numberOfQuestions} questions
+- If you reach ${settings.numberOfQuestions} questions, stop immediately
+- Every question must be unique and well-formed
+- EVERY question MUST have a correct answer provided
+
+${questionTypeInstructions}
 
 For regular quiz mode:
-- Create thoughtful, challenging quiz questions based on the material
-- Focus on key concepts, important details, and relationships between ideas
-- Ensure questions test understanding rather than just recall
-- Questions should be thought-provoking and require critical thinking
-- For multiple choice questions:
-  - Vary the length and complexity of answer options
-  - Some answers can be short (1-3 words) while others should be more detailed (full sentences or explanations)
-  - Make sure distractors are plausible and well-thought-out
-  - Avoid making the correct answer consistently longer or shorter than other options
-  - Each question should have exactly 4 options, labeled a, b, c, and d
+- Create questions based on the PDF content
+- Focus on key concepts and important details
 
 For language learning mode:
-- Extract key vocabulary words or sentences based on the specified extraction type
-- Focus on important and frequently used language elements
-- For words: Choose words that are essential for understanding the content
-- For sentences: Select complete, meaningful sentences that demonstrate proper usage
-- Always provide accurate translations between the specified source and target languages
+- Extract key vocabulary or sentences from the PDF
+- Provide accurate translations
 
-ALWAYS generate EXACTLY the number of questions/items requested - this is critical.
-Return only valid JSON with no markdown formatting or explanations.`,
+FINAL REMINDER: You MUST have exactly ${settings.numberOfQuestions} questions in your final JSON response.
+Every question MUST have a correctAnswer field filled with the proper answer.
+Return only valid JSON with no formatting or explanations.`,
             model: 'gpt-4o-mini',
             tools: [{ type: 'file_search' }],
             tool_resources: {
@@ -332,65 +319,44 @@ Return only valid JSON with no markdown formatting or explanations.`,
               },
             },
           });
-          sendJson({ type: 'info', message: 'Assistant updated with vector store.' });
+          sendJson({ type: 'info', message: 'Creating your quiz questions...' });
 
           // Step E: Create the thread (the "prompt")
-          sendJson({ type: 'info', message: settings.isLanguageLearning ? 'Generating language flashcards from PDF...' : 'Generating quiz from PDF...' });
-          
           let promptContent = '';
           if (settings.isLanguageLearning) {
-            promptContent = `
-Extract ${settings.numberOfQuestions} ${settings.extractionType} from the PDF content for language learning.
+            promptContent = `Extract EXACTLY ${settings.numberOfQuestions} ${settings.extractionType} from the PDF. Source: ${settings.sourceLanguage}, Target: ${settings.targetLanguage}. 
 
-Requirements:
-- Source Language: ${settings.sourceLanguage}
-- Target Language: ${settings.targetLanguage}
-- Extract: ${settings.extractionType}
-- EXACTLY ${settings.numberOfQuestions} items
+YOU MUST GENERATE EXACTLY ${settings.numberOfQuestions} ITEMS - COUNT THEM CAREFULLY: 1, 2, 3... up to ${settings.numberOfQuestions}!
 
-Be concise and direct. Focus on important language elements from the PDF.
-For words, choose essential vocabulary that appears in the content.
-For sentences, select complete, meaningful sentences that demonstrate proper usage.
+Return JSON format: {"title":"Language Learning Flashcards","questions":[{"text":"source","type":"translation","correctAnswer":"target"}]}
 
-Return JSON in this format:
-{
-  "title": "Language Learning Flashcards",
-  "questions": [
-    {
-      "text": "Source language text",
-      "type": "translation",
-      "correctAnswer": "Target language translation"
-    }
-  ]
-}`;
+REMEMBER: Your JSON must contain exactly ${settings.numberOfQuestions} questions in the questions array.`;
           } else {
-            promptContent = `
-Create a quiz with EXACTLY ${settings.numberOfQuestions} questions based on the PDF content.
+            let typeSpecificInstructions = '';
+            let exampleFormat = '';
+            
+            if (settings.questionType === 'multiple_choice') {
+              typeSpecificInstructions = 'CRITICAL: Generate ONLY multiple choice questions. Every question must be type "multiple_choice" with exactly 4 options.';
+              exampleFormat = '{"text":"Question?","type":"multiple_choice","options":["A","B","C","D"],"correctAnswer":"A"}';
+            } else if (settings.questionType === 'open_ended') {
+              typeSpecificInstructions = 'CRITICAL: Generate ONLY open-ended questions. Every question must be type "open_ended" with a complete answer.';
+              exampleFormat = '{"text":"Question?","type":"open_ended","correctAnswer":"Complete detailed answer explaining the concept"}';
+            } else { // mixed
+              typeSpecificInstructions = 'CRITICAL: Generate a mix of multiple choice and open-ended questions. Alternate between types.';
+              exampleFormat = '{"text":"Question?","type":"multiple_choice","options":["A","B","C","D"],"correctAnswer":"A"} OR {"text":"Question?","type":"open_ended","correctAnswer":"Complete answer"}';
+            }
+            
+            promptContent = `Create EXACTLY ${settings.numberOfQuestions} questions from the PDF. Difficulty: ${settings.difficulty}. 
 
-Requirements:
-- Difficulty: ${settings.difficulty}
-- Format: ${settings.questionType}
-- EXACTLY ${settings.numberOfQuestions} questions
-- Response must be valid JSON only
+YOU MUST GENERATE EXACTLY ${settings.numberOfQuestions} QUESTIONS - COUNT THEM CAREFULLY: 1, 2, 3... up to ${settings.numberOfQuestions}!
 
-Be concise and direct. Focus on key concepts from the PDF.
-For multiple choice, provide 4 options with 1 correct answer.
+${typeSpecificInstructions}
 
-Return JSON in this format:
-{
-  "title": "Quiz Title",
-  "questions": [
-    {
-      "text": "Question text?",
-      "type": "multiple_choice",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctAnswer": "Option A"
-    }
-  ]
-}`;
+Return JSON format: {"title":"Quiz Title","questions":[${exampleFormat}]}
+
+REMEMBER: Your JSON must contain exactly ${settings.numberOfQuestions} questions in the questions array.
+EVERY question must have a filled correctAnswer field with the proper answer.`;
           }
-
-          promptContent += `\n\nIf no content found: {"title":"No Content Found","questions":[]}`;
 
           const thread = await openai.beta.threads.create({
             messages: [
@@ -408,86 +374,48 @@ Return JSON in this format:
 
           // Step F: Stream from OpenAI
           let bufferAll = '';
-          let streamTimeout: NodeJS.Timeout | null = null;
-          
-          // Set up a timeout to handle stalled streams
-          const setupStreamTimeout = () => {
-            // Clear any existing timeout
-            if (streamTimeout) clearTimeout(streamTimeout);
-            
-            // Set a new timeout
-            streamTimeout = setTimeout(() => {
-              sendJson({ 
-                type: 'warning', 
-                message: 'Stream is taking longer than expected. Still processing...' 
-              });
-              
-              // Recursively set up another timeout
-              setupStreamTimeout();
-            }, 30000); // 30 second timeout
-          };
-          
-          // Initial timeout setup
-          setupStreamTimeout();
+          let questionsFound = 0;
           
           openai.beta.threads.runs
             .stream(thread.id, {
               assistant_id: process.env.OPENAI_ASSISTANT_ID!,
-              additional_instructions: `
-Read the PDF thoroughly but efficiently to generate questions quickly.
-Generate EXACTLY ${settings.numberOfQuestions} questions.
-Your response must be a single, valid JSON object with no markdown formatting, no code blocks, and no explanations.
-For multiple choice questions, ensure options are plausible but clearly distinguishable.
-Count your questions before finalizing to ensure you have exactly ${settings.numberOfQuestions}.
-Be concise and direct in your response to improve speed.
-
-Example format (follow this exactly):
-{"title":"Quiz Title","questions":[{"text":"Question?","type":"multiple_choice","options":["A","B","C","D"],"correctAnswer":"A"}]}
-`,
+              additional_instructions: `CRITICAL: You MUST generate exactly ${settings.numberOfQuestions} questions. Count each question as you create it: 1, 2, 3... up to ${settings.numberOfQuestions}. Do not stop until you have exactly ${settings.numberOfQuestions} questions. If you reach exactly ${settings.numberOfQuestions} questions, stop immediately. Your final JSON response MUST contain exactly ${settings.numberOfQuestions} questions in the questions array. EVERY question must have a complete correctAnswer field - never leave it empty! ${settings.questionType === 'multiple_choice' ? 'ONLY generate multiple_choice questions with 4 options each.' : settings.questionType === 'open_ended' ? 'ONLY generate open_ended questions with complete answers.' : 'Generate a mix of multiple_choice and open_ended questions, alternating between types.'}`,
             })
             .on('textDelta', (textDelta) => {
-              // Reset the timeout on each chunk received
-              if (streamTimeout) clearTimeout(streamTimeout);
-              setupStreamTimeout();
-              
               const chunk = textDelta.value || '';
               bufferAll += chunk;
-
-              // Send partial chunk to client as SSE
-              // This is what will be displayed in the raw streaming view
-              sendJson({ type: 'delta', chunk: formatRawChunk(chunk) });
+              
+              // Parse partial content to show progress for longer generations
+              try {
+                // Look for complete question objects in the accumulated text
+                const questionMatches = bufferAll.match(/\{\s*"text"\s*:\s*"[^"]*"[^}]*\}/g);
+                if (questionMatches && questionMatches.length > questionsFound) {
+                  questionsFound = questionMatches.length;
+                  sendJson({ 
+                    type: 'progress', 
+                    message: `Generated ${questionsFound} of ${settings.numberOfQuestions} questions...`,
+                    count: questionsFound,
+                    total: settings.numberOfQuestions
+                  });
+                }
+              } catch (e) {
+                // Continue if parsing fails
+              }
             })
             .on('toolCallCreated', (toolCall) => {
-              // Reset the timeout when a tool call is created
-              if (streamTimeout) clearTimeout(streamTimeout);
-              setupStreamTimeout();
-              
-              // Inform the client that the assistant is searching the document
               sendJson({ 
                 type: 'info', 
-                message: 'Searching through document...' 
+                message: 'Finding the best content for your quiz...' 
               });
             })
-            .on('toolCallDelta', (toolCallDelta) => {
-              // Reset the timeout on tool call updates
-              if (streamTimeout) clearTimeout(streamTimeout);
-              setupStreamTimeout();
-            })
             .on('error', (streamErr) => {
-              // Clear the timeout on error
-              if (streamTimeout) clearTimeout(streamTimeout);
-              
               console.error('OpenAI streaming error:', streamErr);
               sendJson({ type: 'error', message: streamErr.message });
               controller.enqueue(encoder.encode('data: [DONE]\n\n'));
               controller.close();
             })
             .on('end', async () => {
-              // Clear the timeout when the stream ends
-              if (streamTimeout) clearTimeout(streamTimeout);
-              
-              // All tokens have streamed in
-              sendJson({ type: 'info', message: 'Streaming complete. Parsing final quiz...' });
+              sendJson({ type: 'info', message: 'Almost done! Putting together your quiz...' });
 
               try {
                 // Attempt to parse the full response
@@ -499,143 +427,64 @@ Example format (follow this exactly):
                 if (questions.length !== settings.numberOfQuestions) {
                   sendJson({ 
                     type: 'warning', 
-                    message: `Expected ${settings.numberOfQuestions} questions but received ${questions.length}. Attempting to fix...` 
+                    message: `Expected ${settings.numberOfQuestions} questions but got ${questions.length}. Adjusting...` 
                   });
                   
-                  // If we have more questions than requested, trim the array
                   if (questions.length > settings.numberOfQuestions) {
                     questions = questions.slice(0, settings.numberOfQuestions);
                     sendJson({ 
                       type: 'info', 
-                      message: `Trimmed excess questions to match the requested ${settings.numberOfQuestions}.` 
+                      message: `Trimmed to exactly ${settings.numberOfQuestions} questions.` 
                     });
-                  }
-                  // If we have fewer questions than requested, we'll use what we have
-                  else if (questions.length > 0) {
+                  } else if (questions.length < settings.numberOfQuestions && questions.length > 0) {
                     sendJson({ 
-                      type: 'info', 
-                      message: `Proceeding with ${questions.length} questions instead of the requested ${settings.numberOfQuestions}.` 
+                      type: 'warning', 
+                      message: `Only generated ${questions.length} questions instead of ${settings.numberOfQuestions}. This may happen with shorter documents.` 
                     });
+                  } else {
+                    // No valid questions found, this is an error
+                    throw new Error(`Failed to generate any valid questions from the document.`);
                   }
                 }
 
-                // Step G: Cleanup (try-catch to avoid break if fails)
-                try {
-                  await openai.files.del(fileUpload.id);
-                  await openai.beta.vectorStores.del(vectorStore.id);
-                } catch (cleanupErr) {
-                  console.warn('Resource cleanup error:', cleanupErr);
-                }
+                // Step G: Cleanup (don't wait for this)
+                Promise.all([
+                  openai.files.del(fileUpload.id).catch(() => {}),
+                  fetch(`https://api.openai.com/v1/vector_stores/${vectorStore.id}`, {
+                    method: 'DELETE',
+                    headers: {
+                      'Authorization': `Bearer ${process.env.OPENAI_API_KEY!}`,
+                      'OpenAI-Beta': 'assistants=v2'
+                    },
+                  }).catch(() => {})
+                ]);
 
-                // Step H: Insert quiz in DB only if user is authenticated
+                // Step H: Save to database if user is authenticated (don't wait for this either)
                 if (user && user.id) {
-                  try {
-                    // First check if the user has reached their monthly quiz limit
-                    const { isOnPlan } = await checkUserSubscription(user.id, supabase);
+                  // Run database save in background
+                  checkUserSubscription(user.id, supabase).then(({ isOnPlan }) => {
                     const isPremium = isOnPlan === 'premium';
                     
-                    if (!isPremium) {
-                      // Count quizzes created by the user in the current month
-                      const now = new Date();
-                      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-                      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-                      
-                      // Format dates for Supabase query
-                      const startDate = firstDayOfMonth.toISOString();
-                      const endDate = lastDayOfMonth.toISOString();
-                      
-                      // Explicitly type userId to match Database type
-                      const userId: Database['public']['Tables']['quizzes']['Row']['user_id'] = user.id;
+                    if (isPremium || settings.numberOfQuestions <= 10) {
+                      const quizId = uuidv4();
+                      const quizData: Database['public']['Tables']['quizzes']['Insert'] = {
+                        id: quizId,
+                        title: quizTitle,
+                        user_id: user.id,
+                        questions,
+                        settings,
+                        is_language_learning: settings.isLanguageLearning || false,
+                        source_language: settings.sourceLanguage || null,
+                        target_language: settings.targetLanguage || null,
+                        extraction_type: settings.extractionType || null
+                      };
 
-                      const { count, error: countError } = await supabase
-                        .from('quizzes')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('user_id', userId as string)
-                        .gte('created_at', startDate)
-                        .lte('created_at', endDate);
-                      
-                      if (countError) {
-                        console.error('Error checking quiz count:', countError);
-                        sendJson({
-                          type: 'warning',
-                          message: `Error checking quiz limit: ${countError.message}`,
-                        });
-                        return;
-                      }
-                      
-                      // Check if user has reached the limit
-                      if (count && count >= 10) {
-                        sendJson({
-                          type: 'error',
-                          message: 'You have reached your monthly quiz limit. Please upgrade to Premium for unlimited quizzes.',
-                        });
-                        return;
-                      }
-                      
-                      // Check if the quiz has more than 10 questions for free users
-                      if (settings.numberOfQuestions > 10) {
-                        sendJson({
-                          type: 'error',
-                          message: 'Free users can only create quizzes with up to 10 questions. Please upgrade to Premium for larger quizzes.',
-                        });
-                        return;
-                      }
+                      supabase.from('quizzes').insert(quizData);
                     }
-                    
-                    // Check if the quiz has more than 50 questions for any user
-                    if (settings.numberOfQuestions > 50) {
-                      sendJson({
-                        type: 'error',
-                        message: 'Maximum number of questions allowed is 50.',
-                      });
-                      return;
-                    }
-                    
-                    // Now insert the quiz with proper typing
-                    const quizId = uuidv4();
-                    const quizData: Database['public']['Tables']['quizzes']['Insert'] = {
-                      id: quizId,
-                      title: quizTitle,
-                      user_id: user.id,
-                      questions,
-                      description: null,
-                      subject: null,
-                      category: null,
-                      created_at: new Date().toISOString(),
-                      updated_at: new Date().toISOString(),
-                      settings,
-                      is_language_learning: settings.isLanguageLearning || false,
-                      source_language: settings.sourceLanguage || null,
-                      target_language: settings.targetLanguage || null,
-                      extraction_type: settings.extractionType || null
-                    };
-
-                    const { error: dbError } = await supabase
-                      .from('quizzes')
-                      .insert(quizData);
-
-                    if (dbError) {
-                      console.error('DB insert error:', dbError);
-                      sendJson({
-                        type: 'warning',
-                        message: `Quiz generated but DB insert failed: ${dbError.message}`,
-                      });
-                    } else {
-                      sendJson({
-                        type: 'info',
-                        message: 'Quiz saved successfully!',
-                      });
-                    }
-                  } catch (checkError) {
-                    console.error('Error checking subscription:', checkError);
-                    sendJson({
-                      type: 'warning',
-                      message: `Error checking subscription: ${checkError}`,
-                    });
-                  }
+                  }).catch(() => {});
                 }
 
-                // Send final quiz data
+                // Send final quiz data immediately
                 sendJson({
                   type: 'final',
                   quiz: {
@@ -646,7 +495,7 @@ Example format (follow this exactly):
               } catch (parseErr: any) {
                 sendJson({
                   type: 'error',
-                  message: `Error parsing final quiz: ${parseErr.message}`,
+                  message: `Error parsing quiz: ${parseErr.message}`,
                 });
               }
 
@@ -656,7 +505,8 @@ Example format (follow this exactly):
               // Signal we are done
               controller.enqueue(encoder.encode('data: [DONE]\n\n'));
               controller.close();
-            })
+            });
+
         } catch (err: any) {
           // Clean up the keepalive interval on error
           clearInterval(keepAliveInterval);
@@ -688,18 +538,22 @@ async function checkUserSubscription(userId: string, supabase: any) {
       .select('*')
       .eq('user_id', userId)
       .single();
-    
-    if (error) {
-      console.error('Error fetching subscription:', error);
+
+    if (error || !data) {
       return { isOnPlan: 'free' };
     }
+
+    // Check if subscription is active
+    const now = new Date();
+    const currentPeriodEnd = new Date(data.current_period_end);
     
-    const isSubscriptionActive = data?.status === 'active' || data?.status === 'trialing';
-    const isOnPlan = data?.plan_type === 'premium' && isSubscriptionActive ? 'premium' : 'free';
-    
-    return { isOnPlan };
+    if (data.status === 'active' && currentPeriodEnd > now) {
+      return { isOnPlan: 'premium' };
+    }
+
+    return { isOnPlan: 'free' };
   } catch (error) {
-    console.error('Error in checkUserSubscription:', error);
+    console.error('Error checking subscription:', error);
     return { isOnPlan: 'free' };
   }
-}
+} 

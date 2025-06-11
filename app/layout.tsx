@@ -41,9 +41,14 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
+    site: "@QuizLabAI",
+    creator: "@QuizLabAI", 
     title: "QuizLab AI - Transform Study Materials into Interactive Quizzes",
-    description: "QuizLab AI transforms your study materials into engaging interactive quizzes using artificial intelligence. Create custom quizzes instantly and export directly to Anki for spaced repetition learning. Perfect for students and educators.",
-    images: [`${siteUrl}/images/Main_Image.png`],
+    description: "Upload. Transform. Master. With QuizLabAI, your class notes become flashcards and quizzes in seconds. Export direct to tools like Anki.",
+    images: [{
+      url: `${siteUrl}/images/Main_Image.png`,
+      alt: "QuizLab AI - Transform Study Materials into Interactive Quizzes"
+    }],
   },
   robots: {
     index: true,
