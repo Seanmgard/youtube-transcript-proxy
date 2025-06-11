@@ -253,166 +253,249 @@ export default function LearnPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex items-center gap-2 mb-6">
-        <Link href="/dashboard">
-          <Button variant="outline" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <h1 className="text-3xl font-bold">Learn</h1>
+    <div className="space-y-8 max-w-7xl mx-auto">
+      {/* Header Section */}
+      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-8 rounded-xl border border-emerald-100">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/dashboard">
+              <Button variant="outline" size="icon" className="bg-white hover:bg-gray-50">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-4xl font-bold text-gray-900 mb-3">Learn</h1>
+              <p className="text-lg text-gray-600">
+                Study your materials with flashcards and practice tests
+              </p>
+            </div>
+          </div>
+          <div className="hidden md:block">
+            <div className="w-16 h-16 bg-emerald-600 rounded-full flex items-center justify-center">
+              <BookOpen className="w-8 h-8 text-white" />
+            </div>
+          </div>
+        </div>
       </div>
 
       <Tabs defaultValue="quizzes" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="quizzes">Flashcards</TabsTrigger>
-          <TabsTrigger value="exams">Test Yourself</TabsTrigger>
+        <TabsList className="mb-6 bg-white border border-gray-200 p-1 rounded-lg shadow-sm">
+          <TabsTrigger 
+            value="quizzes" 
+            className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white px-6 py-2 rounded-md font-medium transition-all"
+          >
+            <BookOpen className="w-4 h-4 mr-2" />
+            Flashcards
+          </TabsTrigger>
+          <TabsTrigger 
+            value="exams"
+            className="data-[state=active]:bg-blue-600 data-[state=active]:text-white px-6 py-2 rounded-md font-medium transition-all"
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            Test Yourself
+          </TabsTrigger>
         </TabsList>
         
-        <TabsContent value="quizzes" className="p-6 bg-white rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-6">Your Study Materials</h2>
-          
-          {quizzes.length === 0 ? (
-            <div className="text-center py-8">
-              <BookOpen className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <p className="text-gray-500">No quizzes available for learning yet.</p>
-              <p className="text-gray-500 mt-2">Generate a quiz from the dashboard to get started!</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {quizzes.map((quiz) => {
-                const progress = learningProgress[quiz.id];
-                const masteryPercentage = progress?.mastery_percentage || 0;
-                const lastStudied = progress?.last_studied 
-                  ? new Date(progress.last_studied).toLocaleDateString() 
-                  : 'Never studied';
-                
-                return (
-                  <Card 
-                    key={quiz.id} 
-                    className={`hover:shadow-md transition-shadow ${
-                      quiz.subject && quiz.color ? 'border-l-4' : ''
-                    }`}
-                    style={quiz.subject && quiz.color ? {
-                      borderLeftColor: quiz.color,
-                      backgroundColor: `${quiz.color}20`, // Add 20% opacity to the color
-                    } : {}}
-                  >
-                    <CardHeader>
-                      <div className="mb-2 min-h-[28px]">
-                        {quiz.subject && (
-                          <div 
-                            className="inline-flex items-center px-3 py-1 rounded-md text-sm"
-                            style={{ 
-                              backgroundColor: quiz.color || '#E5E7EB', 
-                              color: quiz.color ? getContrastColor(quiz.color) : '#374151' 
-                            }}
-                          >
-                            <Tag className="h-3 w-3 mr-2" />
-                            {quiz.subject}
+        <TabsContent value="quizzes" className="space-y-6">
+          <Card className="bg-white shadow-lg border-0">
+            <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-emerald-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl font-semibold text-gray-900 flex items-center">
+                    <BookOpen className="w-5 h-5 mr-2 text-emerald-600" />
+                    Your Study Materials
+                  </CardTitle>
+                  <CardDescription className="text-gray-600 mt-1">
+                    Review your generated quizzes as interactive flashcards
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-8">
+              {quizzes.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <BookOpen className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No study materials yet</h3>
+                  <p className="text-gray-500 mb-4">Generate a quiz from the dashboard to get started with studying!</p>
+                  <Link href="/dashboard">
+                    <Button className="bg-emerald-600 hover:bg-emerald-700">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Your First Quiz
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {quizzes.map((quiz) => {
+                    const progress = learningProgress[quiz.id];
+                    const masteryPercentage = progress?.mastery_percentage || 0;
+                    const lastStudied = progress?.last_studied 
+                      ? new Date(progress.last_studied).toLocaleDateString() 
+                      : 'Never studied';
+                    
+                    return (
+                      <Card 
+                        key={quiz.id} 
+                        className={`hover:shadow-lg transition-all duration-200 border-0 shadow-md ${
+                          quiz.subject && quiz.color ? 'border-l-4' : ''
+                        }`}
+                        style={quiz.subject && quiz.color ? {
+                          borderLeftColor: quiz.color,
+                          backgroundColor: `${quiz.color}08`, // Lighter opacity
+                        } : {}}
+                      >
+                        <CardHeader className="pb-3">
+                          <div className="mb-2 min-h-[28px]">
+                            {quiz.subject && (
+                              <div 
+                                className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
+                                style={{ 
+                                  backgroundColor: quiz.color || '#E5E7EB', 
+                                  color: quiz.color ? getContrastColor(quiz.color) : '#374151' 
+                                }}
+                              >
+                                <Tag className="h-3 w-3 mr-1" />
+                                {quiz.subject}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      <CardTitle className="line-clamp-1 text-lg">
-                        {quiz.title}
-                      </CardTitle>
-                      <CardDescription>
-                        Quiz details
-                      </CardDescription>
-                      <div className="flex flex-wrap gap-x-4 mt-1">
-                        <span className="text-sm text-gray-500 flex items-center">
-                          <Calendar className="h-3.5 w-3.5 mr-1" />
-                          {new Date(quiz.created_at).toLocaleDateString()}
-                        </span>
-                        <span className="text-sm text-gray-500 flex items-center">
-                          <Clock className="h-3.5 w-3.5 mr-1" />
-                          {quiz.questions?.length || 0} questions
-                        </span>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Cards Viewed</span>
-                          <span>{masteryPercentage}%</span>
-                        </div>
-                        <Progress 
-                          value={masteryPercentage} 
-                          className="h-2 bg-gray-200" 
-                          style={{ "--progress-foreground": "rgb(21, 128, 61)" } as React.CSSProperties}
-                        />
-                        <p className="text-xs text-gray-500 mt-2">
-                          Last studied: {lastStudied}
-                        </p>
-                      </div>
-                    </CardContent>
-                    <CardFooter>
-                      <Link href={`/dashboard/learn/${quiz.id}`} className="w-full">
-                        <Button className="w-full">
-                          {progress ? 'Continue Learning' : 'Start Learning'}
-                        </Button>
-                      </Link>
-                    </CardFooter>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+                          <CardTitle className="line-clamp-2 text-lg font-semibold text-gray-900">
+                            {quiz.title}
+                          </CardTitle>
+                          <div className="flex flex-wrap gap-x-4 mt-2">
+                            <span className="text-xs text-gray-500 flex items-center">
+                              <Calendar className="h-3 w-3 mr-1" />
+                              {new Date(quiz.created_at).toLocaleDateString()}
+                            </span>
+                            <span className="text-xs text-gray-500 flex items-center">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {quiz.questions?.length || 0} cards
+                            </span>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="pb-4">
+                          <div className="space-y-3">
+                            <div className="flex justify-between text-sm font-medium">
+                              <span className="text-gray-600">Progress</span>
+                              <span className="text-emerald-600">{masteryPercentage}%</span>
+                            </div>
+                            <Progress 
+                              value={masteryPercentage} 
+                              className="h-2 bg-gray-100" 
+                              style={{ "--progress-foreground": "rgb(5, 150, 105)" } as React.CSSProperties}
+                            />
+                            <p className="text-xs text-gray-500">
+                              Last studied: <span className="font-medium">{lastStudied}</span>
+                            </p>
+                          </div>
+                        </CardContent>
+                        <CardFooter className="pt-0">
+                          <Link href={`/dashboard/learn/${quiz.id}`} className="w-full">
+                            <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                              {progress ? (
+                                <>
+                                  <BookOpen className="w-4 h-4 mr-2" />
+                                  Continue Learning
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-4 h-4 mr-2" />
+                                  Start Learning
+                                </>
+                              )}
+                            </Button>
+                          </Link>
+                        </CardFooter>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
         
-        <TabsContent value="exams" className="p-6 bg-white rounded-lg shadow-md">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold">Your Exams</h2>
-            <Link href="/dashboard/learn/exams/create">
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Exam
-              </Button>
-            </Link>
-          </div>
-          
-          {exams.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <p className="text-gray-500">No exams available yet.</p>
-              <p className="text-gray-500 mt-2">Create an exam by combining your quizzes!</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {exams.map((exam) => (
-                <Card key={exam.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <CardTitle className="line-clamp-1 text-lg">{exam.title}</CardTitle>
-                    <CardDescription>
-                      {exam.description || 'No description'}
-                    </CardDescription>
-                    <div className="flex flex-wrap gap-x-4 mt-1">
-                      <span className="text-sm text-gray-500 flex items-center">
-                        <Calendar className="h-3.5 w-3.5 mr-1" />
-                        {new Date(exam.created_at).toLocaleDateString()}
-                      </span>
-                      <span className="text-sm text-gray-500 flex items-center">
-                        <FileText className="h-3.5 w-3.5 mr-1" />
-                        {exam.quiz_ids.length} quizzes
-                      </span>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-500">
-                      This exam combines {exam.quiz_ids.length} {exam.quiz_ids.length === 1 ? 'quiz' : 'quizzes'}.
-                    </p>
-                  </CardContent>
-                  <CardFooter>
-                    <Link href={`/dashboard/learn/exams/${exam.id}`} className="w-full">
-                      <Button className="w-full">
-                        Take Exam
-                      </Button>
-                    </Link>
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
-          )}
+        <TabsContent value="exams" className="space-y-6">
+          <Card className="bg-white shadow-lg border-0">
+            <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-blue-50 to-blue-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl font-semibold text-gray-900 flex items-center">
+                    <FileText className="w-5 h-5 mr-2 text-blue-600" />
+                    Your Exams
+                  </CardTitle>
+                  <CardDescription className="text-gray-600 mt-1">
+                    Test your knowledge with comprehensive practice exams
+                  </CardDescription>
+                </div>
+                <Link href="/dashboard/learn/exams/create">
+                  <Button className="bg-blue-600 hover:bg-blue-700">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Exam
+                  </Button>
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent className="p-8">
+              {exams.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <FileText className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No exams created yet</h3>
+                  <p className="text-gray-500 mb-4">Create comprehensive practice exams by combining your quizzes!</p>
+                  <Link href="/dashboard/learn/exams/create">
+                    <Button className="bg-blue-600 hover:bg-blue-700">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Your First Exam
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {exams.map((exam) => (
+                    <Card key={exam.id} className="hover:shadow-lg transition-all duration-200 border-0 shadow-md">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="line-clamp-2 text-lg font-semibold text-gray-900">
+                          {exam.title}
+                        </CardTitle>
+                        <CardDescription className="text-sm text-gray-600">
+                          {exam.description || 'Practice exam'}
+                        </CardDescription>
+                        <div className="flex flex-wrap gap-x-4 mt-2">
+                          <span className="text-xs text-gray-500 flex items-center">
+                            <Calendar className="h-3 w-3 mr-1" />
+                            {new Date(exam.created_at).toLocaleDateString()}
+                          </span>
+                          <span className="text-xs text-gray-500 flex items-center">
+                            <FileText className="h-3 w-3 mr-1" />
+                            {exam.quiz_ids.length} {exam.quiz_ids.length === 1 ? 'quiz' : 'quizzes'}
+                          </span>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pb-4">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <p className="text-sm text-blue-800">
+                            This exam combines {exam.quiz_ids.length} {exam.quiz_ids.length === 1 ? 'quiz' : 'quizzes'} for comprehensive testing.
+                          </p>
+                        </div>
+                      </CardContent>
+                      <CardFooter className="pt-0">
+                        <Link href={`/dashboard/learn/exams/${exam.id}`} className="w-full">
+                          <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                            <BarChart3 className="w-4 h-4 mr-2" />
+                            Take Exam
+                          </Button>
+                        </Link>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

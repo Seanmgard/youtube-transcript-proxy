@@ -6,7 +6,7 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { useSupabase } from '@/utils/supabase/client';
 import QuizUploader from '@/app/components/QuizUploader';
 import QuizHistory from '@/components/QuizHistory';
-import { Loader2, FileDown, FileText, Send, Download, Check } from 'lucide-react';
+import { Loader2, FileDown, FileText, Send, Download, Check, Upload, Eye, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useToast } from '@/components/ui/use-toast';
@@ -38,6 +38,7 @@ export default function Dashboard() {
   const [currentQuiz, setCurrentQuiz] = useState<any>(null);
   const [streamingText, setStreamingText] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
+  const [quizRestored, setQuizRestored] = useState<boolean>(false);
   const { user } = useAuth();
   const { supabase, loading: supabaseLoading } = useSupabase();
   const [loading, setLoading] = useState(true);
@@ -49,9 +50,31 @@ export default function Dashboard() {
   const [sendingToAnki, setSendingToAnki] = useState(false);
   const [selectedQuizId, setSelectedQuizId] = useState<string | null>(null);
 
+  // Load quiz from localStorage on component mount
   useEffect(() => {
+    const savedQuiz = localStorage.getItem('currentQuiz');
+    if (savedQuiz) {
+      try {
+        const parsedQuiz = JSON.parse(savedQuiz);
+        // Only restore if it's a completed quiz (not loading state)
+        if (parsedQuiz && !parsedQuiz.loading) {
+          setCurrentQuiz(parsedQuiz);
+          setQuizRestored(true);
+        }
+      } catch (error) {
+        console.error('Error parsing saved quiz:', error);
+        localStorage.removeItem('currentQuiz');
+      }
+    }
     setLoading(false);
   }, []);
+
+  // Save quiz to localStorage whenever currentQuiz changes
+  useEffect(() => {
+    if (currentQuiz && !currentQuiz.loading) {
+      localStorage.setItem('currentQuiz', JSON.stringify(currentQuiz));
+    }
+  }, [currentQuiz]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -123,13 +146,25 @@ export default function Dashboard() {
 
   const handleQuizGenerated = (quiz: any) => {
     if (quiz.loading) {
+      // Clear any saved quiz when starting new generation
+      localStorage.removeItem('currentQuiz');
+      setQuizRestored(false);
       setIsStreaming(true);
       setStreamingText('');
       setCurrentQuiz(quiz);
     } else {
       setIsStreaming(false);
       setCurrentQuiz(quiz);
+      setQuizRestored(false);
+      // Quiz will be automatically saved to localStorage by the useEffect
     }
+  };
+
+  // Helper function to clear the current quiz
+  const clearCurrentQuiz = () => {
+    setCurrentQuiz(null);
+    setQuizRestored(false);
+    localStorage.removeItem('currentQuiz');
   };
 
   // New function to handle streaming updates
@@ -462,7 +497,24 @@ export default function Dashboard() {
       <div className="space-y-4">
         {/* Header with title only - export moved to section header */}
         <div className="flex justify-between items-start">
-          <h3 className="text-lg font-semibold text-gray-900">{currentQuiz.title}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-gray-900">{currentQuiz.title}</h3>
+            {quizRestored && (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                Restored
+              </span>
+            )}
+          </div>
+          {quizRestored && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearCurrentQuiz}
+              className="text-gray-500 hover:text-gray-700 text-xs"
+            >
+              Clear Quiz
+            </Button>
+          )}
         </div>
         
         {/* Questions Section */}
@@ -485,7 +537,24 @@ export default function Dashboard() {
               
               <div className="mt-2 ml-4">
                 <span className="text-sm font-medium text-gray-600">Answer: </span>
-                <span className="text-sm text-gray-900">{question.correctAnswer}</span>
+                {question.type === 'multiple_choice' && question.options ? (
+                  (() => {
+                    // Find which option matches the correct answer
+                    const correctIndex = question.options.findIndex((option: string) => 
+                      option.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase()
+                    );
+                    const answerLetter = correctIndex !== -1 ? String.fromCharCode(65 + correctIndex) : '';
+                    
+                    return (
+                      <span className="text-sm text-gray-900">
+                        {answerLetter && <span className="font-semibold">{answerLetter}) </span>}
+                        {question.correctAnswer}
+                      </span>
+                    );
+                  })()
+                ) : (
+                  <span className="text-sm text-gray-900">{question.correctAnswer}</span>
+                )}
               </div>
             </div>
           ))}
@@ -502,110 +571,139 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Welcome back!</h1>
-            <p className="text-gray-600">
-              Upload your materials to generate your quiz.
-              <br />
-              Use the selections below to refine your choices.
-            </p>
+          {/* Enhanced Header Section */}
+          <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 p-6 rounded-xl border border-blue-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold mb-2 text-gray-900">Welcome back!</h1>
+                <p className="text-gray-600">
+                  Upload your materials to generate your quiz.
+                  <br />
+                  Use the selections below to refine your choices.
+                </p>
+              </div>
+              <div className="hidden md:block">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
+                  <FileText className="w-6 h-6 text-white" />
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
-            <div className="p-6 bg-white rounded-lg shadow-md">
-              <h2 className="text-xl font-semibold mb-4">Create New Quiz</h2>
-              <QuizUploader 
-                onQuizGenerated={handleQuizGenerated}
-                onStreamingUpdate={handleStreamingUpdate}
-              />
+            <div className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-green-100">
+                <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                  <Upload className="w-5 h-5 mr-2 text-green-600" />
+                  Create New Quiz
+                </h2>
+              </div>
+              <div className="p-6">
+                <QuizUploader 
+                  onQuizGenerated={handleQuizGenerated}
+                  onStreamingUpdate={handleStreamingUpdate}
+                />
+              </div>
             </div>
 
-            <div className="p-6 bg-white rounded-lg shadow-md">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">Quiz Preview</h2>
-                
-                {/* Export Dropdown Menu - moved here to stay visible */}
-                {currentQuiz && !currentQuiz.loading && currentQuiz.title !== 'Error' && (
-                  <div className="flex-shrink-0">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          disabled={exporting !== null && exporting !== 'success'}
-                          className="flex items-center"
-                        >
-                          {exporting === 'success' ? (
-                            <>
-                              <Check className="mr-2 h-4 w-4 text-green-600" />
-                              Exported
-                            </>
-                          ) : exporting ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Exporting...
-                            </>
-                          ) : (
-                            <>
-                              <FileDown className="mr-2 h-4 w-4" />
-                              Export
-                            </>
-                          )}
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuItem 
-                          onClick={() => handleExport('doc')}
-                          disabled={exporting !== null && exporting !== 'success'}
-                          className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
-                        >
-                          <FileText className="mr-2 h-4 w-4 text-gray-600" />
-                          <div>
-                            <div className="font-medium">Word Document</div>
-                            <div className="text-xs text-gray-500">Download as .docx file</div>
-                          </div>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleExport('csv')}
-                          disabled={exporting !== null && exporting !== 'success'}
-                          className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
-                        >
-                          <Download className="mr-2 h-4 w-4 text-gray-600" />
-                          <div>
-                            <div className="font-medium">CSV Spreadsheet</div>
-                            <div className="text-xs text-gray-500">Download as .csv file</div>
-                          </div>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={handleSendToAnki}
-                          disabled={exporting !== null && exporting !== 'success'}
-                          className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
-                        >
-                          <Send className="mr-2 h-4 w-4 text-gray-600" />
-                          <div>
-                            <div className="font-medium">Anki Export</div>
-                            <div className="text-xs text-gray-500">Send directly to Anki</div>
-                          </div>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                )}
+            <div className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-blue-100">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                    <Eye className="w-5 h-5 mr-2 text-blue-600" />
+                    Quiz Preview
+                  </h2>
+                  
+                  {/* Export Dropdown Menu - moved here to stay visible */}
+                  {currentQuiz && !currentQuiz.loading && currentQuiz.title !== 'Error' && (
+                    <div className="flex-shrink-0">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            disabled={exporting !== null && exporting !== 'success'}
+                            className="flex items-center bg-white hover:bg-blue-50"
+                          >
+                            {exporting === 'success' ? (
+                              <>
+                                <Check className="mr-2 h-4 w-4 text-green-600" />
+                                Exported
+                              </>
+                            ) : exporting ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Exporting...
+                              </>
+                            ) : (
+                              <>
+                                <FileDown className="mr-2 h-4 w-4" />
+                                Export
+                              </>
+                            )}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuItem 
+                            onClick={() => handleExport('doc')}
+                            disabled={exporting !== null && exporting !== 'success'}
+                            className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
+                          >
+                            <FileText className="mr-2 h-4 w-4 text-gray-600" />
+                            <div>
+                              <div className="font-medium">Word Document</div>
+                              <div className="text-xs text-gray-500">Download as .docx file</div>
+                            </div>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleExport('csv')}
+                            disabled={exporting !== null && exporting !== 'success'}
+                            className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
+                          >
+                            <Download className="mr-2 h-4 w-4 text-gray-600" />
+                            <div>
+                              <div className="font-medium">CSV Spreadsheet</div>
+                              <div className="text-xs text-gray-500">Download as .csv file</div>
+                            </div>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={handleSendToAnki}
+                            disabled={exporting !== null && exporting !== 'success'}
+                            className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
+                          >
+                            <Send className="mr-2 h-4 w-4 text-gray-600" />
+                            <div>
+                              <div className="font-medium">Anki Export</div>
+                              <div className="text-xs text-gray-500">Send directly to Anki</div>
+                            </div>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="h-[400px] p-6 bg-white rounded-lg overflow-auto border border-gray-200">
+              <div className="h-[400px] p-6 bg-white overflow-auto border-r-4 border-r-blue-200">
                 {renderQuizContent()}
               </div>
             </div>
           </div>
 
-          <div className="p-6 bg-white rounded-lg shadow-md">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Recent Quizzes</h2>
-              <Link href="/dashboard/history">
-                <Button variant="outline">View All</Button>
-              </Link>
+          <div className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-6 py-4 border-b border-purple-100">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                  <Clock className="w-5 h-5 mr-2 text-purple-600" />
+                  Recent Quizzes
+                </h2>
+                <Link href="/dashboard/history">
+                  <Button variant="outline" className="hover:bg-purple-50">View All</Button>
+                </Link>
+              </div>
             </div>
-            <QuizHistory limit={5} />
+            <div className="p-6">
+              <QuizHistory limit={5} />
+            </div>
           </div>
         </>
       )}
