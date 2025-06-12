@@ -28,8 +28,8 @@ const tiers = [
   {
     name: 'Pro',
     id: 'tier-pro',
-    price: { monthly: '$8', annually: '$80' },
-    description: 'Ideal for serious students and educators who need more capacity.',
+    price: { monthly: '$4', annually: '$40' },
+    description: 'Less than your daily coffee ☕ - unlock unlimited learning potential for serious students and educators.',
     features: [
       'Unlimited PDF uploads',
       'Up to 30 questions per quiz',

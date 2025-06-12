@@ -14,18 +14,60 @@ import {
   User,
   BookOpen,
   Menu,
-  X
+  X,
+  Zap,
+  ArrowRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { QuizCounter } from './QuizCounter';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { useSubscription } from '@/hooks/useSubscription';
 import { createClient } from '@/utils/supabase/client';
 
 interface SidebarProps {
   userEmail?: string;
   userName?: string;
   userAvatar?: string | null;
+}
+
+// Upgrade Reminder Component
+function UpgradeReminder() {
+  const { isOnPlan } = useSubscription();
+  
+  // Don't show if user is already on premium
+  if (isOnPlan('premium')) {
+    return null;
+  }
+
+  return (
+    <div className="mx-4 mb-4">
+      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-3">
+        <div className="flex items-start space-x-2">
+          <div className="flex-shrink-0">
+            <Zap className="h-5 w-5 text-indigo-600 mt-0.5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-indigo-900">
+              Unlock Premium
+            </p>
+            <p className="text-xs text-indigo-700 mt-1 leading-relaxed">
+              Just $4/month ☕ for unlimited uploads and advanced features
+            </p>
+            <Link href="/dashboard/subscription">
+              <Button 
+                size="sm" 
+                className="mt-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-7"
+              >
+                Upgrade Now
+                <ArrowRight className="ml-1 h-3 w-3" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
@@ -195,6 +237,9 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
 
         {/* Quiz Counter */}
         <QuizCounter />
+
+        {/* Upgrade Reminder for Non-Premium Users */}
+        <UpgradeReminder />
 
         {/* User Profile */}
         <div className="p-4 border-t border-gray-200 flex-shrink-0">
