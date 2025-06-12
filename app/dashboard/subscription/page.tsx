@@ -371,9 +371,9 @@ export default function SubscriptionPage() {
     },
     {
       name: 'Premium',
-      price: billingCycle === 'monthly' ? '$8' : '$80',
+      price: billingCycle === 'monthly' ? '$4' : '$40',
       period: billingCycle === 'monthly' ? 'per month' : 'per year',
-      description: 'Ideal for serious students and educators who need more capacity.',
+      description: 'For less than the cost of your daily coffee ☕ - unlock unlimited learning potential for serious students and educators.',
       features: [
         'Unlimited PDF uploads',
         'Up to 30 questions per quiz',

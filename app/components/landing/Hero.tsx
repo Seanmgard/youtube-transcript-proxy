@@ -11,15 +11,28 @@ export function Hero() {
   const [currentQuiz, setCurrentQuiz] = useState<any>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [stepMessage, setStepMessage] = useState('');
 
   const handleQuizGenerated = (quiz: any) => {
     console.log("Quiz generated:", quiz); // Debug log
     // Only update if we have a valid quiz
     if (quiz) {
+      if (quiz.title === 'Generating Quiz...') {
+        // Reset step tracking when starting generation
+        setCurrentStep(0);
+        setStepMessage('');
+      }
       setCurrentQuiz(quiz);
       setCurrentQuestionIndex(0);
       setSelectedAnswer(null);
     }
+  };
+
+  // Function to update progress from child component
+  const handleProgressUpdate = (step: number, message: string) => {
+    setCurrentStep(step);
+    setStepMessage(message);
   };
 
   const handleNextQuestion = () => {
@@ -87,7 +100,7 @@ export function Hero() {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="flex flex-col justify-center"
           >
-            <HomeQuizGenerator onQuizGenerated={handleQuizGenerated} />
+            <HomeQuizGenerator onQuizGenerated={handleQuizGenerated} onProgressUpdate={handleProgressUpdate} />
           </motion.div>
           
           <motion.div 
@@ -103,7 +116,7 @@ export function Hero() {
                   <>
                     <div className="flex items-center justify-between mb-4 sm:mb-6">
                       <div className="text-lg sm:text-xl font-semibold text-gray-900">Example Quiz</div>
-                      <div className="text-xs sm:text-sm text-gray-500">Question 2 of 3</div>
+                      <div className="text-xs sm:text-sm text-gray-500">Question 1 of 2</div>
                     </div>
                     <div className="mb-6 sm:mb-8">
                       <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">
@@ -142,11 +155,57 @@ export function Hero() {
                     </div>
                   </>
                 ) : currentQuiz.title === 'Generating Quiz...' ? (
-                  // Loading state
-                  <div className="flex flex-col items-center justify-center h-64">
-                    <Loader2 className="h-12 w-12 animate-spin text-indigo-600 mb-4" />
-                    <p className="text-lg text-gray-600">Generating your quiz...</p>
-                    <p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
+                  // Loading state with enhanced progress display
+                  <div className="flex flex-col items-center justify-center h-64 p-6">
+                    <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mb-6" />
+                    
+                    {currentStep > 0 && stepMessage ? (
+                      <div className="w-full max-w-sm">
+                        <div className={`p-4 rounded-lg border ${
+                          currentStep >= 3 
+                            ? 'bg-green-50 border-green-200' 
+                            : 'bg-blue-50 border-blue-200'
+                        }`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className={`text-sm font-medium ${
+                              currentStep >= 3 ? 'text-green-900' : 'text-blue-900'
+                            }`}>
+                              Step {currentStep + 1} of 4
+                            </div>
+                            <div className={`text-xs ${
+                              currentStep >= 3 ? 'text-green-600' : 'text-blue-600'
+                            }`}>
+                              {Math.round(((currentStep + 1) / 4) * 100)}%
+                            </div>
+                          </div>
+                          <div className={`text-sm ${
+                            currentStep >= 3 ? 'text-green-800' : 'text-blue-800'
+                          }`}>
+                            {stepMessage}
+                          </div>
+                          
+                          {/* Progress Bar */}
+                          <div className="mt-3">
+                            <div className="w-full bg-gray-200 rounded-full h-1.5">
+                              <div 
+                                className={`h-1.5 rounded-full transition-all duration-500 ease-out ${
+                                  currentStep >= 3 ? 'bg-green-500' : 'bg-blue-500'
+                                }`}
+                                style={{ width: `${((currentStep + 1) / 4) * 100}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 text-center mt-3 italic">
+                          Please wait while we process your PDF...
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <p className="text-lg text-gray-600 mb-2">Generating your quiz...</p>
+                        <p className="text-sm text-gray-500">This may take a few moments</p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   // Generated quiz display

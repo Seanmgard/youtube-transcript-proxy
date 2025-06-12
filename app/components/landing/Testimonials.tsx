@@ -7,7 +7,7 @@ import Image from "next/image";
 // Single testimonial from Rachel Locker
 const testimonial = {
   content: "QuizLab AI has been an absolute game-changer for my studies. As a student in the class of 2026, I'm constantly juggling complex medical concepts, pharmacology, and clinical skills. The AI-generated quizzes help me identify knowledge gaps and reinforce critical information in a fraction of the time it would take to create study materials manually. The ability to instantly generate relevant questions has transformed my study routine.",
-  author: "Rachel Locker",
+  author: "Rachel",
   role: "PA Student, Class of 2026",
   // Replace with the actual path to Rachel's photo once uploaded
   avatar: "/images/rachel-locker.jpg",
