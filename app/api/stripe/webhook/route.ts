@@ -16,37 +16,22 @@ export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   const supabase = await createClient();
-  const stripe = getStripeInstance();
+  const body = await request.text();
+  const headersList = await headers();
+  const signature = headersList.get('stripe-signature') as string;
+
+  let event: Stripe.Event;
 
   try {
-    const body = await request.text();
-    const headersList = await headers();
-    const signature = headersList.get('stripe-signature') || '';
+    const stripe = getStripeInstance();
+    event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET!);
+  } catch (error) {
+    console.error('Webhook signature verification failed:', error);
+    return new NextResponse('Invalid signature', { status: 400 });
+  }
 
-    // Validate webhook signature
-    if (!signature || !process.env.STRIPE_WEBHOOK_SECRET) {
-      console.error('Missing Stripe signature or webhook secret');
-      return new NextResponse('Missing signature or secret', { status: 400 });
-    }
-
-    // Construct and verify the event
-    let event: Stripe.Event;
-    try {
-      event = stripe.webhooks.constructEvent(
-        body,
-        signature,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-    } catch (err) {
-      console.error('Error verifying webhook signature:', err);
-      return new NextResponse('Invalid signature', { status: 400 });
-    }
-
-    console.log(`Processing webhook event: ${event.type}`, {
-      id: event.id,
-      api_version: event.api_version,
-      created: new Date(event.created * 1000).toISOString()
-    });
+  try {
+    console.log('Processing webhook event:', event.type);
 
     // Handle checkout.session.completed event
     if (event.type === 'checkout.session.completed') {
@@ -93,12 +78,14 @@ export async function POST(request: Request) {
         userId = userByEmail.id;
 
         // Update customer metadata with user ID for future reference
+        const stripe = getStripeInstance();
         await stripe.customers.update(session.customer as string, {
           metadata: { userId }
         });
       }
 
       // Retrieve full subscription details
+      const stripe = getStripeInstance();
       const subscription = await stripe.subscriptions.retrieve(
         session.subscription as string,
         {
@@ -142,12 +129,128 @@ export async function POST(request: Request) {
         return new NextResponse('Database update failed', { status: 500 });
       }
 
+      // Handle referral tracking and commission calculation
+      try {
+        // Check if this customer has a promoter associated
+        const customerResponse = await stripe.customers.retrieve(session.customer as string);
+        
+        // Check if customer is deleted
+        if (customerResponse.deleted) {
+          console.log('Customer is deleted, skipping referral processing');
+          return new NextResponse(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+
+        const customer = customerResponse as Stripe.Customer;
+        const promoterId = customer.metadata?.promoterId;
+        const promoCode = customer.metadata?.promoCode;
+
+        if (promoterId && promoCode) {
+          console.log(`Processing referral for promoter ${promoterId} and user ${userId}`);
+
+          // Get the subscription amount
+          const subscriptionAmount = (invoice.amount_paid / 100); // Convert from cents
+
+          // Find the existing referral record
+          const { data: referral, error: referralError } = await supabase
+            .from('referrals')
+            .select('*')
+            .eq('promoter_id', promoterId)
+            .eq('referred_user_id', userId)
+            .eq('promo_code', promoCode)
+            .single();
+
+          if (referral && !referralError) {
+            // Calculate commission (25% of subscription amount)
+            const commissionAmount = subscriptionAmount * 0.25;
+
+            // Update the referral record
+            const { error: updateReferralError } = await supabase
+              .from('referrals')
+              .update({
+                subscription_id: updateData.stripe_subscription_id,
+                subscription_amount: subscriptionAmount,
+                commission_amount: commissionAmount,
+                stripe_subscription_id: subscription.id,
+                status: 'active',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', referral.id);
+
+            if (updateReferralError) {
+              console.error('Error updating referral:', updateReferralError);
+            } else {
+              console.log(`Updated referral with commission: $${commissionAmount} for subscription: ${subscription.id}`);
+            }
+          } else {
+            console.error('Referral record not found for promoter tracking');
+          }
+        }
+      } catch (error) {
+        console.error('Error processing referral:', error);
+        // Don't fail the webhook if referral processing fails
+      }
+
       console.log('Successfully processed subscription:', {
         user_id: userId,
         subscription_id: subscription.id,
         plan_type: planType,
         status: subscription.status
       });
+
+      return new NextResponse(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Handle subscription updates
+    if (event.type === 'customer.subscription.updated') {
+      const subscription = event.data.object as Stripe.Subscription;
+      
+      console.log('Processing subscription update:', {
+        id: subscription.id,
+        customer: subscription.customer,
+        status: subscription.status
+      });
+
+      // Update subscription status in database
+      const { error: updateError } = await supabase
+        .from('subscriptions')
+        .update({
+          status: subscription.status,
+          current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+          current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+          cancel_at_period_end: subscription.cancel_at_period_end,
+          updated_at: new Date().toISOString()
+        })
+        .eq('stripe_subscription_id', subscription.id);
+
+      if (updateError) {
+        console.error('Error updating subscription status:', updateError);
+        return new NextResponse('Database update failed', { status: 500 });
+      }
+
+      // Handle referral status updates
+      if (subscription.status === 'canceled' || subscription.status === 'unpaid') {
+        try {
+          const { error: referralUpdateError } = await supabase
+            .from('referrals')
+            .update({
+              status: 'cancelled',
+              updated_at: new Date().toISOString()
+            })
+            .eq('stripe_subscription_id', subscription.id);
+
+          if (referralUpdateError) {
+            console.error('Error updating referral status:', referralUpdateError);
+          }
+        } catch (error) {
+          console.error('Error updating referral status:', error);
+        }
+      }
 
       return new NextResponse(JSON.stringify({ success: true }), {
         status: 200,
@@ -163,7 +266,7 @@ export async function POST(request: Request) {
     });
 
   } catch (error) {
-    console.error('Webhook error:', error);
-    return new NextResponse('Webhook error', { status: 500 });
+    console.error('Error processing webhook:', error);
+    return new NextResponse('Webhook processing failed', { status: 500 });
   }
 } 

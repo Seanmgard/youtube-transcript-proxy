@@ -61,10 +61,30 @@ export async function POST(request: Request) {
       return new NextResponse('Invalid request body', { status: 400 });
     }
     
-    const { planType, couponId } = body;
+    const { planType, couponId, promoCode } = body;
 
     if (!planType || (planType !== 'premium' && planType !== 'premium_annual')) {
       return new NextResponse('Invalid plan type', { status: 400 });
+    }
+
+    // Validate promo code if provided
+    let promoterId: string | null = null;
+    let commissionRate: number | null = null;
+    
+    if (promoCode) {
+      const { data: promoter, error: promoError } = await supabase
+        .from('promoters')
+        .select('id, commission_rate')
+        .eq('promotion_code', promoCode.toUpperCase())
+        .eq('status', 'active')
+        .single();
+
+      if (promoError || !promoter) {
+        return new NextResponse('Invalid or inactive promo code', { status: 400 });
+      }
+
+      promoterId = promoter.id;
+      commissionRate = promoter.commission_rate;
     }
 
     // Get the price ID for the selected plan
@@ -127,6 +147,7 @@ export async function POST(request: Request) {
           name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || undefined,
           metadata: {
             userId,
+            ...(promoterId && { promoterId, promoCode })
           },
         });
 
@@ -193,7 +214,8 @@ export async function POST(request: Request) {
             await stripe.customers.update(customerId, {
               metadata: {
                 userId,
-                ...customer.metadata
+                ...customer.metadata,
+                ...(promoterId && { promoterId, promoCode })
               }
             });
           }
@@ -215,6 +237,32 @@ export async function POST(request: Request) {
       });
 
       console.log(`Created checkout session: ${checkoutSession.id} for customer: ${customerId}, plan: ${planType}`);
+
+      // If promo code was used, create a referral record
+      if (promoterId && promoCode) {
+        try {
+          const { error: referralError } = await supabase
+            .from('referrals')
+            .insert({
+              promoter_id: promoterId,
+              referred_user_id: userId,
+              promo_code: promoCode.toUpperCase(),
+              commission_rate: commissionRate,
+              status: 'pending'
+            });
+
+          if (referralError) {
+            console.error('Error creating referral record:', referralError);
+            // Don't fail the checkout if referral tracking fails
+          } else {
+            console.log(`Created referral record for promoter ${promoterId} and user ${userId}`);
+          }
+        } catch (error) {
+          console.error('Error creating referral:', error);
+          // Don't fail the checkout if referral tracking fails
+        }
+      }
+
       return NextResponse.json({ url: checkoutSession.url });
     } catch (error) {
       console.error('Error creating checkout session:', error);

@@ -10,6 +10,7 @@ import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { PromoCodeInput } from '@/components/PromoCodeInput';
 
 export default function SubscriptionPage() {
   const { 
@@ -30,6 +31,7 @@ export default function SubscriptionPage() {
   const [authChecking, setAuthChecking] = useState(true);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [refreshing, setRefreshing] = useState(false);
+  const [promoCode, setPromoCode] = useState<string | null>(null);
   
   // Create refs for tracking effect execution
   const stripeRedirectEffectRan = useRef(false);
@@ -340,7 +342,15 @@ export default function SubscriptionPage() {
   }, [fetchSubscription, toast, router]);
   
   const handleUpgrade = async (plan: 'premium' | 'premium_annual') => {
-    await createCheckoutSession(plan);
+    await createCheckoutSession(plan, promoCode || undefined);
+  };
+  
+  const handlePromoCodeValid = (code: string, promoterInfo: any) => {
+    setPromoCode(code);
+  };
+  
+  const handlePromoCodeClear = () => {
+    setPromoCode(null);
   };
   
   const handleManageSubscription = async () => {
@@ -619,6 +629,17 @@ export default function SubscriptionPage() {
           )}
         </div>
       </div>
+
+      {/* Promo Code Input */}
+      {!isOnPlan('premium') && (
+        <div className="max-w-md mx-auto mb-6">
+          <PromoCodeInput
+            onValidCode={handlePromoCodeValid}
+            onClearCode={handlePromoCodeClear}
+            disabled={isLoading || refreshing}
+          />
+        </div>
+      )}
       
       <div className="grid gap-6 md:grid-cols-2">
         {plans.map((plan) => (

@@ -85,7 +85,21 @@ export async function createCustomerPortalSession({
 
 // Get a price ID based on the plan type
 export function getPriceId(planType: 'premium' | 'premium_annual') {
-  return PRICE_IDS[planType];
+  const priceId = PRICE_IDS[planType];
+  
+  // Add debugging to help identify the issue
+  console.log(`Getting price ID for plan: ${planType}`);
+  console.log(`Environment variables:`, {
+    premium: process.env.STRIPE_PREMIUM_PLAN_PRICE_ID,
+    premium_annual: process.env.STRIPE_PREMIUM_ANNUAL_PLAN_PRICE_ID
+  });
+  console.log(`Resolved price ID: ${priceId}`);
+  
+  if (!priceId) {
+    console.error(`No price ID found for plan type: ${planType}. Check your environment variables.`);
+  }
+  
+  return priceId;
 }
 
 // Get a subscription from Stripe

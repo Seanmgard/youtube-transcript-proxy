@@ -232,7 +232,7 @@ export function useSubscription() {
   }, [user, subscription, toast]);
 
   // Create a checkout session for upgrading
-  const createCheckoutSession = async (planType: PlanType, couponId?: string) => {
+  const createCheckoutSession = async (planType: PlanType, couponId?: string, promoCode?: string) => {
     try {
       setIsLoading(true);
       
@@ -263,6 +263,7 @@ export function useSubscription() {
         body: JSON.stringify({
           planType,
           couponId,
+          promoCode,
           userId: user.id
         })
       });
