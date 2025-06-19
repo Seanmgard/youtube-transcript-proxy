@@ -495,7 +495,7 @@ export default function Dashboard() {
 
     return (
       <div className="space-y-4">
-        {/* Header with title only - export moved to section header */}
+        {/* Header with title and clear button */}
         <div className="flex justify-between items-start">
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold text-gray-900">{currentQuiz.title}</h3>
@@ -505,16 +505,14 @@ export default function Dashboard() {
               </span>
             )}
           </div>
-          {quizRestored && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearCurrentQuiz}
-              className="text-gray-500 hover:text-gray-700 text-xs"
-            >
-              Clear Quiz
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearCurrentQuiz}
+            className="text-gray-500 hover:text-gray-700 text-xs"
+          >
+            Clear Quiz
+          </Button>
         </div>
         
         {/* Questions Section */}
@@ -698,7 +696,7 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
-              <div className="h-[400px] p-4 sm:p-6 bg-white overflow-auto border-r-4 border-r-blue-200">
+              <div className="h-[500px] p-4 sm:p-6 bg-white overflow-y-auto border-r-4 border-r-blue-200">
                 {renderQuizContent()}
               </div>
             </div>
