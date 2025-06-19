@@ -590,15 +590,15 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 lg:grid-cols-2">
             <div className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden">
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-green-100">
-                <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 sm:px-6 py-4 border-b border-green-100">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center">
                   <Upload className="w-5 h-5 mr-2 text-green-600" />
                   Create New Quiz
                 </h2>
               </div>
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 <QuizUploader 
                   onQuizGenerated={handleQuizGenerated}
                   onStreamingUpdate={handleStreamingUpdate}
@@ -607,83 +607,98 @@ export default function Dashboard() {
             </div>
 
             <div className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-blue-100">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-                    <Eye className="w-5 h-5 mr-2 text-blue-600" />
-                    Quiz Preview
-                  </h2>
-                  
-                  {/* Export Dropdown Menu - moved here to stay visible */}
-                  {currentQuiz && !currentQuiz.loading && currentQuiz.title !== 'Error' && (
-                    <div className="flex-shrink-0">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            disabled={exporting !== null && exporting !== 'success'}
-                            className="flex items-center bg-white hover:bg-blue-50"
-                          >
-                            {exporting === 'success' ? (
-                              <>
-                                <Check className="mr-2 h-4 w-4 text-green-600" />
-                                Exported
-                              </>
-                            ) : exporting ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Exporting...
-                              </>
-                            ) : (
-                              <>
-                                <FileDown className="mr-2 h-4 w-4" />
-                                Export
-                              </>
-                            )}
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56">
-                          <DropdownMenuItem 
-                            onClick={() => handleExport('doc')}
-                            disabled={exporting !== null && exporting !== 'success'}
-                            className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
-                          >
-                            <FileText className="mr-2 h-4 w-4 text-gray-600" />
-                            <div>
-                              <div className="font-medium">Word Document</div>
-                              <div className="text-xs text-gray-500">Download as .docx file</div>
-                            </div>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleExport('csv')}
-                            disabled={exporting !== null && exporting !== 'success'}
-                            className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
-                          >
-                            <Download className="mr-2 h-4 w-4 text-gray-600" />
-                            <div>
-                              <div className="font-medium">CSV Spreadsheet</div>
-                              <div className="text-xs text-gray-500">Download as .csv file</div>
-                            </div>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={handleSendToAnki}
-                            disabled={exporting !== null && exporting !== 'success'}
-                            className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
-                          >
-                            <Send className="mr-2 h-4 w-4 text-gray-600" />
-                            <div>
-                              <div className="font-medium">Anki Export</div>
-                              <div className="text-xs text-gray-500">Send directly to Anki</div>
-                            </div>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 border-b border-blue-100 overflow-hidden">
+                <div className="min-w-0 w-full">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    {/* Title - with overflow protection */}
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-base sm:text-lg lg:text-xl font-semibold text-gray-900 flex items-center truncate">
+                        <Eye className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-blue-600 flex-shrink-0" />
+                        <span className="truncate">Quiz Preview</span>
+                      </h2>
                     </div>
-                  )}
+                    
+                    {/* Export Button - with strict width constraints */}
+                    {currentQuiz && !currentQuiz.loading && currentQuiz.title !== 'Error' && (
+                      <div className="flex-shrink-0 w-full sm:w-auto sm:max-w-[120px] lg:max-w-none relative">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              disabled={exporting !== null && exporting !== 'success'}
+                              className="w-full sm:w-auto bg-white hover:bg-blue-50 text-xs sm:text-sm px-2 sm:px-3 h-8"
+                            >
+                              {exporting === 'success' ? (
+                                <>
+                                  <Check className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1 text-green-600" />
+                                  <span className="hidden sm:inline ml-1">Exported</span>
+                                  <span className="sm:hidden">✓</span>
+                                </>
+                              ) : exporting ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1 animate-spin" />
+                                  <span className="hidden sm:inline ml-1">Exporting...</span>
+                                  <span className="sm:hidden">...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <FileDown className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                                  <span className="hidden sm:inline ml-1">Export</span>
+                                  <span className="sm:hidden">Export</span>
+                                </>
+                              )}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent 
+                            align="start" 
+                            side="bottom"
+                            sideOffset={4}
+                            alignOffset={-800}
+                            className="w-48 sm:w-56 z-[9999]"
+                            avoidCollisions={true}
+                          >
+                            <DropdownMenuItem 
+                              onClick={() => handleExport('doc')}
+                              disabled={exporting !== null && exporting !== 'success'}
+                              className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
+                            >
+                              <FileText className="mr-2 h-4 w-4 text-gray-600" />
+                              <div>
+                                <div className="font-medium">Word Document</div>
+                                <div className="text-xs text-gray-500">Download as .docx file</div>
+                              </div>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleExport('csv')}
+                              disabled={exporting !== null && exporting !== 'success'}
+                              className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
+                            >
+                              <Download className="mr-2 h-4 w-4 text-gray-600" />
+                              <div>
+                                <div className="font-medium">CSV Spreadsheet</div>
+                                <div className="text-xs text-gray-500">Download as .csv file</div>
+                              </div>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={handleSendToAnki}
+                              disabled={exporting !== null && exporting !== 'success'}
+                              className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 rounded-md"
+                            >
+                              <Send className="mr-2 h-4 w-4 text-gray-600" />
+                              <div>
+                                <div className="font-medium">Anki Export</div>
+                                <div className="text-xs text-gray-500">Send directly to Anki</div>
+                              </div>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="h-[400px] p-6 bg-white overflow-auto border-r-4 border-r-blue-200">
+              <div className="h-[400px] p-4 sm:p-6 bg-white overflow-auto border-r-4 border-r-blue-200">
                 {renderQuizContent()}
               </div>
             </div>

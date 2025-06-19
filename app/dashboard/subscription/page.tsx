@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { CreditCard, Check, X, AlertCircle, Loader2, Calendar } from 'lucide-react';
@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { PromoCodeInput } from '@/components/PromoCodeInput';
 
-export default function SubscriptionPage() {
+function SubscriptionPageContent() {
   const { 
     subscription, 
     isLoading, 
@@ -814,5 +814,13 @@ export default function SubscriptionPage() {
         </Button>
       </div>
     </div>
+  );
+}
+
+export default function SubscriptionPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SubscriptionPageContent />
+    </Suspense>
   );
 } 

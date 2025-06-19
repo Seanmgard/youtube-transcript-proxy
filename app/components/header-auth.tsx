@@ -5,6 +5,9 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { createClient } from "@/utils/supabase/server";
 
+// Force dynamic rendering to avoid cookies error during build
+export const dynamic = 'force-dynamic';
+
 export default async function AuthButton() {
   const supabase = await createClient();
 

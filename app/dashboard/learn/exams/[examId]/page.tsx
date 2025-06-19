@@ -220,7 +220,48 @@ export default function TakeExamPage() {
       
       allQuestions.forEach(question => {
         const userAnswer = userAnswers[question.id] || '';
-        const isCorrect = userAnswer === question.correctAnswer;
+        
+        let isCorrect = false;
+        
+        if (question.type === 'multiple_choice' && question.options) {
+          // For multiple choice, we need to handle different ways the correct answer might be stored
+          
+          // First, try direct match with the correct answer text
+          if (userAnswer === question.correctAnswer) {
+            isCorrect = true;
+          } else {
+            // If no direct match, check if the correct answer is stored as a letter (A, B, C, D)
+            // and find the corresponding option
+            const letterMatch = question.correctAnswer.match(/^([A-D])\)/);
+            if (letterMatch) {
+              const letterIndex = letterMatch[1].charCodeAt(0) - 65; // A=0, B=1, etc.
+              if (question.options[letterIndex] === userAnswer) {
+                isCorrect = true;
+              }
+            } else {
+              // Check if userAnswer matches any option and that option contains the correct answer
+              const selectedOptionIndex = question.options.findIndex(option => option === userAnswer);
+              if (selectedOptionIndex !== -1) {
+                // Check if the selected option text matches the correct answer text
+                const cleanUserAnswer = userAnswer.trim().toLowerCase();
+                const cleanCorrectAnswer = question.correctAnswer.trim().toLowerCase();
+                
+                // Remove letter prefixes if they exist (like "A) " or "a) ")
+                const cleanedCorrectAnswer = cleanCorrectAnswer.replace(/^[a-d]\)\s*/i, '');
+                const cleanedUserAnswer = cleanUserAnswer.replace(/^[a-d]\)\s*/i, '');
+                
+                if (cleanedUserAnswer === cleanedCorrectAnswer) {
+                  isCorrect = true;
+                }
+              }
+            }
+          }
+        } else {
+          // For open-ended questions, use case-insensitive comparison
+          const cleanUserAnswer = userAnswer.trim().toLowerCase();
+          const cleanCorrectAnswer = question.correctAnswer.trim().toLowerCase();
+          isCorrect = cleanUserAnswer === cleanCorrectAnswer;
+        }
         
         if (isCorrect) {
           score++;
@@ -384,26 +425,54 @@ export default function TakeExamPage() {
                     <div className="space-y-2 text-sm">
                       {question.type === 'multiple_choice' && question.options && (
                         <div className="mt-2">
-                          {question.options.map((option, optionIndex) => (
-                            <div 
-                              key={optionIndex} 
-                              className={`p-2 rounded-md mb-1 ${
-                                option === result.correct_answer 
-                                  ? 'bg-green-100 border border-green-300 text-green-800' 
-                                  : option === result.user_answer && option !== result.correct_answer
-                                    ? 'bg-red-100 border border-red-300 text-red-800'
-                                    : 'bg-gray-100 border border-gray-300 text-gray-800'
-                              }`}
-                            >
-                              {option}
-                              {option === result.correct_answer && (
-                                <span className="ml-2 text-green-600">✓ Correct answer</span>
-                              )}
-                              {option === result.user_answer && option !== result.correct_answer && (
-                                <span className="ml-2 text-red-600">✗ Your answer</span>
-                              )}
-                            </div>
-                          ))}
+                          {question.options.map((option, optionIndex) => {
+                            // Determine if this option is the correct answer
+                            let isCorrectOption = false;
+                            
+                            // Check direct match first
+                            if (option === result.correct_answer) {
+                              isCorrectOption = true;
+                            } else {
+                              // Check if correct answer is stored as a letter (A, B, C, D)
+                              const letterMatch = result.correct_answer.match(/^([A-D])\)/);
+                              if (letterMatch) {
+                                const letterIndex = letterMatch[1].charCodeAt(0) - 65; // A=0, B=1, etc.
+                                if (optionIndex === letterIndex) {
+                                  isCorrectOption = true;
+                                }
+                              } else {
+                                // Check if option text matches correct answer text (case insensitive, ignoring letter prefixes)
+                                const cleanOption = option.trim().toLowerCase().replace(/^[a-d]\)\s*/i, '');
+                                const cleanCorrectAnswer = result.correct_answer.trim().toLowerCase().replace(/^[a-d]\)\s*/i, '');
+                                if (cleanOption === cleanCorrectAnswer) {
+                                  isCorrectOption = true;
+                                }
+                              }
+                            }
+                            
+                            const isUserSelected = option === result.user_answer;
+                            
+                            return (
+                              <div 
+                                key={optionIndex} 
+                                className={`p-2 rounded-md mb-1 ${
+                                  isCorrectOption
+                                    ? 'bg-green-100 border border-green-300 text-green-800' 
+                                    : isUserSelected && !isCorrectOption
+                                      ? 'bg-red-100 border border-red-300 text-red-800'
+                                      : 'bg-gray-100 border border-gray-300 text-gray-800'
+                                }`}
+                              >
+                                {option}
+                                {isCorrectOption && (
+                                  <span className="ml-2 text-green-600">✓ Correct answer</span>
+                                )}
+                                {isUserSelected && !isCorrectOption && (
+                                  <span className="ml-2 text-red-600">✗ Your answer</span>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                       {question.type === 'open_ended' && (
