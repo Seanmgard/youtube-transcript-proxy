@@ -423,8 +423,8 @@ export async function POST(request: Request) {
             });
           }
           
-          // Step A: Upload the PDF to OpenAI
-          sendJson({ type: 'info', message: 'Uploading your PDF...' });
+          // Step A: Upload the document to OpenAI
+          sendJson({ type: 'info', message: 'Uploading your document...' });
           
           // Create a new FormData instance
           const uploadFormData = new FormData();
@@ -446,7 +446,7 @@ export async function POST(request: Request) {
           }
 
           const fileUpload = await response.json();
-          sendJson({ type: 'info', message: `PDF uploaded successfully` });
+          sendJson({ type: 'info', message: `Document uploaded successfully` });
 
           // Step B: Create a vector store using direct HTTP call
           sendJson({ type: 'info', message: 'Preparing document for analysis...' });
@@ -533,8 +533,8 @@ CRITICAL REQUIREMENTS - FOLLOW EXACTLY:
 ${questionTypeInstructions}
 
 CONTENT STRATEGY:
-- For regular quiz mode: Create questions based on the PDF content, focus on key concepts and important details
-- For language learning mode: Extract key vocabulary or sentences from the PDF, provide accurate translations
+- For regular quiz mode: Create questions based on the document content, focus on key concepts and important details
+- For language learning mode: Extract key vocabulary or sentences from the document, provide accurate translations
 - If running low on unique content, create questions that test understanding and application of the material
 - Ensure variety in question topics and difficulty within the specified level
 
@@ -553,7 +553,7 @@ Return only valid JSON with no formatting or explanations.`,
           // Step E: Create the thread (the "prompt") with enhanced instructions
           let promptContent = '';
           if (settings.isLanguageLearning) {
-            promptContent = `Extract EXACTLY ${settings.numberOfQuestions} ${settings.extractionType} from the PDF. Source: ${settings.sourceLanguage}, Target: ${settings.targetLanguage}. 
+            promptContent = `Extract EXACTLY ${settings.numberOfQuestions} ${settings.extractionType} from the document. Source: ${settings.sourceLanguage}, Target: ${settings.targetLanguage}. 
 
 MANDATORY REQUIREMENT: Generate exactly ${settings.numberOfQuestions} items - count them carefully: 1, 2, 3... up to ${settings.numberOfQuestions}!
 
@@ -575,7 +575,7 @@ VERIFICATION: Your questions array must contain exactly ${settings.numberOfQuest
               exampleFormat = '{"text":"Question?","type":"multiple_choice","options":["A","B","C","D"],"correctAnswer":"A"} OR {"text":"Question?","type":"open_ended","correctAnswer":"Complete answer"}';
             }
             
-            promptContent = `Create EXACTLY ${settings.numberOfQuestions} questions from the PDF. Difficulty: ${settings.difficulty}. 
+            promptContent = `Create EXACTLY ${settings.numberOfQuestions} questions from the document. Difficulty: ${settings.difficulty}. 
 
 MANDATORY REQUIREMENT: Generate exactly ${settings.numberOfQuestions} questions - count them carefully: 1, 2, 3... up to ${settings.numberOfQuestions}!
 
@@ -621,7 +621,7 @@ Your questions array must contain exactly ${settings.numberOfQuestions} elements
 
           // Parse and validate the response
           const parsed = parseAssistantResponse(responseText, settings.numberOfQuestions, settings);
-          const quizTitle = parsed.title || file.name.replace('.pdf', '');
+          const quizTitle = parsed.title || file.name.replace(/\.(pdf|docx?|pptx?)$/i, '');
           let questions = parsed.questions || [];
 
           // Final validation - this should now always pass due to our enhanced logic

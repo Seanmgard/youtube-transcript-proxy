@@ -2,8 +2,8 @@ import { createClient } from './supabase/client';
 import { QuizSettings } from '@/lib/types';
 
 /**
- * Generates a quiz from a PDF file
- * @param file The PDF file to generate a quiz from
+ * Generates a quiz from a document file
+ * @param file The document file (PDF, Word, or PowerPoint) to generate a quiz from
  * @param settings The quiz generation settings
  * @returns A ReadableStream for handling the streaming response
  */

@@ -40,10 +40,18 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
-    if (selectedFile.type !== 'application/pdf') {
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+      'application/msword', // .doc
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+      'application/vnd.ms-powerpoint' // .ppt
+    ];
+
+    if (!allowedTypes.includes(selectedFile.type)) {
       toast({
         title: 'Invalid file type',
-        description: 'Please upload a PDF file',
+        description: 'Please upload a PDF, Word document (.doc/.docx), or PowerPoint presentation (.ppt/.pptx)',
         variant: 'destructive',
       });
       return;
@@ -195,8 +203,9 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
       {/* File Upload */}
       <form onSubmit={handleSubmit} className="mb-4 sm:mb-6">
         <div className="mb-4">
-          <Label htmlFor="pdf-upload" className="text-sm sm:text-base text-gray-900">Drop files here to upload</Label>
-          <Input id="pdf-upload" type="file" accept=".pdf" onChange={handleFileChange} className="mt-1" />
+          <Label htmlFor="file-upload" className="text-sm sm:text-base text-gray-900">Drop files here to upload</Label>
+          <Input id="file-upload" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" onChange={handleFileChange} className="mt-1" />
+          <p className="text-xs text-gray-500 mt-1">Supported: PDF, Word, PowerPoint</p>
         </div>
         
         <Button

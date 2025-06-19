@@ -50,15 +50,22 @@ export default function QuizUploader() {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
-    if (selectedFile.type !== 'application/pdf') {
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+      'application/msword', // .doc
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+      'application/vnd.ms-powerpoint' // .ppt
+    ];
+
+    if (!allowedTypes.includes(selectedFile.type)) {
       toast({
         title: 'Invalid file type',
-        description: 'Please upload a PDF file',
+        description: 'Please upload a PDF, Word document (.doc/.docx), or PowerPoint presentation (.ppt/.pptx)',
         variant: 'destructive',
       });
       return;
     }
-    // optional: check size <= 25MB
 
     setFile(selectedFile);
     setGeneratedQuiz(null);
@@ -75,13 +82,27 @@ export default function QuizUploader() {
             </div>
             {q.type === 'multiple_choice' && q.options && (
               <ul className="mt-2 space-y-1">
-                {q.options.map((opt: string, idx: number) => (
-                  <li key={idx} className="flex items-center">
-                    <span className={`${opt === q.correctAnswer ? 'bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md' : ''}`}>
-                      • {opt}
-                    </span>
-                  </li>
-                ))}
+                {q.options.map((opt: string, idx: number) => {
+                  // Check if this option is the correct answer using multiple strategies
+                  let isCorrect = opt === q.correctAnswer;
+                  
+                  if (!isCorrect) {
+                    // Check if correctAnswer is just a letter (A, B, C, D)
+                    const answerLetter = q.correctAnswer.trim().toUpperCase();
+                    if (answerLetter.match(/^[A-D]$/)) {
+                      const letterIndex = answerLetter.charCodeAt(0) - 65;
+                      isCorrect = idx === letterIndex;
+                    }
+                  }
+                  
+                  return (
+                    <li key={idx} className="flex items-center">
+                      <span className={`${isCorrect ? 'bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md' : ''}`}>
+                        • {opt}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
             {q.correctAnswer && q.type !== 'multiple_choice' && (
@@ -283,8 +304,9 @@ export default function QuizUploader() {
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {/* File Upload */}
         <div className="md:col-span-4">
-          <Label htmlFor="pdf-upload">Upload PDF</Label>
-          <Input id="pdf-upload" type="file" accept=".pdf" onChange={handleFileChange} className="mt-1" />
+          <Label htmlFor="file-upload">Upload Document</Label>
+          <Input id="file-upload" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" onChange={handleFileChange} className="mt-1" />
+          <p className="text-xs text-gray-500 mt-1">Supported formats: PDF, Word (.doc/.docx), PowerPoint (.ppt/.pptx)</p>
         </div>
 
         {/* Number of Questions */}

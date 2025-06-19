@@ -688,13 +688,27 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                 </p>
                 {question.type === 'multiple_choice' && question.options && (
                   <ul className="space-y-1 ml-6">
-                    {question.options.map((option, optIndex) => (
-                      <li key={optIndex} className="flex items-start">
-                        <span className={`${option === question.correctAnswer ? 'bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md' : ''}`}>
-                          • {option}
-                        </span>
-                      </li>
-                    ))}
+                    {question.options.map((option, optIndex) => {
+                      // Check if this option is the correct answer using multiple strategies
+                      let isCorrect = option === question.correctAnswer;
+                      
+                      if (!isCorrect) {
+                        // Check if correctAnswer is just a letter (A, B, C, D)
+                        const answerLetter = question.correctAnswer.trim().toUpperCase();
+                        if (answerLetter.match(/^[A-D]$/)) {
+                          const letterIndex = answerLetter.charCodeAt(0) - 65;
+                          isCorrect = optIndex === letterIndex;
+                        }
+                      }
+                      
+                      return (
+                        <li key={optIndex} className="flex items-start">
+                          <span className={`${isCorrect ? 'bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md' : ''}`}>
+                            • {option}
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
                 {question.correctAnswer && question.type !== 'multiple_choice' && (

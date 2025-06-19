@@ -537,16 +537,41 @@ export default function Dashboard() {
                 <span className="text-sm font-medium text-gray-600">Answer: </span>
                 {question.type === 'multiple_choice' && question.options ? (
                   (() => {
-                    // Find which option matches the correct answer
-                    const correctIndex = question.options.findIndex((option: string) => 
+                    // Try to find the correct answer using multiple matching strategies
+                    let correctIndex = -1;
+                    let correctText = question.correctAnswer;
+                    
+                    // Strategy 1: Direct match with full option text
+                    correctIndex = question.options.findIndex((option: string) => 
                       option.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase()
                     );
+                    
+                    // Strategy 2: If correctAnswer is just a letter (A, B, C, D), convert to index
+                    if (correctIndex === -1) {
+                      const answerLetter = question.correctAnswer.trim().toUpperCase();
+                      if (answerLetter.match(/^[A-D]$/)) {
+                        correctIndex = answerLetter.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
+                        if (correctIndex >= 0 && correctIndex < question.options.length) {
+                          correctText = question.options[correctIndex];
+                        }
+                      }
+                    }
+                    
+                    // Strategy 3: If correctAnswer starts with a letter and parenthesis, extract the option
+                    if (correctIndex === -1) {
+                      const letterMatch = question.correctAnswer.match(/^([A-D])\)\s*(.+)$/i);
+                      if (letterMatch) {
+                        correctIndex = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
+                        correctText = letterMatch[2];
+                      }
+                    }
+                    
                     const answerLetter = correctIndex !== -1 ? String.fromCharCode(65 + correctIndex) : '';
                     
                     return (
                       <span className="text-sm text-gray-900">
                         {answerLetter && <span className="font-semibold">{answerLetter}) </span>}
-                        {question.correctAnswer}
+                        {correctText}
                       </span>
                     );
                   })()
