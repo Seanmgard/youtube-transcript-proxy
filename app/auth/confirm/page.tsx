@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import Link from 'next/link'
@@ -8,7 +8,7 @@ import { createClient } from '@/utils/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Mail, ArrowLeft } from 'lucide-react'
 
-export default function ConfirmPage() {
+function ConfirmPageContent() {
   const [isResending, setIsResending] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
@@ -130,5 +130,26 @@ export default function ConfirmPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ConfirmPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="w-full max-w-md space-y-8">
+          <div className="text-center">
+            <div className="mx-auto h-24 w-24 bg-blue-100 rounded-full flex items-center justify-center mb-6">
+              <Mail className="h-12 w-12 text-blue-600" />
+            </div>
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900">
+              Loading...
+            </h2>
+          </div>
+        </div>
+      </div>
+    }>
+      <ConfirmPageContent />
+    </Suspense>
   );
 } 

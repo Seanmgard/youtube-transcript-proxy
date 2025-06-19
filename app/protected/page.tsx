@@ -2,6 +2,9 @@ import { createClient } from "@/utils/supabase/server";
 import { InfoIcon } from "lucide-react";
 import { redirect } from "next/navigation";
 
+// Force dynamic rendering to avoid cookies error during build
+export const dynamic = 'force-dynamic';
+
 export default async function ProtectedPage() {
   const supabase = await createClient();
 
