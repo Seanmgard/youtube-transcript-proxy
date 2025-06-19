@@ -16,6 +16,7 @@ const AUTH_ROUTES = [
   '/auth/sign-in',
   '/auth/sign-up',
   '/auth/forgot-password',
+  '/auth/confirm',
 ];
 
 const CALLBACK_ROUTES = [

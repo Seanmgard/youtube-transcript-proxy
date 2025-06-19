@@ -92,7 +92,7 @@ export default function SignUp() {
       // Get the Supabase client - properly awaited
       const supabase = await createClient();
       
-      // Use direct Supabase auth
+      // Use direct Supabase auth with email confirmation redirect
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -100,6 +100,7 @@ export default function SignUp() {
           data: {
             first_name: firstName,
           },
+          emailRedirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent('/dashboard')}`,
         },
       })
       
@@ -124,15 +125,30 @@ export default function SignUp() {
           // Continue anyway - the profile might be created by a trigger
         }
         
-        toast({
-          title: 'Account created successfully',
-          description: 'Please check your email to confirm your account.',
-        })
-        
-        // Add a delay before redirecting
-        setTimeout(() => {
-          router.push('/sign-in')
-        }, 1000)
+        // Check if email confirmation is required
+        if (!data.session) {
+          // Email confirmation required
+          toast({
+            title: 'Account created successfully!',
+            description: 'Please check your email and click the confirmation link to complete your signup.',
+          })
+          
+          // Stay on the sign-up page or redirect to a confirmation page
+          setTimeout(() => {
+            router.push('/auth/confirm?email=' + encodeURIComponent(email))
+          }, 2000)
+        } else {
+          // User is automatically signed in (email confirmation disabled)
+          toast({
+            title: 'Account created successfully!',
+            description: 'Welcome to QuizLab AI!',
+          })
+          
+          // Redirect to dashboard
+          setTimeout(() => {
+            router.push('/dashboard')
+          }, 1000)
+        }
       }
     } catch (error: any) {
       toast({

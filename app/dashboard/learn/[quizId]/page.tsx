@@ -574,7 +574,28 @@ export default function LearnQuizPage() {
             <h3 className="font-medium text-sm text-gray-700 mb-1">Answer</h3>
             
             <div className="flex-grow flex items-center justify-center">
-              <p className="text-sm font-medium text-gray-900">{currentQuestion?.correctAnswer}</p>
+              {currentQuestion?.type === 'multiple_choice' && currentQuestion?.options ? (
+                (() => {
+                  // Find which option matches the correct answer
+                  const correctIndex = currentQuestion.options.findIndex((option: string) => 
+                    option.trim().toLowerCase() === currentQuestion.correctAnswer.trim().toLowerCase()
+                  );
+                  const answerLetter = correctIndex !== -1 ? String.fromCharCode(65 + correctIndex) : '';
+                  
+                  return (
+                    <div className="text-center">
+                      {answerLetter && (
+                        <div className="text-lg font-bold text-blue-600 mb-2">
+                          {answerLetter})
+                        </div>
+                      )}
+                      <p className="text-sm font-medium text-gray-900">{currentQuestion.correctAnswer}</p>
+                    </div>
+                  );
+                })()
+              ) : (
+                <p className="text-sm font-medium text-gray-900">{currentQuestion?.correctAnswer}</p>
+              )}
             </div>
             
             <div className="mt-4 text-center text-xs text-gray-500">
