@@ -61,14 +61,20 @@ export async function POST(request: Request): Promise<NextResponse> {
       onUploadCompleted: async ({ blob, tokenPayload }) => {
         console.log('blob upload completed', blob, tokenPayload);
         try {
-          const payload = JSON.parse(tokenPayload);
-          console.log('File uploaded:', {
-            url: blob.url,
-            size: blob.size,
-            userId: payload.userId,
-            extension: payload.fileExtension,
-            filename: payload.originalFilename
-          });
+          if (tokenPayload) {
+            const payload = JSON.parse(tokenPayload);
+            console.log('File uploaded:', {
+              url: blob.url,
+              userId: payload.userId,
+              extension: payload.fileExtension,
+              filename: payload.originalFilename
+            });
+          } else {
+            console.log('File uploaded:', {
+              url: blob.url,
+              note: 'No token payload available'
+            });
+          }
         } catch (e) {
           console.error('Error parsing tokenPayload:', e);
         }
