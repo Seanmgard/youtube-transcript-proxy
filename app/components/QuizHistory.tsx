@@ -208,9 +208,13 @@ export default function QuizHistory({ limit }: { limit?: number }) {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
       
+      // Professional success notification
+      const formatName = format === 'doc' ? 'Word Document' : format === 'csv' ? 'CSV File' : format.toUpperCase();
       toast({
-        title: "Export successful",
-        description: `Your quiz has been exported as ${format.toUpperCase()}`,
+        title: "✅ Export Completed",
+        description: `${quiz.title} has been exported as ${formatName}. Check your downloads folder.`,
+        className: "border-green-200 bg-green-50 text-green-900",
+        duration: 4000,
       })
     } catch (error) {
       console.error('Error exporting quiz:', error)
@@ -276,8 +280,10 @@ export default function QuizHistory({ limit }: { limit?: number }) {
       setCategorizingQuiz(null);
       
       toast({
-        title: 'Success',
-        description: 'Quiz categorized successfully',
+        title: "📚 Quiz Categorized",
+        description: `${categorizingQuiz.title} has been successfully organized under "${editSubject?.name}" subject.`,
+        className: "border-green-200 bg-green-50 text-green-900",
+        duration: 3000,
       });
     } catch (error) {
       console.error('Error categorizing quiz:', error);
@@ -323,8 +329,10 @@ export default function QuizHistory({ limit }: { limit?: number }) {
       setQuizToDelete(null);
       
       toast({
-        title: 'Success',
-        description: 'Quiz deleted successfully',
+        title: "🗑️ Quiz Deleted",
+        description: `${quiz.title} has been permanently removed from your library.`,
+        className: "border-green-200 bg-green-50 text-green-900",
+        duration: 3000,
       });
     } catch (error) {
       console.error('Error deleting quiz:', error);
@@ -354,8 +362,10 @@ export default function QuizHistory({ limit }: { limit?: number }) {
       }
       
       toast({
-        title: 'Question deleted',
-        description: 'The question has been removed from the quiz.',
+        title: "❌ Question Removed",
+        description: "The question has been successfully removed from the quiz.",
+        className: "border-orange-200 bg-orange-50 text-orange-900",
+        duration: 3000,
       });
     } else {
       toast({
@@ -397,8 +407,10 @@ export default function QuizHistory({ limit }: { limit?: number }) {
       setCurrentQuestionIndex(updatedQuestions.length - 1);
       
       toast({
-        title: 'Question added',
-        description: 'A new question has been added to the quiz.',
+        title: "➕ Question Added",
+        description: "A new question has been successfully added to the quiz.",
+        className: "border-green-200 bg-green-50 text-green-900",
+        duration: 3000,
       });
     }
   };
@@ -725,12 +737,17 @@ export default function QuizHistory({ limit }: { limit?: number }) {
         </div>
         
         <DialogFooter className="mt-4">
-          <div className="flex space-x-2">
+          <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2 w-full">
             {categorizingQuiz ? (
               null
             ) : (
               <>
-                <Button variant="outline" size="sm" onClick={() => setIsDialogOpen(false)}>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setIsDialogOpen(false)}
+                  className="w-full sm:w-auto order-last sm:order-first"
+                >
                   Close
                 </Button>
                 
@@ -740,94 +757,117 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                   onClick={() => {
                     setCategorizingQuiz(selectedQuiz);
                   }}
+                  className="w-full sm:w-auto"
                 >
-                  <BookmarkPlus className="mr-2 h-4 w-4" />
-                  Categorize
+                  <BookmarkPlus className="mr-2 h-3 w-3" />
+                  <span className="hidden sm:inline">Categorize</span>
+                  <span className="sm:hidden">Add Subject</span>
                 </Button>
                 
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50 w-full sm:w-auto"
                   onClick={() => openDeleteConfirmation(selectedQuiz!)}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Quiz
+                  <Trash2 className="mr-2 h-3 w-3" />
+                  <span className="hidden sm:inline">Delete Quiz</span>
+                  <span className="sm:hidden">Delete</span>
                 </Button>
                 
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={exporting === `${selectedQuiz?.id}-doc`}
-                        onClick={() => selectedQuiz && handleExport(selectedQuiz, 'doc')}
-                      >
-                        {exporting === `${selectedQuiz?.id}-doc` ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            Exporting...
-                          </>
-                        ) : 'Export DOC'}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Export as a Word document (.docx)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                {/* Export Buttons Row */}
+                <div className="flex space-x-2 w-full sm:w-auto">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={exporting === `${selectedQuiz?.id}-doc`}
+                          onClick={() => selectedQuiz && handleExport(selectedQuiz, 'doc')}
+                          className="flex-1 sm:flex-initial"
+                        >
+                          {exporting === `${selectedQuiz?.id}-doc` ? (
+                            <>
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              <span className="hidden sm:inline">Exporting...</span>
+                              <span className="sm:hidden">DOC</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="hidden sm:inline">Export DOC</span>
+                              <span className="sm:hidden">DOC</span>
+                            </>
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Export as a Word document (.docx)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
 
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={exporting === `${selectedQuiz?.id}-csv`}
-                        onClick={() => selectedQuiz && handleExport(selectedQuiz, 'csv')}
-                      >
-                        {exporting === `${selectedQuiz?.id}-csv` ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            Exporting...
-                          </>
-                        ) : 'Export CSV'}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Export as CSV (compatible with Quizlet)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={exporting === `${selectedQuiz?.id}-csv`}
+                          onClick={() => selectedQuiz && handleExport(selectedQuiz, 'csv')}
+                          className="flex-1 sm:flex-initial"
+                        >
+                          {exporting === `${selectedQuiz?.id}-csv` ? (
+                            <>
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              <span className="hidden sm:inline">Exporting...</span>
+                              <span className="sm:hidden">CSV</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="hidden sm:inline">Export CSV</span>
+                              <span className="sm:hidden">CSV</span>
+                            </>
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Export as CSV (compatible with Quizlet)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
 
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={sendingToAnki}
-                        onClick={() => selectedQuiz && handleAnkiExport(selectedQuiz)}
-                      >
-                        {sendingToAnki ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            Sending...
-                          </>
-                        ) : (
-                          <>
-                            <Send className="mr-2 h-3 w-3" />
-                            Export to Anki
-                          </>
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Export directly to Anki (requires Anki with Anki-Connect plugin)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={sendingToAnki}
+                          onClick={() => selectedQuiz && handleAnkiExport(selectedQuiz)}
+                          className="flex-1 sm:flex-initial"
+                        >
+                          {sendingToAnki ? (
+                            <>
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              <span className="hidden sm:inline">Sending...</span>
+                              <span className="sm:hidden">Anki</span>
+                            </>
+                          ) : (
+                            <>
+                              <Send className="mr-1 h-3 w-3" />
+                              <span className="hidden sm:inline">Export to Anki</span>
+                              <span className="sm:hidden">Anki</span>
+                            </>
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Export directly to Anki (requires Anki with Anki-Connect plugin)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </>
             )}
           </div>

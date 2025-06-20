@@ -59,8 +59,9 @@ export function AnkiExportDialog({ isOpen, onClose, quizId }: AnkiExportDialogPr
       
       console.log('Export successful:', result);
       toast({
-        title: "Success",
-        description: result.message,
+        title: "🎉 Anki Export Complete",
+        description: `Your quiz has been successfully sent to Anki deck "${deckName.trim()}". Open Anki to start studying!`,
+        className: "border-green-200 bg-green-50 text-green-900",
         duration: 5000
       });
       

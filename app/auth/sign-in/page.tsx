@@ -149,8 +149,10 @@ function SignInForm() {
       console.log('User ID:', data.session.user.id);
       
       toast({
-        title: 'Signed in successfully',
-        description: 'Redirecting to dashboard...',
+        title: "🎉 Welcome Back",
+        description: "You've been successfully signed in. Redirecting to dashboard...",
+        className: "border-green-200 bg-green-50 text-green-900",
+        duration: 3000,
       });
       
       // The useAuthRedirect hook will handle the redirection

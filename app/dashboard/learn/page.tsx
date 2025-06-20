@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, ArrowLeft, BookOpen, BarChart3, Clock, Calendar, Tag, FileText, Plus, Trophy, Play } from 'lucide-react';
+import { Loader2, ArrowLeft, BookOpen, BarChart3, Clock, Calendar, Tag, FileText, Plus, Trophy, Play, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
@@ -49,6 +49,8 @@ export default function LearnPage() {
   const [showLongFormatTest, setShowLongFormatTest] = useState(false);
   const [testQuestions, setTestQuestions] = useState<any[]>([]);
   const [testTitle, setTestTitle] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [showAllQuizzes, setShowAllQuizzes] = useState(false);
   const { supabase, loading: supabaseLoading, error: supabaseError } = useSupabase();
   const { toast } = useToast();
   const router = useRouter();
@@ -56,6 +58,27 @@ export default function LearnPage() {
   
   // Combine loading states
   const isLoading = contentLoading || supabaseLoading;
+
+  // Mobile pagination settings
+  const QUIZZES_PER_PAGE_MOBILE = 7;
+  const QUIZZES_PER_PAGE_DESKTOP = 12;
+
+  // Determine quizzes to show based on device and pagination
+  const getDisplayedQuizzes = () => {
+    if (typeof window === 'undefined') return quizzes; // SSR safety
+    
+    const isMobile = window.innerWidth < 768;
+    const perPage = isMobile ? QUIZZES_PER_PAGE_MOBILE : QUIZZES_PER_PAGE_DESKTOP;
+    
+    if (showAllQuizzes || !isMobile) {
+      return quizzes;
+    }
+    
+    return quizzes.slice(0, perPage);
+  };
+
+  const displayedQuizzes = getDisplayedQuizzes();
+  const hasMoreQuizzes = quizzes.length > QUIZZES_PER_PAGE_MOBILE;
 
   useEffect(() => {
     if (!supabase) return;
@@ -264,17 +287,17 @@ export default function LearnPage() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       {/* Header Section */}
-      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-8 rounded-xl border border-emerald-100">
+      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 md:p-8 rounded-xl border border-emerald-100">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             <Link href="/dashboard">
-              <Button variant="outline" size="icon" className="bg-white hover:bg-gray-50">
-                <ArrowLeft className="h-4 w-4" />
+              <Button variant="outline" size="icon" className="bg-white hover:bg-gray-50 h-8 w-8 md:h-10 md:w-10">
+                <ArrowLeft className="h-3 w-3 md:h-4 md:w-4" />
               </Button>
             </Link>
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-3">Learn</h1>
-              <p className="text-lg text-gray-600">
+              <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-1 md:mb-3">Learn</h1>
+              <p className="text-sm md:text-lg text-gray-600">
                 Study your materials with flashcards and practice tests
               </p>
             </div>
@@ -288,27 +311,30 @@ export default function LearnPage() {
       </div>
 
       <Tabs defaultValue="quizzes" className="w-full">
-        <TabsList className="mb-6 bg-white border border-gray-200 p-1 rounded-lg shadow-sm">
+        <TabsList className="mb-6 bg-white border border-gray-200 p-1 rounded-lg shadow-sm w-full md:w-auto">
           <TabsTrigger 
             value="quizzes" 
-            className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white px-6 py-2 rounded-md font-medium transition-all"
+            className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white px-3 md:px-6 py-2 rounded-md font-medium transition-all text-xs md:text-sm flex-1 md:flex-initial"
           >
-            <BookOpen className="w-4 h-4 mr-2" />
-            Flashcards
+            <BookOpen className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            <span className="hidden sm:inline">Flashcards</span>
+            <span className="sm:hidden">Cards</span>
           </TabsTrigger>
           <TabsTrigger 
             value="exams"
-            className="data-[state=active]:bg-blue-600 data-[state=active]:text-white px-6 py-2 rounded-md font-medium transition-all"
+            className="data-[state=active]:bg-blue-600 data-[state=active]:text-white px-3 md:px-6 py-2 rounded-md font-medium transition-all text-xs md:text-sm flex-1 md:flex-initial"
           >
-            <FileText className="w-4 h-4 mr-2" />
-            Test Yourself
+            <FileText className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            <span className="hidden sm:inline">Test Yourself</span>
+            <span className="sm:hidden">Tests</span>
           </TabsTrigger>
           <TabsTrigger 
             value="performance"
-            className="data-[state=active]:bg-purple-600 data-[state=active]:text-white px-6 py-2 rounded-md font-medium transition-all"
+            className="data-[state=active]:bg-purple-600 data-[state=active]:text-white px-3 md:px-6 py-2 rounded-md font-medium transition-all text-xs md:text-sm flex-1 md:flex-initial"
           >
-            <Trophy className="w-4 h-4 mr-2" />
-            Performance
+            <Trophy className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            <span className="hidden sm:inline">Performance</span>
+            <span className="sm:hidden">Stats</span>
           </TabsTrigger>
         </TabsList>
         
@@ -327,107 +353,125 @@ export default function LearnPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-8">
+            <CardContent className="p-4 md:p-8">
               {quizzes.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <BookOpen className="h-8 w-8 text-gray-400" />
+                <div className="text-center py-8 md:py-12">
+                  <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <BookOpen className="h-6 w-6 md:h-8 md:w-8 text-gray-400" />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No study materials yet</h3>
-                  <p className="text-gray-500 mb-4">Generate a quiz from the dashboard to get started with studying!</p>
+                  <h3 className="text-base md:text-lg font-medium text-gray-900 mb-2">No study materials yet</h3>
+                  <p className="text-sm md:text-base text-gray-500 mb-4">Generate a quiz from the dashboard to get started with studying!</p>
                   <Link href="/dashboard">
-                    <Button className="bg-emerald-600 hover:bg-emerald-700">
-                      <Plus className="w-4 h-4 mr-2" />
+                    <Button className="bg-emerald-600 hover:bg-emerald-700 text-sm md:text-base">
+                      <Plus className="w-3 h-3 md:w-4 md:h-4 mr-2" />
                       Create Your First Quiz
                     </Button>
                   </Link>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {quizzes.map((quiz) => {
-                    const progress = learningProgress[quiz.id];
-                    const masteryPercentage = progress?.mastery_percentage || 0;
-                    const lastStudied = progress?.last_studied 
-                      ? new Date(progress.last_studied).toLocaleDateString() 
-                      : 'Never studied';
-                    
-                    return (
-                      <Card 
-                        key={quiz.id} 
-                        className={`hover:shadow-lg transition-all duration-200 border-0 shadow-md ${
-                          quiz.subject && quiz.color ? 'border-l-4' : ''
-                        }`}
-                        style={quiz.subject && quiz.color ? {
-                          borderLeftColor: quiz.color,
-                          backgroundColor: `${quiz.color}08`, // Lighter opacity
-                        } : {}}
-                      >
-                        <CardHeader className="pb-3">
-                          <div className="mb-2 min-h-[28px]">
-                            {quiz.subject && (
-                              <div 
-                                className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
-                                style={{ 
-                                  backgroundColor: quiz.color || '#E5E7EB', 
-                                  color: quiz.color ? getContrastColor(quiz.color) : '#374151' 
-                                }}
-                              >
-                                <Tag className="h-3 w-3 mr-1" />
-                                {quiz.subject}
-                              </div>
-                            )}
-                          </div>
-                          <CardTitle className="line-clamp-2 text-lg font-semibold text-gray-900">
-                            {quiz.title}
-                          </CardTitle>
-                          <div className="flex flex-wrap gap-x-4 mt-2">
-                            <span className="text-xs text-gray-500 flex items-center">
-                              <Calendar className="h-3 w-3 mr-1" />
-                              {new Date(quiz.created_at).toLocaleDateString()}
-                            </span>
-                            <span className="text-xs text-gray-500 flex items-center">
-                              <Clock className="h-3 w-3 mr-1" />
-                              {quiz.questions?.length || 0} cards
-                            </span>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="pb-4">
-                          <div className="space-y-3">
-                            <div className="flex justify-between text-sm font-medium">
-                              <span className="text-gray-600">Progress</span>
-                              <span className="text-emerald-600">{masteryPercentage}%</span>
-                            </div>
-                            <Progress 
-                              value={masteryPercentage} 
-                              className="h-2 bg-gray-100" 
-                              style={{ "--progress-foreground": "rgb(5, 150, 105)" } as React.CSSProperties}
-                            />
-                            <p className="text-xs text-gray-500">
-                              Last studied: <span className="font-medium">{lastStudied}</span>
-                            </p>
-                          </div>
-                        </CardContent>
-                        <CardFooter className="pt-0">
-                          <Link href={`/dashboard/learn/${quiz.id}`} className="w-full">
-                            <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
-                              {progress ? (
-                                <>
-                                  <BookOpen className="w-4 h-4 mr-2" />
-                                  Continue Learning
-                                </>
-                              ) : (
-                                <>
-                                  <Plus className="w-4 h-4 mr-2" />
-                                  Start Learning
-                                </>
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                    {displayedQuizzes.map((quiz) => {
+                      const progress = learningProgress[quiz.id];
+                      const masteryPercentage = progress?.mastery_percentage || 0;
+                      const lastStudied = progress?.last_studied 
+                        ? new Date(progress.last_studied).toLocaleDateString() 
+                        : 'Never studied';
+                      
+                      return (
+                        <Card 
+                          key={quiz.id} 
+                          className={`hover:shadow-lg transition-all duration-200 border-0 shadow-md ${
+                            quiz.subject && quiz.color ? 'border-l-4' : ''
+                          }`}
+                          style={quiz.subject && quiz.color ? {
+                            borderLeftColor: quiz.color,
+                            backgroundColor: `${quiz.color}08`, // Lighter opacity
+                          } : {}}
+                        >
+                          <CardHeader className="pb-2 md:pb-3 p-4 md:p-6">
+                            <div className="mb-2 min-h-[24px] md:min-h-[28px]">
+                              {quiz.subject && (
+                                <div 
+                                  className="inline-flex items-center px-2 md:px-3 py-1 rounded-full text-xs font-medium"
+                                  style={{ 
+                                    backgroundColor: quiz.color || '#E5E7EB', 
+                                    color: quiz.color ? getContrastColor(quiz.color) : '#374151' 
+                                  }}
+                                >
+                                  <Tag className="h-2 w-2 md:h-3 md:w-3 mr-1" />
+                                  {quiz.subject}
+                                </div>
                               )}
-                            </Button>
-                          </Link>
-                        </CardFooter>
-                      </Card>
-                    );
-                  })}
-                </div>
+                            </div>
+                            <CardTitle className="line-clamp-2 text-base md:text-lg font-semibold text-gray-900">
+                              {quiz.title}
+                            </CardTitle>
+                            <div className="flex flex-wrap gap-x-2 md:gap-x-4 mt-2">
+                              <span className="text-xs text-gray-500 flex items-center">
+                                <Calendar className="h-2 w-2 md:h-3 md:w-3 mr-1" />
+                                {new Date(quiz.created_at).toLocaleDateString()}
+                              </span>
+                              <span className="text-xs text-gray-500 flex items-center">
+                                <Clock className="h-2 w-2 md:h-3 md:w-3 mr-1" />
+                                {quiz.questions?.length || 0} cards
+                              </span>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="pb-3 md:pb-4 px-4 md:px-6">
+                            <div className="space-y-2 md:space-y-3">
+                              <div className="flex justify-between text-xs md:text-sm font-medium">
+                                <span className="text-gray-600">Progress</span>
+                                <span className="text-emerald-600">{masteryPercentage}%</span>
+                              </div>
+                              <Progress 
+                                value={masteryPercentage} 
+                                className="h-1.5 md:h-2 bg-gray-100" 
+                                style={{ "--progress-foreground": "rgb(5, 150, 105)" } as React.CSSProperties}
+                              />
+                              <p className="text-xs text-gray-500">
+                                Last studied: <span className="font-medium">{lastStudied}</span>
+                              </p>
+                            </div>
+                          </CardContent>
+                          <CardFooter className="pt-0 p-4 md:p-6">
+                            <Link href={`/dashboard/learn/${quiz.id}`} className="w-full">
+                              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs md:text-sm h-8 md:h-10">
+                                {progress ? (
+                                  <>
+                                    <BookOpen className="w-3 h-3 md:w-4 md:h-4 mr-2" />
+                                    <span className="hidden sm:inline">Continue Learning</span>
+                                    <span className="sm:hidden">Continue</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus className="w-3 h-3 md:w-4 md:h-4 mr-2" />
+                                    <span className="hidden sm:inline">Start Learning</span>
+                                    <span className="sm:hidden">Start</span>
+                                  </>
+                                )}
+                              </Button>
+                            </Link>
+                          </CardFooter>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Show More Button for Mobile */}
+                  {hasMoreQuizzes && !showAllQuizzes && (
+                    <div className="mt-6 text-center md:hidden">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowAllQuizzes(true)}
+                        className="w-full md:w-auto"
+                      >
+                        Show All {quizzes.length} Quizzes
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

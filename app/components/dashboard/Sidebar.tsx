@@ -121,24 +121,9 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
       return;
     }
 
-    // REMOVED: File size check - now supports unlimited size
-    // if (file.size > 2 * 1024 * 1024) {
-    //   toast({
-    //     title: 'File too large',
-    //     description: 'Please upload an image smaller than 2MB',
-    //     variant: 'destructive',
-    //   });
-    //   return;
-    // }
-
     try {
       setIsUploading(true);
       
-      // For now, we'll just use a local URL
-      // In a real implementation with the avatar_url column, you would:
-      // 1. Upload to Supabase storage
-      // 2. Get the URL
-      // 3. Update the user's profile with the URL
       const objectUrl = URL.createObjectURL(file);
       
       // Update the avatar URL in the profiles table
@@ -184,10 +169,11 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile Menu Toggle Button - Only visible on iPhone */}
+      {/* Mobile Menu Toggle Button */}
       <button
         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        className="fixed top-4 left-4 z-[60] p-2 rounded-md bg-white shadow-md md:hidden"
+        className="fixed top-4 left-4 z-[60] p-2 rounded-md bg-white shadow-lg border border-gray-200 md:hidden"
+        aria-label="Toggle navigation menu"
       >
         {isMobileMenuOpen ? (
           <X className="h-6 w-6 text-gray-600" />
@@ -196,23 +182,131 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
         )}
       </button>
 
-      {/* Backdrop for mobile menu */}
+      {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[45] md:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-[55] md:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          
+          {/* Mobile Navigation Menu */}
+          <div className="fixed top-0 left-0 w-80 h-full bg-white z-[60] md:hidden shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center">
+                <Image 
+                  src="/images/logo.png" 
+                  alt="QuizLab AI Logo" 
+                  width={24} 
+                  height={24} 
+                  className="mr-2" 
+                />
+                <span className="text-lg font-bold text-gray-900">QuizLab AI</span>
+              </div>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-1 rounded-md hover:bg-gray-100"
+              >
+                <X className="h-5 w-5 text-gray-600" />
+              </button>
+            </div>
+            
+            {/* Navigation Links */}
+            <div className="p-4">
+              <nav className="space-y-3">
+                {/* Dashboard */}
+                <Link
+                  href="/dashboard"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center p-3 rounded-lg transition-colors ${
+                    pathname === '/dashboard' 
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                      : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <LayoutDashboard className="h-5 w-5 mr-3" />
+                  <span className="font-medium">Dashboard</span>
+                </Link>
+
+                {/* Learn */}
+                <Link
+                  href="/dashboard/learn"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center p-3 rounded-lg transition-colors ${
+                    pathname === '/dashboard/learn' 
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                      : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <BookOpen className="h-5 w-5 mr-3" />
+                  <span className="font-medium">Learn</span>
+                </Link>
+
+                {/* History */}
+                <Link
+                  href="/dashboard/history"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center p-3 rounded-lg transition-colors ${
+                    pathname === '/dashboard/history' 
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                      : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <History className="h-5 w-5 mr-3" />
+                  <span className="font-medium">History</span>
+                </Link>
+
+                {/* Suggest a Feature */}
+                <Link
+                  href="/dashboard/suggest"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center p-3 rounded-lg transition-colors ${
+                    pathname === '/dashboard/suggest' 
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                      : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <Lightbulb className="h-5 w-5 mr-3" />
+                  <span className="font-medium">Suggest a Feature</span>
+                </Link>
+
+                {/* Manage Subscription */}
+                <Link
+                  href="/dashboard/subscription"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center p-3 rounded-lg transition-colors ${
+                    pathname === '/dashboard/subscription' 
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                      : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <CreditCard className="h-5 w-5 mr-3" />
+                  <span className="font-medium">Manage Subscription</span>
+                </Link>
+              </nav>
+              
+              {/* Sign Out Button */}
+              <div className="mt-8 pt-4 border-t border-gray-200">
+                <Button 
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => {
+                    handleSignOut();
+                    setIsMobileMenuOpen(false);
+                  }}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign out
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
-      <aside className={`
-        min-h-screen w-64 bg-white border-r border-gray-200 flex flex-col fixed top-0 left-0
-        transform transition-transform duration-300 ease-in-out
-        md:translate-x-0 md:top-20 md:pt-0 md:z-40 md:min-h-[calc(100vh-5rem)]
-        ${isMobileMenuOpen ? 'translate-x-0 z-[55] shadow-xl' : '-translate-x-full'}
-      `}>
-        {/* Add padding only for mobile to account for the header */}
-        <div className="md:hidden h-16" />
-        
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex min-h-screen w-64 bg-white border-r border-gray-200 flex-col fixed top-20 left-0 pt-0 z-40 min-h-[calc(100vh-5rem)]">
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => {
@@ -226,7 +320,6 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
                     ? 'bg-primary/10 text-primary'
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
-                onClick={() => setIsMobileMenuOpen(false)}
               >
                 <item.icon className="mr-3 h-5 w-5" />
                 {item.name}

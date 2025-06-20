@@ -24,7 +24,13 @@ interface NavigationItem {
   href: string;
 }
 
-const authenticatedNavigation: NavigationItem[] = [];
+const authenticatedNavigation: NavigationItem[] = [
+  { name: 'Dashboard', href: '/dashboard' },
+  { name: 'Learn', href: '/dashboard/learn' },
+  { name: 'History', href: '/dashboard/history' },
+  { name: 'Suggest a Feature', href: '/dashboard/suggest' },
+  { name: 'Manage Subscription', href: '/dashboard/subscription' },
+];
 
 export function MainHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -221,7 +227,17 @@ export function MainHeader() {
             
             {!isAuthPage && (
               <div className="space-y-2 py-6">
-                {navigationItems.map((item) => (
+                {user && navigationItems.map((item) => (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className="-mx-3 block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50 border border-gray-200"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {item.name}
+                  </Link>
+                ))}
+                {!user && navigationItems.map((item) => (
                   <Link
                     key={item.name}
                     href={item.href}
@@ -238,13 +254,6 @@ export function MainHeader() {
                 <div className="h-9 w-full bg-gray-200 rounded-md animate-pulse"></div>
               ) : user ? (
                 <>
-                  <Link
-                    href="/dashboard"
-                    className="-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 text-gray-900 border border-gray-200 hover:bg-gray-50"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Dashboard
-                  </Link>
                   <button
                     onClick={() => {
                       handleSignOut();
