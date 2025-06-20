@@ -17,6 +17,16 @@ const openai = new OpenAI({
 export const maxDuration = 300; // Increased to 5 minutes for large files
 export const dynamic = 'force-dynamic';
 
+// Add configuration for larger file uploads
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb',
+    },
+    responseLimit: false,
+  },
+};
+
 // Helper to wrap data in SSE format
 function sseJson(obj: any) {
   return `data: ${JSON.stringify(obj)}\n\n`;
