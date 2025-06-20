@@ -60,6 +60,7 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
   const [ankiDeckName, setAnkiDeckName] = useState('');
   const [isAnkiDialogOpen, setIsAnkiDialogOpen] = useState(false);
   const [sendingToAnki, setSendingToAnki] = useState(false);
+  const [isMobileAnkiWarningOpen, setIsMobileAnkiWarningOpen] = useState(false);
 
   // Combine loading states
   const isLoading = loading || supabaseLoading;
@@ -183,28 +184,29 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
+      // Professional success notification
+      const formatName = format === 'doc' ? 'Word Document' : format === 'csv' ? 'CSV File' : format.toUpperCase();
       toast({
-        title: 'Export Successful',
-        description: `Quiz exported as ${format.toUpperCase()} successfully`,
+        title: "✅ Export Completed",
+        description: `${quiz.title} has been exported as ${formatName}. Check your downloads folder.`,
+        className: "border-green-200 bg-green-50 text-green-900",
+        duration: 4000,
       });
     } catch (error) {
       console.error('Error exporting quiz:', error);
       toast({
-        title: 'Export Failed',
-        description: error instanceof Error ? error.message : 'Failed to export quiz',
+        title: "❌ Export Failed",
+        description: `${error instanceof Error ? error.message : 'Failed to export quiz'}. Please try again or contact support.`,
+        className: "border-red-200 bg-red-50 text-red-900",
         variant: 'destructive',
+        duration: 5000,
       });
     }
   };
 
   const handleAnkiExport = (quiz: Quiz) => {
     if (isMobileOrTablet) {
-      toast({
-        title: "Desktop Only Feature",
-        description: "Exporting to Anki is only available on desktop computers. Please use your computer to export to Anki.",
-        variant: "default",
-        duration: 5000,
-      });
+      setIsMobileAnkiWarningOpen(true);
       return;
     }
     // Instead of exporting as a file, open the Anki Connect dialog
@@ -250,8 +252,10 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
       setQuizToDelete(null);
       
       toast({
-        title: 'Success',
-        description: 'Quiz deleted successfully',
+        title: "🗑️ Quiz Deleted",
+        description: `${quizToDelete.title} has been permanently removed from your library.`,
+        className: "border-green-200 bg-green-50 text-green-900",
+        duration: 3000,
       });
     } catch (error) {
       console.error('Error deleting quiz:', error);
@@ -471,12 +475,9 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
           </div>
 
           <DialogFooter className="border-t pt-4 bg-gray-50">
-            <div className="flex justify-between w-full">
-              <div className="flex items-center space-x-2">
-                <Button size="sm" variant="outline" onClick={closeQuizDetails}>
-                  Close
-                </Button>
-                <div className="border-l h-4 mx-2" />
+            <div className="flex flex-col space-y-2 w-full sm:flex-row sm:space-y-0 sm:justify-end sm:space-x-2">
+              {/* Export buttons row */}
+              <div className="flex space-x-2">
                 <Button
                   size="sm"
                   variant="outline"
@@ -485,10 +486,11 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
                       handleExport(selectedQuiz, 'doc');
                     }
                   }}
-                  className="flex items-center"
+                  className="flex items-center flex-1 sm:flex-initial"
                 >
-                  <FileText className="h-4 w-4 mr-1" />
-                  Export DOC
+                  <FileText className="h-3 w-3 mr-1" />
+                  <span className="hidden sm:inline">Export DOC</span>
+                  <span className="sm:hidden">DOC</span>
                 </Button>
                 <Button
                   size="sm"
@@ -498,10 +500,11 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
                       handleExport(selectedQuiz, 'csv');
                     }
                   }}
-                  className="flex items-center"
+                  className="flex items-center flex-1 sm:flex-initial"
                 >
-                  <FileText className="h-4 w-4 mr-1" />
-                  Export CSV
+                  <FileText className="h-3 w-3 mr-1" />
+                  <span className="hidden sm:inline">Export CSV</span>
+                  <span className="sm:hidden">CSV</span>
                 </Button>
                 <Button
                   size="sm"
@@ -511,36 +514,38 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
                       handleAnkiExport(selectedQuiz);
                     }
                   }}
-                  className={`flex items-center bg-white text-black border border-gray-200 hover:bg-gray-50 ${
+                  className={`flex items-center bg-white text-black border border-gray-200 hover:bg-gray-50 flex-1 sm:flex-initial ${
                     isMobileOrTablet 
                       ? 'opacity-60 cursor-help' 
                       : ''
                   }`}
                 >
                   {isMobileOrTablet && (
-                    <AlertCircle className="h-4 w-4 mr-1 text-gray-400" />
+                    <AlertCircle className="h-3 w-3 mr-1 text-gray-400" />
                   )}
                   {!isMobileOrTablet && (
-                    <Send className="h-4 w-4 mr-1" />
+                    <Send className="h-3 w-3 mr-1" />
                   )}
-                  Export to Anki
+                  <span className="hidden sm:inline">Export to Anki</span>
+                  <span className="sm:hidden">Anki</span>
                 </Button>
               </div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (selectedQuiz) {
-                      openDeleteConfirmation(selectedQuiz);
-                    }
-                  }}
-                  className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Delete Quiz
-                </Button>
-              </div>
+              
+              {/* Delete button */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  if (selectedQuiz) {
+                    openDeleteConfirmation(selectedQuiz);
+                  }
+                }}
+                className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 w-full sm:w-auto"
+              >
+                <Trash2 className="h-3 w-3 mr-1" />
+                <span className="hidden sm:inline">Delete Quiz</span>
+                <span className="sm:hidden">Delete</span>
+              </Button>
             </div>
           </DialogFooter>
         </DialogContent>
@@ -585,6 +590,53 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
           quizId={selectedQuiz.id}
         />
       )}
+
+      {/* Mobile Anki Warning Dialog */}
+      <Dialog open={isMobileAnkiWarningOpen} onOpenChange={setIsMobileAnkiWarningOpen}>
+        <DialogContent className="sm:max-w-md mx-auto max-w-[90vw] rounded-2xl">
+          <DialogHeader className="text-center pb-4">
+            <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <Send className="h-6 w-6 text-blue-600" />
+            </div>
+            <DialogTitle className="text-xl font-semibold text-gray-900">
+              Desktop Only Feature
+            </DialogTitle>
+            <DialogDescription className="text-base text-gray-600 mt-2">
+              Anki export requires desktop connectivity and is not available on mobile devices.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <h4 className="font-medium text-blue-900 mb-2">To export to Anki:</h4>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• Use a desktop or laptop computer</li>
+                <li>• Install Anki desktop application</li>
+                <li>• Install the Anki-Connect plugin</li>
+                <li>• Access QuizLab AI from your computer</li>
+              </ul>
+            </div>
+            
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+              <h4 className="font-medium text-gray-900 mb-2">Alternative options:</h4>
+              <ul className="text-sm text-gray-700 space-y-1">
+                <li>• Export as CSV (compatible with Quizlet)</li>
+                <li>• Export as Word document for manual import</li>
+                <li>• Study directly in QuizLab AI's Learn section</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-6">
+            <Button 
+              onClick={() => setIsMobileAnkiWarningOpen(false)}
+              className="w-full rounded-lg"
+            >
+              Got it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 } 

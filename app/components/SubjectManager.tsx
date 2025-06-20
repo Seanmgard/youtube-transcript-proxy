@@ -159,8 +159,10 @@ export default function SubjectManager({ onSelectSubject, selectedSubjectId }: S
       }
       
       toast({
-        title: 'Success',
-        description: 'Subject created successfully',
+        title: "📚 Subject Created",
+        description: `Subject "${newSubjectName.trim()}" has been successfully added to your library.`,
+        className: "border-green-200 bg-green-50 text-green-900",
+        duration: 3000,
       })
     } catch (error) {
       console.error('Error creating subject:', error)
@@ -193,8 +195,10 @@ export default function SubjectManager({ onSelectSubject, selectedSubjectId }: S
       }
       
       toast({
-        title: 'Success',
-        description: 'Subject deleted successfully',
+        title: "🗑️ Subject Deleted",
+        description: "The subject has been successfully removed from your library.",
+        className: "border-orange-200 bg-orange-50 text-orange-900",
+        duration: 3000,
       })
     } catch (error) {
       console.error('Error deleting subject:', error)

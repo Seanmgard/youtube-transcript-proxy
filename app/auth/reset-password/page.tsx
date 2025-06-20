@@ -81,8 +81,10 @@ function ResetPasswordForm() {
       
       setSuccess(true);
       toast({
-        title: 'Password updated',
-        description: 'Your password has been successfully updated.',
+        title: "🔒 Password Updated",
+        description: "Your password has been successfully updated. You will be redirected to sign in.",
+        className: "border-green-200 bg-green-50 text-green-900",
+        duration: 4000,
       });
       
       // Sign out the user after password reset

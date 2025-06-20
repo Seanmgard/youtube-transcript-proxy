@@ -129,8 +129,10 @@ export default function SignUp() {
         if (!data.session) {
           // Email confirmation required
           toast({
-            title: 'Account created successfully!',
-            description: 'Please check your email and click the confirmation link to complete your signup.',
+            title: "🎉 Account Created Successfully",
+            description: "Please check your email and click the confirmation link to complete your signup.",
+            className: "border-green-200 bg-green-50 text-green-900",
+            duration: 5000,
           })
           
           // Stay on the sign-up page or redirect to a confirmation page
@@ -140,8 +142,10 @@ export default function SignUp() {
         } else {
           // User is automatically signed in (email confirmation disabled)
           toast({
-            title: 'Account created successfully!',
-            description: 'Welcome to QuizLab AI!',
+            title: "🎉 Welcome to QuizLab AI",
+            description: "Your account has been created successfully! Redirecting to dashboard...",
+            className: "border-green-200 bg-green-50 text-green-900",
+            duration: 3000,
           })
           
           // Redirect to dashboard

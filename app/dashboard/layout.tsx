@@ -123,7 +123,7 @@ export default function DashboardLayout({
       {/* Header - Fixed at the top */}
       <header className="h-16 bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-[51]">
         <div className="flex items-center justify-between h-full px-4 md:px-6">
-          <div className="flex items-center ml-12 md:ml-0">
+          <div className="flex items-center md:ml-0">
             <Link href="/" className="flex items-center">
               <Image 
                 src="/images/logo.png" 
@@ -170,7 +170,7 @@ export default function DashboardLayout({
       {/* Main Content */}
       <main className="transition-all duration-300 md:ml-64 pt-16 min-h-screen">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mx-6 mt-6">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mx-4 md:mx-6 mt-6">
             <p>{error}</p>
             <p className="text-sm mt-1">You can continue using the dashboard with limited functionality.</p>
           </div>

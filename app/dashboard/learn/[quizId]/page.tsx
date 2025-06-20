@@ -288,8 +288,10 @@ export default function LearnQuizPage() {
       setLearningProgress(updatedProgress);
       
       toast({
-        title: "Progress saved",
-        description: "Your learning progress has been updated.",
+        title: "💾 Progress Saved",
+        description: "Your learning progress has been successfully updated and synced.",
+        className: "border-green-200 bg-green-50 text-green-900",
+        duration: 3000,
       });
     } catch (error: any) {
       console.error('Error saving progress:', error);
@@ -438,9 +440,13 @@ export default function LearnQuizPage() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
+      // Professional success notification
+      const formatName = format === 'doc' ? 'Word Document' : format === 'csv' ? 'CSV File' : format.toUpperCase();
       toast({
-        title: 'Export Successful',
-        description: `Quiz exported as ${format.toUpperCase()} successfully`,
+        title: "✅ Export Completed",
+        description: `${quiz.title} has been exported as ${formatName}. Check your downloads folder.`,
+        className: "border-green-200 bg-green-50 text-green-900",
+        duration: 4000,
       });
     } catch (error) {
       console.error('Error exporting quiz:', error);

@@ -87,8 +87,10 @@ export default function SuggestFeaturePage() {
       const data = await response.json();
       
       toast({
-        title: 'Suggestion submitted',
-        description: 'Thank you for your feedback! We\'ll review your suggestion.',
+        title: "💡 Feature Suggestion Submitted",
+        description: "Thank you for your valuable feedback! We've received your suggestion and will review it with our product team.",
+        className: "border-green-200 bg-green-50 text-green-900",
+        duration: 4000,
       });
       
       // Reset form

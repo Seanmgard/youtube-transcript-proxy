@@ -301,8 +301,10 @@ export default function QuizUploader() {
                     });
                   } else {
                     toast({
-                      title: 'Success',
-                      description: 'Quiz generated and saved successfully',
+                      title: "🎉 Quiz Generated Successfully",
+                      description: "Your quiz has been created and saved to your library. Check your quiz history to view and study!",
+                      className: "border-green-200 bg-green-50 text-green-900",
+                      duration: 4000,
                     });
                   }
                 } catch (dbError) {

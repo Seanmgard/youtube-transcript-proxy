@@ -242,10 +242,19 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
             disabled={isGenerating}
             className="cursor-pointer"
           />
-          <p className="text-xs text-gray-500 mt-1">
-            Supported formats: PDF, Word (.doc/.docx), PowerPoint (.ppt/.pptx), Text (.txt/.csv)
-            <br />
-            Maximum file size: 50MB
+          <p className="text-xs text-gray-500 mt-1 space-y-1">
+            <span className="block sm:inline">
+              <strong className="text-gray-600">Supported formats:</strong>
+            </span>
+            <span className="block sm:inline sm:ml-1">
+              PDF, Word (.doc/.docx), PowerPoint (.ppt/.pptx), Text (.txt/.csv)
+            </span>
+            <span className="block mt-1">
+              <strong className="text-gray-600">Maximum file size:</strong> 50MB
+            </span>
+            <span className="hidden sm:block text-amber-600 mt-1">
+              💡 Larger files may take longer to process
+            </span>
           </p>
         </div>
 
