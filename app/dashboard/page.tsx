@@ -39,6 +39,9 @@ export default function Dashboard() {
   const [streamingText, setStreamingText] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const [quizRestored, setQuizRestored] = useState<boolean>(false);
+  const [questionsGenerated, setQuestionsGenerated] = useState(0);
+  const [totalQuestionsTarget, setTotalQuestionsTarget] = useState(0);
+  const [generationPhase, setGenerationPhase] = useState<'preparing' | 'generating' | 'completing' | 'completed'>('preparing');
   const { user } = useAuth();
   const { supabase, loading: supabaseLoading } = useSupabase();
   const [loading, setLoading] = useState(true);
@@ -145,6 +148,7 @@ export default function Dashboard() {
   }, [user, toast, fetchSubscription]);
 
   const handleQuizGenerated = (quiz: any) => {
+    console.log('📄 Dashboard: handleQuizGenerated called with:', quiz);
     if (quiz.loading) {
       // Clear any saved quiz when starting new generation
       localStorage.removeItem('currentQuiz');
@@ -152,10 +156,17 @@ export default function Dashboard() {
       setIsStreaming(true);
       setStreamingText('');
       setCurrentQuiz(quiz);
+      setQuestionsGenerated(0);
+      setTotalQuestionsTarget(0);
+      setGenerationPhase('preparing');
     } else {
+      console.log('📄 Dashboard: Setting quiz as current quiz:', quiz);
+      // Immediately display the quiz
+      setGenerationPhase('completed');
       setIsStreaming(false);
       setCurrentQuiz(quiz);
       setQuizRestored(false);
+      setStreamingText(''); // Clear any streaming text
       // Quiz will be automatically saved to localStorage by the useEffect
     }
   };
@@ -164,13 +175,52 @@ export default function Dashboard() {
   const clearCurrentQuiz = () => {
     setCurrentQuiz(null);
     setQuizRestored(false);
+    setIsStreaming(false); // Also reset streaming state
+    setQuestionsGenerated(0);
+    setTotalQuestionsTarget(0);
+    setGenerationPhase('preparing');
+    setStreamingText('');
     localStorage.removeItem('currentQuiz');
   };
 
   // New function to handle streaming updates
   const handleStreamingUpdate = (text: string) => {
     setStreamingText(text);
-    setIsStreaming(true);
+    
+    // Extract question progress from progress messages
+    const progressMatch = text.match(/(\d+)\/(\d+) questions completed|Progress update: (\d+)\/(\d+)/);
+    if (progressMatch) {
+      const current = parseInt(progressMatch[1] || progressMatch[3]);
+      const total = parseInt(progressMatch[2] || progressMatch[4]);
+      setQuestionsGenerated(current);
+      setTotalQuestionsTarget(total);
+      setGenerationPhase('generating');
+    }
+    
+    // Extract target from preparation messages
+    const targetMatch = text.match(/create (\d+) questions|generate (\d+) questions/i);
+    if (targetMatch) {
+      const target = parseInt(targetMatch[1] || targetMatch[2]);
+      setTotalQuestionsTarget(target);
+    }
+    
+    // Handle completion - immediately switch to completed when quiz is ready
+    if (text.includes('Your quiz is ready!') || text.includes('Generated successfully!')) {
+      console.log('📄 Dashboard: Quiz completed, switching to display mode');
+      setGenerationPhase('completed');
+      setIsStreaming(false);
+      return; // Exit early to prevent setting streaming to true
+    } else if (text.includes('Error:')) {
+      // Stop streaming on error
+      setIsStreaming(false);
+      setGenerationPhase('completed');
+      return;
+    } 
+    
+    // Only set streaming to true if we're not completed
+    if (generationPhase !== 'completed') {
+      setIsStreaming(true);
+    }
   };
 
   // Function to handle exporting the quiz
@@ -429,6 +479,8 @@ export default function Dashboard() {
 
   // Function to render the quiz content
   const renderQuizContent = () => {
+    console.log('🎨 Dashboard: renderQuizContent called - currentQuiz:', currentQuiz, 'isStreaming:', isStreaming);
+    
     if (!currentQuiz) {
       return (
         <div className="text-gray-500 text-center">
@@ -438,27 +490,31 @@ export default function Dashboard() {
       );
     }
 
-    if (currentQuiz.loading || isStreaming) {
+    if (currentQuiz.loading || (isStreaming && generationPhase !== 'completed')) {
       return (
         <div className="space-y-4">
+          {/* Progress Header */}
           <div className="flex items-center mb-4">
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            <span className="text-sm text-gray-600">Generating your quiz...</span>
+            <Loader2 className="h-4 w-4 animate-spin mr-2 text-blue-600" />
+            <span className="text-sm font-medium text-gray-700">
+              {generationPhase === 'preparing' && 'Preparing quiz generation...'}
+              {generationPhase === 'generating' && `Generating questions (${questionsGenerated}/${totalQuestionsTarget})`}
+            </span>
           </div>
           
           {/* Progress message display */}
           {streamingText && (
             <div className="space-y-3">
-              <div className={`p-4 rounded-lg border ${
-                streamingText.includes('Generated') && streamingText.includes('of') 
-                  ? 'bg-green-50 border-green-200' 
+              <div className={`p-4 rounded-lg border transition-all duration-300 ${
+                generationPhase === 'generating' && questionsGenerated > 0
+                  ? 'bg-emerald-50 border-emerald-200' 
                   : streamingText.includes('Expected') || streamingText.includes('Only generated')
                   ? 'bg-yellow-50 border-yellow-200'
                   : 'bg-blue-50 border-blue-200'
               }`}>
                 <div className={`text-sm font-medium ${
-                  streamingText.includes('Generated') && streamingText.includes('of')
-                    ? 'text-green-900'
+                  generationPhase === 'generating' && questionsGenerated > 0
+                    ? 'text-emerald-800'
                     : streamingText.includes('Expected') || streamingText.includes('Only generated')
                     ? 'text-yellow-900' 
                     : 'text-blue-900'
@@ -467,7 +523,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="text-xs text-gray-500 italic">
-                Please wait while we process your PDF and generate questions...
+                Please wait while we process your document and generate questions. Larger files may take a bit longer.
               </div>
             </div>
           )}

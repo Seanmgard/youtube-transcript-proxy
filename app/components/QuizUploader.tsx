@@ -1,706 +1,336 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { createClient } from '@/utils/supabase/client';
-import { Button } from '@/app/components/ui/button';
-import { Input } from '@/app/components/ui/input';
-import { Label } from '@/app/components/ui/label';
-import { Slider } from '@/app/components/ui/slider';
-import { RadioGroup, RadioGroupItem } from '@/app/components/ui/radio-group';
-import { useToast } from '@/app/components/ui/use-toast';
-import { QuizSettings, Question } from '@/lib/types';
+import { useState, useRef } from 'react';
+import { upload } from '@vercel/blob/client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
-import { useSubscription } from '@/hooks/useSubscription';
-import { useAuth } from '@/app/providers/AuthProvider';
-import { generateQuiz } from '@/utils/api-client';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Slider } from '@/components/ui/slider';
+import { QuizSettings } from '@/lib/types';
 
 interface QuizUploaderProps {
-  onQuizGenerated?: (quiz: any) => void;
-  onStreamingUpdate?: (text: string) => void;
-  initialQuiz?: {
-    title: string;
-    questions: Question[];
-  };
-  onSaveComplete?: () => void;
+  onQuizGenerated: (quiz: any) => void;
+  onStreamingUpdate: (text: string) => void;
 }
 
-interface CurrentQuiz {
-  title: string;
-  questions: Question[];
-}
-
-export default function QuizUploader({ onQuizGenerated, onStreamingUpdate, initialQuiz, onSaveComplete }: QuizUploaderProps) {
-  const [supabase, setSupabase] = useState<any>(null);
-  const { toast } = useToast();
-  const { isOnPlan } = useSubscription();
-  const { user } = useAuth();
-  const isPremium = isOnPlan('premium');
-  const maxQuestions = isPremium ? 50 : 10;
-  
-  const [file, setFile] = useState<File | null>(null);
+export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: QuizUploaderProps) {
+  const inputFileRef = useRef<HTMLInputElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [streamingResponse, setStreamingResponse] = useState('');
-  const [generatedQuiz, setGeneratedQuiz] = useState<{
-    title: string;
-    questions: Question[];
-  } | null>(null);
-
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [fileName, setFileName] = useState('');
   const [settings, setSettings] = useState<QuizSettings>({
-    numberOfQuestions: Math.min(5, maxQuestions),
+    numberOfQuestions: 10,
     difficulty: 'medium',
     questionType: 'multiple_choice',
-    isLanguageLearning: false,
-    sourceLanguage: '',
-    targetLanguage: '',
-    extractionType: 'words'
   });
+  const { toast } = useToast();
 
-  // Add state for available languages
-  const availableLanguages = [
-    { code: 'en', name: 'English' },
-    { code: 'es', name: 'Spanish' },
-    { code: 'fr', name: 'French' },
-    { code: 'de', name: 'German' },
-    { code: 'it', name: 'Italian' },
-    { code: 'pt', name: 'Portuguese' },
-    { code: 'ru', name: 'Russian' },
-    { code: 'zh', name: 'Chinese' },
-    { code: 'ja', name: 'Japanese' },
-    { code: 'ko', name: 'Korean' }
-  ];
+  const validateFile = (file: File): { valid: boolean; error?: string } => {
+    // Check file size (50MB limit)
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (file.size > maxSize) {
+      return {
+        valid: false,
+        error: `File size (${Math.round(file.size / 1024 / 1024)}MB) exceeds the 50MB limit. Please use a smaller file.`
+      };
+    }
 
-  useEffect(() => {
-    const initSupabase = async () => {
-      const client = await createClient();
-      setSupabase(client);
-    };
-    
-    initSupabase();
-  }, []);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
-
+    // Check file type
     const allowedTypes = [
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
       'application/msword', // .doc
       'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
-      'application/vnd.ms-powerpoint' // .ppt
+      'application/vnd.ms-powerpoint', // .ppt
+      'text/plain', // .txt
+      'text/csv', // .csv
     ];
 
-    if (!allowedTypes.includes(selectedFile.type)) {
-      toast({
-        title: 'Invalid file type',
-        description: 'Please upload a PDF, Word document (.doc/.docx), or PowerPoint presentation (.ppt/.pptx)',
-        variant: 'destructive',
-      });
-      return;
+    if (!allowedTypes.includes(file.type)) {
+      return {
+        valid: false,
+        error: 'Please upload a PDF, Word document (.doc/.docx), PowerPoint presentation (.ppt/.pptx), or text file (.txt/.csv)'
+      };
     }
 
-    setFile(selectedFile);
-    setGeneratedQuiz(null);
-  };
-
-  const formatQuizContent = (quiz: { title: string; questions: any[] }) => {
-    return (
-      <div>
-        <h2 className="text-xl font-bold mb-4">{quiz.title}</h2>
-        {quiz.questions.map((q, i) => (
-          <div key={i} className="mb-6">
-            <div className="font-medium">
-              {i + 1}. {q.text}
-            </div>
-            {q.type === 'multiple_choice' && q.options && (
-              <ul className="mt-2 space-y-1">
-                {q.options.map((opt: string, idx: number) => {
-                  // Check if this option is the correct answer using multiple strategies
-                  let isCorrect = opt === q.correctAnswer;
-                  
-                  if (!isCorrect) {
-                    // Check if correctAnswer is just a letter (A, B, C, D)
-                    const answerLetter = q.correctAnswer.trim().toUpperCase();
-                    if (answerLetter.match(/^[A-D]$/)) {
-                      const letterIndex = answerLetter.charCodeAt(0) - 65;
-                      isCorrect = idx === letterIndex;
-                    }
-                  }
-                  
-                  return (
-                    <li key={idx} className="flex items-center">
-                      <span className={`${isCorrect ? 'bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md w-full' : ''}`}>
-                        {String.fromCharCode(97 + idx)}. {opt}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {q.correctAnswer && q.type !== 'multiple_choice' && (
-              <div className="mt-2 text-sm">
-                <strong>Answer: </strong>
-                <span className="bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md">
-                  {q.correctAnswer}
-                </span>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  const saveQuizToSupabase = async (quiz: any) => {
-    if (!supabase) {
-      console.error('Supabase client not initialized');
-      toast({
-        title: 'Error',
-        description: 'Could not connect to the database. Please try again.',
-        variant: 'destructive',
-      });
-      return;
+    // Check file extension as additional validation
+    const fileName = file.name.toLowerCase();
+    const allowedExtensions = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.txt', '.csv'];
+    const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+    
+    if (!hasValidExtension) {
+      return {
+        valid: false,
+        error: 'File must have a valid extension: .pdf, .doc, .docx, .ppt, .pptx, .txt, or .csv'
+      };
     }
 
-    try {
-      if (!user) {
-        console.error('No authenticated user found');
+    return { valid: true };
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const validation = validateFile(file);
+      if (!validation.valid) {
         toast({
-          title: 'Authentication Error',
-          description: 'Please sign in again to save your quiz.',
+          title: 'Invalid file',
+          description: validation.error,
           variant: 'destructive',
         });
+        // Clear the input
+        if (inputFileRef.current) {
+          inputFileRef.current.value = '';
+        }
+        setFileName('');
         return;
       }
-
-      const { error: dbError } = await supabase
-        .from('quizzes')
-        .insert({
-          title: quiz.title,
-          questions: quiz.questions,
-          settings,
-          pdf_url: '',
-          user_id: user.id
-        });
-
-      if (dbError) {
-        console.error('Error saving quiz:', dbError);
-        
-        // Check if the error is related to the quiz limit
-        if (dbError.message && dbError.message.includes('monthly quiz limit')) {
-          toast({
-            title: 'Monthly Quiz Limit Reached',
-            description: 'You have reached your monthly quiz limit. Upgrade to Premium for unlimited quizzes.',
-            variant: 'destructive',
-            duration: 10000, // Show for 10 seconds
-          });
-          
-          // We'll use a custom dialog instead of window.confirm
-          // to avoid blocking the UI
-          const upgradeDialog = document.createElement('div');
-          upgradeDialog.id = 'quiz-limit-dialog'; // Add ID to check if it already exists
-          
-          // Only show the dialog if it doesn't already exist
-          if (!document.getElementById('quiz-limit-dialog')) {
-            upgradeDialog.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
-            upgradeDialog.innerHTML = `
-              <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full">
-                <h3 class="text-lg font-medium mb-4">Quiz Limit Reached</h3>
-                <div class="mb-6">You have reached your monthly quiz limit. Would you like to upgrade to Premium for unlimited quizzes?</div>
-                <div class="flex justify-end space-x-4">
-                  <button id="cancel-upgrade" class="px-4 py-2 border rounded-md">Cancel</button>
-                  <button id="confirm-upgrade" class="px-4 py-2 bg-blue-600 text-white rounded-md">OK</button>
-                </div>
-              </div>
-            `;
-            
-            document.body.appendChild(upgradeDialog);
-            
-            document.getElementById('confirm-upgrade')?.addEventListener('click', () => {
-              window.location.href = '/dashboard/subscription';
-              document.body.removeChild(upgradeDialog);
-            });
-            
-            document.getElementById('cancel-upgrade')?.addEventListener('click', () => {
-              document.body.removeChild(upgradeDialog);
-            });
-          }
-        } 
-        // Check if the error is related to the question count limit
-        else if (dbError.message && dbError.message.includes('up to 10 questions')) {
-          toast({
-            title: 'Question Limit Reached',
-            description: 'Free users can only create quizzes with up to 10 questions. Upgrade to Premium for larger quizzes.',
-            variant: 'destructive',
-            duration: 10000, // Show for 10 seconds
-          });
-          
-          // We'll use a custom dialog instead of window.confirm
-          // to avoid blocking the UI
-          const upgradeDialog = document.createElement('div');
-          upgradeDialog.id = 'question-limit-dialog'; // Add ID to check if it already exists
-          
-          // Only show the dialog if it doesn't already exist
-          if (!document.getElementById('question-limit-dialog')) {
-            upgradeDialog.className = 'fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50';
-            upgradeDialog.innerHTML = `
-              <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full">
-                <h3 class="text-lg font-medium mb-4">Question Limit Reached</h3>
-                <div class="mb-6">Free users can only create quizzes with up to 10 questions. Would you like to upgrade to Premium for larger quizzes?</div>
-                <div class="flex justify-end space-x-4">
-                  <button id="cancel-upgrade" class="px-4 py-2 border rounded-md">Cancel</button>
-                  <button id="confirm-upgrade" class="px-4 py-2 bg-blue-600 text-white rounded-md">OK</button>
-                </div>
-              </div>
-            `;
-            
-            document.body.appendChild(upgradeDialog);
-            
-            document.getElementById('confirm-upgrade')?.addEventListener('click', () => {
-              window.location.href = '/dashboard/subscription';
-              document.body.removeChild(upgradeDialog);
-            });
-            
-            document.getElementById('cancel-upgrade')?.addEventListener('click', () => {
-              document.body.removeChild(upgradeDialog);
-            });
-          }
-        } 
-        else {
-          toast({
-            title: 'Warning',
-            description: 'Quiz generated but failed to save to database: ' + dbError.message,
-            variant: 'destructive',
-          });
-        }
-      } else {
-        toast({
-          title: 'Success',
-          description: 'Quiz generated and saved successfully',
-        });
-      }
-    } catch (error) {
-      console.error('Error saving quiz:', error);
-      toast({
-        title: 'Warning',
-        description: 'Quiz generated but failed to save to database',
-        variant: 'destructive',
-      });
+      setFileName(file.name);
+    } else {
+      setFileName('');
     }
   };
 
-  // Create a Web Worker to handle the quiz generation in the background
-  const createQuizWorker = () => {
-    const workerCode = `
-      self.onmessage = async function(e) {
-        const { file, settings, baseUrl } = e.data;
-        
-        try {
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('settings', JSON.stringify(settings));
-          
-          const response = await fetch(baseUrl + '/api/generate-quiz', {
-            method: 'POST',
-            body: formData
-          });
-
-          if (!response.body) {
-            throw new Error('ReadableStream not supported');
-          }
-
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            
-            const chunk = decoder.decode(value);
-            self.postMessage({ type: 'chunk', data: chunk });
-          }
-          
-          self.postMessage({ type: 'done' });
-        } catch (error) {
-          self.postMessage({ type: 'error', error: error.message });
-        }
-      };
-    `;
-
-    const blob = new Blob([workerCode], { type: 'application/javascript' });
-    return new Worker(URL.createObjectURL(blob));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!file) {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!inputFileRef.current?.files?.[0]) {
       toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please upload a document file"
+        title: 'No file selected',
+        description: 'Please choose a file to upload.',
+        variant: 'destructive',
       });
       return;
     }
 
-    setIsGenerating(true);
+    const file = inputFileRef.current.files[0];
     
-    // Clear any previous streaming text
-    if (onStreamingUpdate) {
-      onStreamingUpdate('');
-    }
-    
-    if (onQuizGenerated) {
-      onQuizGenerated({ loading: true });
+    // Re-validate file before upload
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      toast({
+        title: 'Invalid file',
+        description: validation.error,
+        variant: 'destructive',
+      });
+      return;
     }
 
-    const timeoutId = setTimeout(() => {
-      if (isGenerating) {
-        setIsGenerating(false);
-        toast({
-          title: 'Generation Timeout',
-          description: 'Quiz generation is taking longer than expected. Please try again.',
-          variant: 'destructive',
-        });
-        
-        if (onQuizGenerated) {
-          onQuizGenerated({ 
-            title: 'Error', 
-            questions: [{ 
-              text: 'Quiz generation timed out. Please try again.',
-              type: 'error',
-              correctAnswer: ''
-            }] 
-          });
-        }
-      }
-    }, 120000);
+    setIsUploading(true);
+    setIsGenerating(true);
+    onQuizGenerated({ loading: true });
 
     try {
-      const worker = createQuizWorker();
-      let lastInfoMessage = '';
+      onStreamingUpdate(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
+      
+      const newBlob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+        onUploadProgress: (progressEvent) => {
+          const percentage = Math.round(progressEvent.percentage);
+          setUploadProgress(percentage);
+          onStreamingUpdate(`Upload progress: ${percentage}%`);
+        },
+      });
 
-      worker.onmessage = async (e) => {
-        if (e.data.type === 'error') {
-          console.error('Worker error:', e.data.error);
-          setIsGenerating(false);
-          clearTimeout(timeoutId);
-          toast({
-            title: 'Error',
-            description: e.data.error,
-            variant: 'destructive',
-          });
-          worker.terminate();
-          return;
-        }
+      setIsUploading(false);
+      onStreamingUpdate('File uploaded successfully. Starting quiz generation...');
 
-        if (e.data.type === 'chunk') {
-          const lines = e.data.data.split('\n');
+      const response = await fetch('/api/generate-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blobUrl: newBlob.url,
+          settings,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate quiz');
+      }
+
+      if (!response.body) {
+        throw new Error('The response body is empty.');
+      }
+      
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let fullResponse = '';
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          fullResponse += chunk;
+          
+          const lines = fullResponse.split('\n\n');
+          fullResponse = lines.pop() || '';
           
           for (const line of lines) {
-            if (line.startsWith('data:')) {
-              const jsonString = line.replace(/^data:\s*/, '').trim();
-              
-              if (jsonString === '[DONE]') {
-                setIsGenerating(false);
-                clearTimeout(timeoutId);
-                worker.terminate();
-                return;
-              }
-              
-              try {
-                const parsed = JSON.parse(jsonString);
-                
-                if (parsed.type === 'info') {
-                  // Show progress updates to user
-                  lastInfoMessage = parsed.message;
-                  if (onStreamingUpdate) {
-                    onStreamingUpdate(parsed.message);
-                  }
-                } else if (parsed.type === 'progress') {
-                  // Show question generation progress
-                  if (onStreamingUpdate) {
-                    onStreamingUpdate(parsed.message);
-                  }
-                } else if (parsed.type === 'warning') {
-                  // Show warning messages
-                  if (onStreamingUpdate) {
-                    onStreamingUpdate(parsed.message);
-                  }
-                } else if (parsed.type === 'final') {
-                  const finalQuiz = parsed.quiz as CurrentQuiz;
-                  setStreamingResponse(JSON.stringify(finalQuiz));
-                  setGeneratedQuiz(finalQuiz);
-                  
-                  // Clear streaming text when final quiz is ready
-                  if (onStreamingUpdate) {
-                    onStreamingUpdate('');
-                  }
-                  
-                  if (onQuizGenerated) {
-                    onQuizGenerated(finalQuiz);
-                  }
-
-                  if (user) {
-                    await saveQuizToSupabase(finalQuiz);
-                  }
-
-                  toast({
-                    title: 'Success',
-                    description: `Quiz "${finalQuiz.title}" generated successfully`,
-                  });
+            if (line.startsWith('data: ')) {
+                const dataContent = line.substring(6);
+                if (dataContent === '[DONE]') {
+                    break;
                 }
-              } catch (err) {
-                console.warn('Failed to parse chunk:', err);
-              }
+                try {
+                    const parsed = JSON.parse(dataContent);
+                    if (parsed.type === 'info' || parsed.type === 'warning' || parsed.type === 'progress' || parsed.type === 'success') {
+                        onStreamingUpdate(parsed.message);
+                    } else if (parsed.type === 'final') {
+                        console.log('🎯 QuizUploader: Received final quiz data:', parsed.quiz);
+                        onQuizGenerated(parsed.quiz);
+                        onStreamingUpdate('Quiz generation completed!');
+                        // Don't break here, wait for complete signal
+                    } else if (parsed.type === 'error') {
+                        throw new Error(parsed.message);
+                    } else if (parsed.type === 'complete') {
+                        console.log('✅ QuizUploader: Received complete signal');
+                        onStreamingUpdate(parsed.message);
+                        done = true; // Set done flag to exit the outer loop
+                        break; // Exit the inner loop
+                    } else {
+                        console.log('🔄 QuizUploader: Received fallback quiz data:', parsed);
+                        onQuizGenerated(parsed);
+                    }
+                } catch (e) {
+                    console.error('Error parsing stream data chunk:', dataContent, e);
+                }
             }
           }
         }
+      }
 
-        if (e.data.type === 'done') {
-          setIsGenerating(false);
-          clearTimeout(timeoutId);
-          worker.terminate();
-        }
-      };
-
-      // Get the base URL for API requests
-      const baseUrl = window.location.origin;
-
-      // Start the worker with the base URL
-      worker.postMessage({ file, settings, baseUrl });
-
-      // Add a visibilitychange listener just to show the user it's still working
-      const visibilityHandler = () => {
-        if (document.visibilityState === 'visible' && isGenerating) {
-          toast({
-            title: 'Still Working',
-            description: 'Quiz generation is continuing in the background.',
-            variant: 'default',
-          });
-        }
-      };
-      
-      document.addEventListener('visibilitychange', visibilityHandler);
-      
-      // Clean up the visibility handler when done
-      return () => {
-        document.removeEventListener('visibilitychange', visibilityHandler);
-      };
-
-    } catch (err: any) {
-      console.error('Error generating quiz:', err);
-      setIsGenerating(false);
-      clearTimeout(timeoutId);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+      console.error('Quiz generation error:', error);
       toast({
-        title: 'Error',
-        description: err.message,
+        title: 'Error Generating Quiz',
+        description: errorMessage,
         variant: 'destructive',
       });
-      
-      if (onQuizGenerated) {
-        onQuizGenerated({ 
-          title: 'Error', 
-          questions: [{ 
-            text: err.message,
-            type: 'error',
-            correctAnswer: ''
-          }] 
-        });
+      onQuizGenerated({ title: 'Error', questions: [{ text: errorMessage }] });
+      onStreamingUpdate(`Error: ${errorMessage}`);
+    } finally {
+      setIsGenerating(false);
+      setIsUploading(false);
+      setUploadProgress(0);
+      setFileName('');
+      if (inputFileRef.current) {
+        inputFileRef.current.value = '';
       }
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* File Upload */}
-      <div>
-        <Label htmlFor="file-upload" className="block mb-2">Upload Document</Label>
-        <Input
-          id="file-upload"
-          type="file"
-          accept=".pdf,.doc,.docx,.ppt,.pptx"
-          onChange={handleFileChange}
-          className="cursor-pointer"
-        />
-        <p className="text-xs text-gray-500 mt-1">Supported formats: PDF, Word (.doc/.docx), PowerPoint (.ppt/.pptx)</p>
+    <form onSubmit={handleSubmit} className="flex flex-col h-full">
+      <div className="space-y-4 flex-1">
+        {/* File Upload */}
+        <div>
+          <Label htmlFor="file-upload" className="block mb-2">Upload Document</Label>
+          <Input
+            id="file-upload"
+            ref={inputFileRef}
+            type="file"
+            accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.csv"
+            onChange={handleFileChange}
+            disabled={isGenerating}
+            className="cursor-pointer"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Supported formats: PDF, Word (.doc/.docx), PowerPoint (.ppt/.pptx), Text (.txt/.csv)
+            <br />
+            Maximum file size: 50MB
+          </p>
+        </div>
+
+        {/* Number of Questions */}
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <Label>Number of Questions</Label>
+            <span className="text-sm text-gray-500">
+              {settings.numberOfQuestions} questions
+            </span>
+          </div>
+          <Slider
+            value={[settings.numberOfQuestions]}
+            min={5}
+            max={50}
+            step={1}
+            onValueChange={(value) => setSettings({ ...settings, numberOfQuestions: value[0] })}
+            disabled={isGenerating}
+          />
+        </div>
+
+        {/* Difficulty Level */}
+        <div>
+          <Label className="block mb-2">Difficulty</Label>
+          <RadioGroup
+            value={settings.difficulty}
+            onValueChange={(value) => setSettings({ ...settings, difficulty: value as 'easy' | 'medium' | 'hard' })}
+            className="flex flex-col space-y-1"
+            disabled={isGenerating}
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="easy" id="easy" disabled={isGenerating} />
+              <Label htmlFor="easy">Easy</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="medium" id="medium" disabled={isGenerating} />
+              <Label htmlFor="medium">Medium</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="hard" id="hard" disabled={isGenerating} />
+              <Label htmlFor="hard">Hard</Label>
+            </div>
+          </RadioGroup>
+        </div>
+
+        {/* Question Type */}
+        <div>
+          <Label className="block mb-2">Question Type</Label>
+          <RadioGroup
+            value={settings.questionType}
+            onValueChange={(value) => setSettings({ ...settings, questionType: value as 'multiple_choice' | 'open_ended' | 'mixed' })}
+            className="flex flex-col space-y-1"
+            disabled={isGenerating}
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="multiple_choice" id="multiple_choice" disabled={isGenerating} />
+              <Label htmlFor="multiple_choice">Multiple Choice</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="open_ended" id="open_ended" disabled={isGenerating} />
+              <Label htmlFor="open_ended">Open Ended</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="mixed" id="mixed" disabled={isGenerating} />
+              <Label htmlFor="mixed">Mixed</Label>
+            </div>
+          </RadioGroup>
+        </div>
       </div>
 
-      {/* Language Learning Toggle */}
-      <div className="flex items-center space-x-2">
-        <Label htmlFor="language-learning" className="cursor-pointer">Language Learning Mode</Label>
-        <input
-          type="checkbox"
-          id="language-learning"
-          checked={settings.isLanguageLearning}
-          onChange={(e) => setSettings({ ...settings, isLanguageLearning: e.target.checked })}
-          className="h-4 w-4 rounded border-gray-300"
-        />
-      </div>
-
-      {/* Language Learning Settings */}
-      {settings.isLanguageLearning && (
-        <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          {/* Source Language */}
-          <div>
-            <Label htmlFor="source-language">Document Language</Label>
-            <select
-              id="source-language"
-              value={settings.sourceLanguage}
-              onChange={(e) => setSettings({ ...settings, sourceLanguage: e.target.value })}
-              className="w-full mt-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select language</option>
-              {availableLanguages.map((lang) => (
-                <option key={lang.code} value={lang.code}>
-                  {lang.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Target Language */}
-          <div>
-            <Label htmlFor="target-language">Translation Language</Label>
-            <select
-              id="target-language"
-              value={settings.targetLanguage}
-              onChange={(e) => setSettings({ ...settings, targetLanguage: e.target.value })}
-              className="w-full mt-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select language</option>
-              {availableLanguages.map((lang) => (
-                <option key={lang.code} value={lang.code}>
-                  {lang.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Extraction Type */}
-          <div>
-            <Label className="block mb-2">Extract</Label>
-            <RadioGroup
-              value={settings.extractionType}
-              onValueChange={(value) => setSettings({ ...settings, extractionType: value as 'words' | 'sentences' })}
-              className="flex flex-col space-y-1"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="words" id="words" />
-                <Label htmlFor="words">Individual Words</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="sentences" id="sentences" />
-                <Label htmlFor="sentences">Full Sentences</Label>
-              </div>
-            </RadioGroup>
-          </div>
-        </div>
-      )}
-
-      {/* Number of Questions - Moved outside of quiz settings to be visible in both modes */}
-      <div>
-        <div className="flex justify-between mb-2">
-          <Label>Number of {settings.isLanguageLearning ? 'Flashcards' : 'Questions'}</Label>
-          <span className="text-sm text-gray-500">
-            {settings.numberOfQuestions} {settings.isLanguageLearning ? 'flashcards' : 'questions'}
-            {!isPremium && (
-              <span className="ml-1 text-xs text-amber-500">
-                (Max {maxQuestions} for free users)
-              </span>
-            )}
-          </span>
-        </div>
-        <Slider
-          value={[settings.numberOfQuestions]}
-          min={1}
-          max={maxQuestions}
-          step={1}
-          onValueChange={(value) => setSettings({ ...settings, numberOfQuestions: value[0] })}
-        />
-      </div>
-
-      {/* Quiz Settings */}
-      {!settings.isLanguageLearning && (
-        <div className="grid grid-cols-1 gap-6">
-          {/* Difficulty Level */}
-          <div>
-            <Label className="block mb-2">Difficulty Level</Label>
-            <RadioGroup
-              value={settings.difficulty}
-              onValueChange={(value) => setSettings({ ...settings, difficulty: value as 'easy' | 'medium' | 'hard' })}
-              className="flex flex-col space-y-1"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="easy" id="easy" />
-                <Label htmlFor="easy">Easy</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="medium" id="medium" />
-                <Label htmlFor="medium">Medium</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="hard" id="hard" />
-                <Label htmlFor="hard">Hard</Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          {/* Question Type */}
-          <div>
-            <Label className="block mb-2">Question Type</Label>
-            <RadioGroup
-              value={settings.questionType}
-              onValueChange={(value) => setSettings({ ...settings, questionType: value as 'multiple_choice' | 'open_ended' | 'mixed' })}
-              className="flex flex-col space-y-1"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="multiple_choice" id="multiple_choice" />
-                <Label htmlFor="multiple_choice">Multiple Choice</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="open_ended" id="open_ended" />
-                <Label htmlFor="open_ended">Open Ended</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="mixed" id="mixed" />
-                <Label htmlFor="mixed">Mixed</Label>
-              </div>
-            </RadioGroup>
-          </div>
-        </div>
-      )}
-
-      <div className="pt-2">
+      {/* Generate Quiz Button */}
+      <div className="mt-4">
         <Button 
           type="submit" 
           className="w-full"
-          disabled={!file || isGenerating || (settings.isLanguageLearning && (!settings.sourceLanguage || !settings.targetLanguage))}
-          onClick={handleSubmit}
+          disabled={isGenerating}
         >
           {isGenerating ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating {settings.isLanguageLearning ? 'Flashcards' : 'Quiz'}...
+              {isUploading ? `Uploading... ${uploadProgress}%` : 'Generating Quiz...'}
             </>
-          ) : `Generate ${settings.isLanguageLearning ? 'Flashcards' : 'Quiz'}`}
+          ) : 'Generate Quiz'}
         </Button>
       </div>
-
-      {/* We don't need to show the streaming response here anymore since it will be shown in the preview panel */}
-      {!onQuizGenerated && streamingResponse && (
-        <div className="mt-4 p-4 bg-gray-50 rounded-lg dark:bg-gray-700">
-          {(() => {
-            try {
-              const parsed = JSON.parse(streamingResponse);
-              setGeneratedQuiz(parsed);
-              return formatQuizContent(parsed);
-            } catch (e) {
-              return <div>Processing...</div>;
-            }
-          })()}
-        </div>
-      )}
-    </div>
+    </form>
   );
 }
