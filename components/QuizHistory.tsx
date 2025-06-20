@@ -403,7 +403,18 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
                   {question.type === 'multiple_choice' && question.options && (
                     <div className="ml-9 space-y-2">
                       {question.options.map((option, optIndex) => {
-                        const isCorrect = option === question.correctAnswer;
+                        // Check if this option is the correct answer using multiple strategies
+                        let isCorrect = option === question.correctAnswer;
+                        
+                        if (!isCorrect) {
+                          // Check if correctAnswer is just a letter (A, B, C, D)
+                          const answerLetter = question.correctAnswer.trim().toUpperCase();
+                          if (answerLetter.match(/^[A-D]$/)) {
+                            const letterIndex = answerLetter.charCodeAt(0) - 65;
+                            isCorrect = optIndex === letterIndex;
+                          }
+                        }
+                        
                         const optionLetter = String.fromCharCode(65 + optIndex);
                         
                         return (

@@ -495,7 +495,7 @@ export default function Dashboard() {
 
     return (
       <div className="space-y-4">
-        {/* Header with title only - export moved to section header */}
+        {/* Header with title and clear button */}
         <div className="flex justify-between items-start">
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold text-gray-900">{currentQuiz.title}</h3>
@@ -505,16 +505,14 @@ export default function Dashboard() {
               </span>
             )}
           </div>
-          {quizRestored && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearCurrentQuiz}
-              className="text-gray-500 hover:text-gray-700 text-xs"
-            >
-              Clear Quiz
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearCurrentQuiz}
+            className="text-gray-500 hover:text-gray-700 text-xs"
+          >
+            Clear Quiz
+          </Button>
         </div>
         
         {/* Questions Section */}
@@ -539,16 +537,41 @@ export default function Dashboard() {
                 <span className="text-sm font-medium text-gray-600">Answer: </span>
                 {question.type === 'multiple_choice' && question.options ? (
                   (() => {
-                    // Find which option matches the correct answer
-                    const correctIndex = question.options.findIndex((option: string) => 
+                    // Try to find the correct answer using multiple matching strategies
+                    let correctIndex = -1;
+                    let correctText = question.correctAnswer;
+                    
+                    // Strategy 1: Direct match with full option text
+                    correctIndex = question.options.findIndex((option: string) => 
                       option.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase()
                     );
+                    
+                    // Strategy 2: If correctAnswer is just a letter (A, B, C, D), convert to index
+                    if (correctIndex === -1) {
+                      const answerLetter = question.correctAnswer.trim().toUpperCase();
+                      if (answerLetter.match(/^[A-D]$/)) {
+                        correctIndex = answerLetter.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
+                        if (correctIndex >= 0 && correctIndex < question.options.length) {
+                          correctText = question.options[correctIndex];
+                        }
+                      }
+                    }
+                    
+                    // Strategy 3: If correctAnswer starts with a letter and parenthesis, extract the option
+                    if (correctIndex === -1) {
+                      const letterMatch = question.correctAnswer.match(/^([A-D])\)\s*(.+)$/i);
+                      if (letterMatch) {
+                        correctIndex = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
+                        correctText = letterMatch[2];
+                      }
+                    }
+                    
                     const answerLetter = correctIndex !== -1 ? String.fromCharCode(65 + correctIndex) : '';
                     
                     return (
                       <span className="text-sm text-gray-900">
                         {answerLetter && <span className="font-semibold">{answerLetter}) </span>}
-                        {question.correctAnswer}
+                        {correctText}
                       </span>
                     );
                   })()
@@ -698,7 +721,7 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
-              <div className="h-[400px] p-4 sm:p-6 bg-white overflow-auto border-r-4 border-r-blue-200">
+              <div className="h-[500px] p-4 sm:p-6 bg-white overflow-y-auto border-r-4 border-r-blue-200">
                 {renderQuizContent()}
               </div>
             </div>

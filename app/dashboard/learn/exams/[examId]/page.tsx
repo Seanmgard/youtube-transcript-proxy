@@ -272,7 +272,10 @@ export default function TakeExamPage() {
           quiz_id: question.quizId,
           user_answer: userAnswer,
           correct_answer: question.correctAnswer,
-          is_correct: isCorrect
+          is_correct: isCorrect,
+          question_text: question.text,
+          options: question.options || [],
+          type: question.type || 'open_ended',
         });
       });
       

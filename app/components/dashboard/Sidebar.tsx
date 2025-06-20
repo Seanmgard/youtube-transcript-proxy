@@ -121,15 +121,15 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
       return;
     }
 
-    // Check file size (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      toast({
-        title: 'File too large',
-        description: 'Please upload an image smaller than 2MB',
-        variant: 'destructive',
-      });
-      return;
-    }
+    // REMOVED: File size check - now supports unlimited size
+    // if (file.size > 2 * 1024 * 1024) {
+    //   toast({
+    //     title: 'File too large',
+    //     description: 'Please upload an image smaller than 2MB',
+    //     variant: 'destructive',
+    //   });
+    //   return;
+    // }
 
     try {
       setIsUploading(true);

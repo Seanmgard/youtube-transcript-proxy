@@ -79,10 +79,25 @@ export interface ExamResult {
   created_at: string;
 }
 
+export interface QuizAttempt {
+  id: string;
+  user_id: string;
+  quiz_id: string;
+  score: number;
+  total_questions: number;
+  question_results: QuestionResult[];
+  time_spent_seconds: number;
+  completed_at: string;
+  created_at: string;
+}
+
 export interface QuestionResult {
   question_id: string;
   quiz_id: string;
   user_answer: string;
   correct_answer: string;
   is_correct: boolean;
+  question_text?: string;
+  options?: string[];
+  type?: string;
 } 

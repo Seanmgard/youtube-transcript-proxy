@@ -576,10 +576,35 @@ export default function LearnQuizPage() {
             <div className="flex-grow flex items-center justify-center">
               {currentQuestion?.type === 'multiple_choice' && currentQuestion?.options ? (
                 (() => {
-                  // Find which option matches the correct answer
-                  const correctIndex = currentQuestion.options.findIndex((option: string) => 
+                  // Try to find the correct answer using multiple matching strategies
+                  let correctIndex = -1;
+                  let correctText = currentQuestion.correctAnswer;
+                  
+                  // Strategy 1: Direct match with full option text
+                  correctIndex = currentQuestion.options.findIndex((option: string) => 
                     option.trim().toLowerCase() === currentQuestion.correctAnswer.trim().toLowerCase()
                   );
+                  
+                  // Strategy 2: If correctAnswer is just a letter (A, B, C, D), convert to index
+                  if (correctIndex === -1) {
+                    const answerLetter = currentQuestion.correctAnswer.trim().toUpperCase();
+                    if (answerLetter.match(/^[A-D]$/)) {
+                      correctIndex = answerLetter.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
+                      if (correctIndex >= 0 && correctIndex < currentQuestion.options.length) {
+                        correctText = currentQuestion.options[correctIndex];
+                      }
+                    }
+                  }
+                  
+                  // Strategy 3: If correctAnswer starts with a letter and parenthesis, extract the option
+                  if (correctIndex === -1) {
+                    const letterMatch = currentQuestion.correctAnswer.match(/^([A-D])\)\s*(.+)$/i);
+                    if (letterMatch) {
+                      correctIndex = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
+                      correctText = letterMatch[2];
+                    }
+                  }
+                  
                   const answerLetter = correctIndex !== -1 ? String.fromCharCode(65 + correctIndex) : '';
                   
                   return (
@@ -589,7 +614,7 @@ export default function LearnQuizPage() {
                           {answerLetter})
                         </div>
                       )}
-                      <p className="text-sm font-medium text-gray-900">{currentQuestion.correctAnswer}</p>
+                      <p className="text-sm font-medium text-gray-900">{correctText}</p>
                     </div>
                   );
                 })()

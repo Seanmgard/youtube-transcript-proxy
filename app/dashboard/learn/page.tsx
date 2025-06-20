@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, ArrowLeft, BookOpen, BarChart3, Clock, Calendar, Tag, FileText, Plus } from 'lucide-react';
+import { Loader2, ArrowLeft, BookOpen, BarChart3, Clock, Calendar, Tag, FileText, Plus, Trophy, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { Quiz, LearningProgress, Exam } from '@/lib/types';
 import { useToast } from '@/components/ui/use-toast';
@@ -19,6 +20,9 @@ import { useRouter } from 'next/navigation';
 import { useSupabase } from '@/utils/supabase/client';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PerformanceDashboard } from './components/PerformanceDashboard';
+import { QuizTestComponent } from './components/QuizTestComponent';
+import { LongFormatTestComponent } from './components/LongFormatTestComponent';
 
 // Add a helper function to determine text color based on background color
 function getContrastColor(hexColor: string): string {
@@ -40,6 +44,11 @@ export default function LearnPage() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
   const [learningProgress, setLearningProgress] = useState<Record<string, LearningProgress>>({});
+  const [selectedQuizForTest, setSelectedQuizForTest] = useState<Quiz | null>(null);
+  const [selectedQuizIds, setSelectedQuizIds] = useState<string[]>([]);
+  const [showLongFormatTest, setShowLongFormatTest] = useState(false);
+  const [testQuestions, setTestQuestions] = useState<any[]>([]);
+  const [testTitle, setTestTitle] = useState('');
   const { supabase, loading: supabaseLoading, error: supabaseError } = useSupabase();
   const { toast } = useToast();
   const router = useRouter();
@@ -48,32 +57,32 @@ export default function LearnPage() {
   // Combine loading states
   const isLoading = contentLoading || supabaseLoading;
 
-  // Add a function to clean up orphaned learning progress records
-  const cleanupOrphanedProgress = async () => {
-    try {
-      const response = await fetch('/api/cleanup-progress', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'same-origin'
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.cleaned > 0) {
-          console.log(`Cleaned up ${data.cleaned} orphaned learning progress records`);
-        }
-      } else {
-        console.error('Failed to clean up orphaned progress records');
-      }
-    } catch (error) {
-      console.error('Error cleaning up orphaned progress:', error);
-    }
-  };
-
   useEffect(() => {
     if (!supabase) return;
+    
+    // Add a function to clean up orphaned learning progress records
+    const cleanupOrphanedProgress = async () => {
+      try {
+        const response = await fetch('/api/cleanup-progress', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.cleaned > 0) {
+            console.log(`Cleaned up ${data.cleaned} orphaned learning progress records`);
+          }
+        } else {
+          console.error('Failed to clean up orphaned progress records');
+        }
+      } catch (error) {
+        console.error('Error cleaning up orphaned progress:', error);
+      }
+    };
     
     const fetchUserAndQuizzes = async () => {
       try {
@@ -294,6 +303,13 @@ export default function LearnPage() {
             <FileText className="w-4 h-4 mr-2" />
             Test Yourself
           </TabsTrigger>
+          <TabsTrigger 
+            value="performance"
+            className="data-[state=active]:bg-purple-600 data-[state=active]:text-white px-6 py-2 rounded-md font-medium transition-all"
+          >
+            <Trophy className="w-4 h-4 mr-2" />
+            Performance
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="quizzes" className="space-y-6">
@@ -419,19 +435,19 @@ export default function LearnPage() {
         
         <TabsContent value="exams" className="space-y-6">
           <Card className="bg-white shadow-lg border-0">
-            <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-blue-50 to-blue-100">
+            <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-blue-50 to-emerald-100">
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-xl font-semibold text-gray-900 flex items-center">
-                    <FileText className="w-5 h-5 mr-2 text-blue-600" />
-                    Your Exams
+                    <FileText className="w-5 h-5 mr-2 text-emerald-600" />
+                    Comprehensive Exams
                   </CardTitle>
                   <CardDescription className="text-gray-600 mt-1">
-                    Test your knowledge with comprehensive practice exams
+                    Combine multiple quizzes into comprehensive practice exams
                   </CardDescription>
                 </div>
                 <Link href="/dashboard/learn/exams/create">
-                  <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Button className="bg-emerald-600 hover:bg-emerald-700">
                     <Plus className="h-4 w-4 mr-2" />
                     Create Exam
                   </Button>
@@ -440,14 +456,14 @@ export default function LearnPage() {
             </CardHeader>
             <CardContent className="p-8">
               {exams.length === 0 ? (
-                <div className="text-center py-12">
+                <div className="text-center py-8">
                   <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <FileText className="h-8 w-8 text-gray-400" />
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No exams created yet</h3>
                   <p className="text-gray-500 mb-4">Create comprehensive practice exams by combining your quizzes!</p>
                   <Link href="/dashboard/learn/exams/create">
-                    <Button className="bg-blue-600 hover:bg-blue-700">
+                    <Button className="bg-emerald-600 hover:bg-emerald-700">
                       <Plus className="w-4 h-4 mr-2" />
                       Create Your First Exam
                     </Button>
@@ -476,15 +492,15 @@ export default function LearnPage() {
                         </div>
                       </CardHeader>
                       <CardContent className="pb-4">
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                          <p className="text-sm text-blue-800">
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                          <p className="text-sm text-emerald-800">
                             This exam combines {exam.quiz_ids.length} {exam.quiz_ids.length === 1 ? 'quiz' : 'quizzes'} for comprehensive testing.
                           </p>
                         </div>
                       </CardContent>
                       <CardFooter className="pt-0">
                         <Link href={`/dashboard/learn/exams/${exam.id}`} className="w-full">
-                          <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                          <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
                             <BarChart3 className="w-4 h-4 mr-2" />
                             Take Exam
                           </Button>
@@ -496,6 +512,10 @@ export default function LearnPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="performance" className="space-y-6">
+          <PerformanceDashboard />
         </TabsContent>
       </Tabs>
     </div>
