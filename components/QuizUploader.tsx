@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { upload } from '@vercel/blob/client';
 import { createClient } from '@/utils/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/components/ui/use-toast';
+import { Loader2 } from 'lucide-react';
 import { QuizSettings, Question } from '@/lib/types';
 
 export default function QuizUploader() {
@@ -15,6 +17,8 @@ export default function QuizUploader() {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [streamingResponse, setStreamingResponse] = useState('');
   const [rawStreamingText, setRawStreamingText] = useState('');
   const [showRawStream, setShowRawStream] = useState(true);
@@ -46,24 +50,62 @@ export default function QuizUploader() {
     }
   }, [rawStreamingText, showRawStream]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
+  const validateFile = (file: File): { valid: boolean; error?: string } => {
+    // Check file size (50MB limit)
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (file.size > maxSize) {
+      return {
+        valid: false,
+        error: `File size (${Math.round(file.size / 1024 / 1024)}MB) exceeds the 50MB limit. Please use a smaller file.`
+      };
+    }
 
+    // Check file type
     const allowedTypes = [
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
       'application/msword', // .doc
       'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
-      'application/vnd.ms-powerpoint' // .ppt
+      'application/vnd.ms-powerpoint', // .ppt
+      'text/plain', // .txt
+      'text/csv', // .csv
     ];
 
-    if (!allowedTypes.includes(selectedFile.type)) {
+    if (!allowedTypes.includes(file.type)) {
+      return {
+        valid: false,
+        error: 'Please upload a PDF, Word document (.doc/.docx), PowerPoint presentation (.ppt/.pptx), or text file (.txt/.csv)'
+      };
+    }
+
+    // Check file extension as additional validation
+    const fileName = file.name.toLowerCase();
+    const allowedExtensions = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.txt', '.csv'];
+    const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+    
+    if (!hasValidExtension) {
+      return {
+        valid: false,
+        error: 'File must have a valid extension: .pdf, .doc, .docx, .ppt, .pptx, .txt, or .csv'
+      };
+    }
+
+    return { valid: true };
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    const validation = validateFile(selectedFile);
+    if (!validation.valid) {
       toast({
-        title: 'Invalid file type',
-        description: 'Please upload a PDF, Word document (.doc/.docx), or PowerPoint presentation (.ppt/.pptx)',
+        title: 'Invalid file',
+        description: validation.error,
         variant: 'destructive',
       });
+      // Clear the input
+      e.target.value = '';
       return;
     }
 
@@ -123,25 +165,54 @@ export default function QuizUploader() {
     e.preventDefault();
     if (!file) return;
 
+    // Re-validate file before upload
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      toast({
+        title: 'Invalid file',
+        description: validation.error,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsGenerating(true);
+    setIsUploading(true);
     setStreamingResponse('');
     setRawStreamingText('');
     setShowRawStream(true);
     setGeneratedQuiz(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('settings', JSON.stringify(settings));
+      // First upload to Vercel Blob
+      setRawStreamingText(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...\n`);
+      
+      const newBlob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+        onUploadProgress: (progressEvent) => {
+          const percentage = Math.round(progressEvent.percentage);
+          setUploadProgress(percentage);
+          setRawStreamingText(prev => prev + `Upload progress: ${percentage}%\n`);
+        },
+      });
 
+      setIsUploading(false);
+      setRawStreamingText(prev => prev + 'File uploaded successfully. Starting quiz generation...\n');
+
+      // Now generate quiz using the blob URL
       const response = await fetch('/api/generate-quiz', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blobUrl: newBlob.url,
+          settings,
+        }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to generate quiz');
+        throw new Error(errorData.error || 'Failed to generate quiz');
       }
 
       if (!response.body) {
@@ -177,13 +248,8 @@ export default function QuizUploader() {
               const parsed = JSON.parse(jsonString);
 
               if (parsed.type === 'info') {
-                // Display info messages to the user
-                toast({
-                  title: 'Info',
-                  description: parsed.message,
-                });
                 // Add info messages to raw stream
-                setRawStreamingText(prev => prev + `\n[Info] ${parsed.message}\n`);
+                setRawStreamingText(prev => prev + `[Info] ${parsed.message}\n`);
               } else if (parsed.type === 'delta') {
                 // Accumulate content for JSON parsing
                 accumulatedContent += parsed.chunk;
@@ -194,13 +260,10 @@ export default function QuizUploader() {
                 // Don't try to parse JSON until we get the final result
                 // This ensures we show the raw streaming text as it comes in
               } else if (parsed.type === 'error') {
-                setRawStreamingText(prev => prev + `\n[Error] ${parsed.message}\n`);
-                setStreamingResponse(JSON.stringify({ 
-                  title: 'Error', 
-                  questions: [{ text: parsed.message, type: 'error' }] 
-                }));
+                setRawStreamingText(prev => prev + `[Error] ${parsed.message}\n`);
+                throw new Error(parsed.message);
               } else if (parsed.type === 'warning') {
-                setRawStreamingText(prev => prev + `\n[Warning] ${parsed.message}\n`);
+                setRawStreamingText(prev => prev + `[Warning] ${parsed.message}\n`);
               } else if (parsed.type === 'final') {
                 // We've received the final, properly formatted quiz
                 // Switch from raw stream to formatted output
@@ -250,6 +313,11 @@ export default function QuizUploader() {
                     variant: 'destructive',
                   });
                 }
+                // Don't break here, wait for complete signal
+              } else if (parsed.type === 'complete') {
+                setRawStreamingText(prev => prev + `[Complete] ${parsed.message}\n`);
+                done = true; // Exit the streaming loop
+                break;
               }
             } catch (err) {
               console.error('Failed to parse SSE chunk:', err);
@@ -292,9 +360,12 @@ export default function QuizUploader() {
         description: err.message,
         variant: 'destructive',
       });
+      setRawStreamingText(prev => prev + `\nError: ${err.message}\n`);
       setShowRawStream(false);
     } finally {
       setIsGenerating(false);
+      setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -305,8 +376,19 @@ export default function QuizUploader() {
         {/* File Upload */}
         <div className="md:col-span-4">
           <Label htmlFor="file-upload">Upload Document</Label>
-          <Input id="file-upload" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" onChange={handleFileChange} className="mt-1" />
-          <p className="text-xs text-gray-500 mt-1">Supported formats: PDF, Word (.doc/.docx), PowerPoint (.ppt/.pptx)</p>
+          <Input 
+            id="file-upload" 
+            type="file" 
+            accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.csv" 
+            onChange={handleFileChange} 
+            className="mt-1"
+            disabled={isGenerating}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Supported formats: PDF, Word (.doc/.docx), PowerPoint (.ppt/.pptx), Text (.txt/.csv)
+            <br />
+            Maximum file size: 50MB
+          </p>
         </div>
 
         {/* Number of Questions */}
@@ -323,6 +405,7 @@ export default function QuizUploader() {
             max={30}
             step={1}
             className="mt-2"
+            disabled={isGenerating}
           />
           <p className="text-sm text-gray-500 mt-1">
             {settings.numberOfQuestions} questions
@@ -338,17 +421,18 @@ export default function QuizUploader() {
               setSettings({ ...settings, difficulty: val })
             }
             className="mt-2 space-y-1"
+            disabled={isGenerating}
           >
             <div className="flex items-center space-x-2">
-              <RadioGroupItem value="easy" id="easy" />
+              <RadioGroupItem value="easy" id="easy" disabled={isGenerating} />
               <Label htmlFor="easy">Easy</Label>
             </div>
             <div className="flex items-center space-x-2">
-              <RadioGroupItem value="medium" id="medium" />
+              <RadioGroupItem value="medium" id="medium" disabled={isGenerating} />
               <Label htmlFor="medium">Medium</Label>
             </div>
             <div className="flex items-center space-x-2">
-              <RadioGroupItem value="hard" id="hard" />
+              <RadioGroupItem value="hard" id="hard" disabled={isGenerating} />
               <Label htmlFor="hard">Hard</Label>
             </div>
           </RadioGroup>
@@ -363,17 +447,18 @@ export default function QuizUploader() {
               setSettings({ ...settings, questionType: val })
             }
             className="mt-2 space-y-1"
+            disabled={isGenerating}
           >
             <div className="flex items-center space-x-2">
-              <RadioGroupItem value="multiple_choice" id="multiple_choice" />
+              <RadioGroupItem value="multiple_choice" id="multiple_choice" disabled={isGenerating} />
               <Label htmlFor="multiple_choice">Multiple Choice</Label>
             </div>
             <div className="flex items-center space-x-2">
-              <RadioGroupItem value="open_ended" id="open_ended" />
+              <RadioGroupItem value="open_ended" id="open_ended" disabled={isGenerating} />
               <Label htmlFor="open_ended">Open Ended</Label>
             </div>
             <div className="flex items-center space-x-2">
-              <RadioGroupItem value="mixed" id="mixed" />
+              <RadioGroupItem value="mixed" id="mixed" disabled={isGenerating} />
               <Label htmlFor="mixed">Mixed</Label>
             </div>
           </RadioGroup>
@@ -386,7 +471,12 @@ export default function QuizUploader() {
             disabled={!file || isGenerating}
             className="w-full"
           >
-            {isGenerating ? 'Generating...' : 'Generate Quiz'}
+            {isGenerating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {isUploading ? `Uploading... ${uploadProgress}%` : 'Generating...'}
+              </>
+            ) : 'Generate Quiz'}
           </Button>
         </div>
       </form>

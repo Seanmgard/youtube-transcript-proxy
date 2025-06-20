@@ -1,59 +1,89 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { upload } from '@vercel/blob/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
-import { generateQuiz } from '@/utils/api-client';
 import { QuizSettings } from '@/lib/types';
 
 export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: { 
   onQuizGenerated: (quiz: any) => void;
   onProgressUpdate?: (step: number, message: string) => void;
 }) {
-  const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [quizGenerated, setQuizGenerated] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [stepMessage, setStepMessage] = useState('');
+  const { toast } = useToast();
 
-  // Progressive steps for user feedback
-  const steps = [
-    { step: 1, message: 'Uploading your PDF...' },
-    { step: 2, message: 'Analyzing document content...' },
-    { step: 3, message: 'Creating your quiz questions...' },
-    { step: 4, message: 'Finalizing your quiz...' }
-  ];
-
-  // Fixed settings for the demo
   const settings: QuizSettings = {
-    numberOfQuestions: 2,
+    numberOfQuestions: 10,
     difficulty: 'medium',
     questionType: 'multiple_choice',
+  };
+
+  const validateFile = (file: File): { valid: boolean; error?: string } => {
+    // Check file size (50MB limit)
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (file.size > maxSize) {
+      return {
+        valid: false,
+        error: `File size (${Math.round(file.size / 1024 / 1024)}MB) exceeds the 50MB limit. Please use a smaller file.`
+      };
+    }
+
+    // Check file type
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+      'application/msword', // .doc
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+      'application/vnd.ms-powerpoint', // .ppt
+      'text/plain', // .txt
+      'text/csv', // .csv
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      return {
+        valid: false,
+        error: 'Please upload a PDF, Word document (.doc/.docx), PowerPoint presentation (.ppt/.pptx), or text file (.txt/.csv)'
+      };
+    }
+
+    // Check file extension as additional validation
+    const fileName = file.name.toLowerCase();
+    const allowedExtensions = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.txt', '.csv'];
+    const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+    
+    if (!hasValidExtension) {
+      return {
+        valid: false,
+        error: 'File must have a valid extension: .pdf, .doc, .docx, .ppt, .pptx, .txt, or .csv'
+      };
+    }
+
+    return { valid: true };
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
-    const allowedTypes = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-      'application/msword', // .doc
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
-      'application/vnd.ms-powerpoint' // .ppt
-    ];
-
-    if (!allowedTypes.includes(selectedFile.type)) {
+    const validation = validateFile(selectedFile);
+    if (!validation.valid) {
       toast({
-        title: 'Invalid file type',
-        description: 'Please upload a PDF, Word document (.doc/.docx), or PowerPoint presentation (.ppt/.pptx)',
+        title: 'Invalid file',
+        description: validation.error,
         variant: 'destructive',
       });
+      // Clear the input
+      e.target.value = '';
       return;
     }
 
@@ -67,11 +97,11 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
     // Map API messages to our step system
     if (message.includes('Uploading') || message.includes('uploaded')) {
       step = 1;
-      displayMessage = 'Uploading your PDF...';
-    } else if (message.includes('Preparing') || message.includes('Reading') || message.includes('processed')) {
+      displayMessage = 'Uploading your document...';
+    } else if (message.includes('Preparing') || message.includes('Reading') || message.includes('processed') || message.includes('Fetching')) {
       step = 2;
       displayMessage = 'Analyzing document content...';
-    } else if (message.includes('Creating') || message.includes('Setting up') || message.includes('questions')) {
+    } else if (message.includes('Creating') || message.includes('Setting up') || message.includes('questions') || message.includes('Generating')) {
       step = 3;
       displayMessage = 'Creating your quiz questions...';
     }
@@ -98,14 +128,55 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
     e.preventDefault();
     if (!file) return;
 
+    // Re-validate file before upload
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      toast({
+        title: 'Invalid file',
+        description: validation.error,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsGenerating(true);
+    setIsUploading(true);
     setCurrentStep(0);
     setStepMessage('');
     // Reset the parent component's quiz state to show loading
     onQuizGenerated({ title: 'Generating Quiz...', questions: [] });
 
     try {
-      const response = await generateQuiz(file, settings);
+      // First upload to Vercel Blob
+      updateProgress(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
+      
+      const newBlob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+        onUploadProgress: (progressEvent) => {
+          const percentage = Math.round(progressEvent.percentage);
+          setUploadProgress(percentage);
+          updateProgress(`Upload progress: ${percentage}%`);
+        },
+      });
+
+      setIsUploading(false);
+      updateProgress('File uploaded successfully. Starting quiz generation...');
+
+      // Now generate quiz using the blob URL
+      const response = await fetch('/api/generate-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blobUrl: newBlob.url,
+          settings,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate quiz');
+      }
 
       if (!response.body) {
         throw new Error('ReadableStream not supported in this environment.');
@@ -125,44 +196,26 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
         
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const jsonString = line.substring(6).trim();
-            
-            // Special case for the end of stream marker
-            if (jsonString === '[DONE]') {
-              continue; // Skip this line, it's just signaling the end of the stream
+            const dataContent = line.substring(6);
+            if (dataContent === '[DONE]') {
+              break;
             }
-            
-            // Skip empty lines or non-JSON content
-            if (!jsonString || !jsonString.startsWith('{')) {
-              continue;
-            }
-            
             try {
-              const data = JSON.parse(jsonString);
-              
-              if (data.type === 'info' && data.message) {
-                // Update progress based on the API message
-                updateProgress(data.message);
-              }
-              
-              if (data.type === 'final' && data.quiz) {
-                // Show finalizing step before displaying quiz
+              const parsed = JSON.parse(dataContent);
+              if (parsed.type === 'info' || parsed.type === 'warning' || parsed.type === 'progress' || parsed.type === 'success') {
+                updateProgress(parsed.message);
+              } else if (parsed.type === 'final') {
+                finalQuiz = parsed.quiz;
                 showFinalizingStep();
-                
-                // Add a short delay to show the finalizing step
-                await new Promise(resolve => setTimeout(resolve, 800));
-                
-                finalQuiz = {
-                  title: data.quiz.title || file.name.replace('.pdf', ''),
-                  questions: data.quiz.questions || []
-                };
+                // Don't break here, wait for complete signal
+              } else if (parsed.type === 'error') {
+                throw new Error(parsed.message);
+              } else if (parsed.type === 'complete') {
+                updateProgress(parsed.message);
+                break; // Exit the streaming loop
               }
-              
-              // You can handle other event types here if needed
-              // e.g., data.type === 'info', data.type === 'delta', etc.
-            } catch (parseErr) {
-              // Skip malformed JSON lines silently - this is normal in streaming
-              console.debug('Skipping non-JSON line:', jsonString.substring(0, 50) + '...');
+            } catch (e) {
+              console.error('Error parsing stream data chunk:', dataContent, e);
             }
           }
         }
@@ -174,6 +227,10 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
         setStepMessage('');
         // Update the parent component with the generated quiz
         onQuizGenerated(finalQuiz);
+        toast({
+          title: 'Success',
+          description: 'Quiz generated successfully!',
+        });
       } else {
         throw new Error('No quiz data received from the server');
       }
@@ -190,6 +247,8 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
       onQuizGenerated(null);
     } finally {
       setIsGenerating(false);
+      setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -204,8 +263,17 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
       <form onSubmit={handleSubmit} className="mb-4 sm:mb-6">
         <div className="mb-4">
           <Label htmlFor="file-upload" className="text-sm sm:text-base text-gray-900">Drop files here to upload</Label>
-          <Input id="file-upload" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" onChange={handleFileChange} className="mt-1" />
-          <p className="text-xs text-gray-500 mt-1">Supported: PDF, Word, PowerPoint</p>
+          <Input 
+            id="file-upload" 
+            type="file" 
+            accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.csv" 
+            onChange={handleFileChange} 
+            className="mt-1"
+            disabled={isGenerating}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Supported: PDF, Word, PowerPoint, Text files (Max: 50MB)
+          </p>
         </div>
         
         <Button
@@ -216,7 +284,7 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
           {isGenerating ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating...
+              {isUploading ? `Uploading... ${uploadProgress}%` : 'Generating...'}
             </>
           ) : (
             'Generate Quiz'
@@ -225,59 +293,42 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
       </form>
 
       {/* Progress Display */}
-      {isGenerating && currentStep > 0 && (
-        <div className="mb-4 sm:mb-6">
-          <div className={`p-4 rounded-lg border ${
-            currentStep === 3 
-              ? 'bg-green-50 border-green-200' 
-              : 'bg-blue-50 border-blue-200'
-          }`}>
-            <div className="flex items-center justify-between mb-2">
-              <div className={`text-sm font-medium ${
-                currentStep === 3 ? 'text-green-900' : 'text-blue-900'
-              }`}>
-                Step {currentStep} of 4
-              </div>
-              <div className={`text-xs ${
-                currentStep === 3 ? 'text-green-600' : 'text-blue-600'
-              }`}>
-                {Math.round((currentStep / 4) * 100)}% Complete
-              </div>
+      {isGenerating && (
+        <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin text-blue-600" />
+            <div className="flex-1">
+              <p className="text-sm sm:text-base font-medium text-blue-900">
+                {stepMessage || 'Processing...'}
+              </p>
+              {isUploading && uploadProgress > 0 && (
+                <div className="mt-2">
+                  <div className="bg-blue-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-blue-700 mt-1">{uploadProgress}% uploaded</p>
+                </div>
+              )}
             </div>
-            <div className={`text-sm ${
-              currentStep === 3 ? 'text-green-800' : 'text-blue-800'
-            }`}>
-              {stepMessage}
-            </div>
-            
-            {/* Progress Bar */}
-            <div className="mt-3">
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full transition-all duration-500 ease-out ${
-                    currentStep === 3 ? 'bg-green-500' : 'bg-blue-500'
-                  }`}
-                  style={{ width: `${(currentStep / 4) * 100}%` }}
-                ></div>
-              </div>
-            </div>
-          </div>
-          <div className="text-xs text-gray-500 italic mt-2">
-            Please wait while we process your PDF and generate questions...
           </div>
         </div>
       )}
 
-      {/* Call-to-Action Section - Only shown after quiz generation */}
-      {quizGenerated && (
-        <div className="mt-4 sm:mt-6 bg-gray-50 rounded-lg p-3 sm:p-4 text-sm sm:text-base">
-          <div className="text-center py-2 sm:py-3">
-            <p className="mb-4 text-gray-600 text-sm sm:text-base">
-              Want to create more comprehensive quizzes with customizable settings?
+      {/* Success State */}
+      {quizGenerated && !isGenerating && (
+        <div className="p-3 sm:p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            <div className="h-4 w-4 sm:h-5 sm:w-5 bg-green-600 rounded-full flex items-center justify-center">
+              <svg className="h-2 w-2 sm:h-3 sm:w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <p className="text-sm sm:text-base font-medium text-green-900">
+              Quiz generated successfully!
             </p>
-            <Link href="/auth/sign-up">
-              <Button>Sign Up for Free</Button>
-            </Link>
           </div>
         </div>
       )}

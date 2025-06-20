@@ -3,19 +3,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   reactStrictMode: true,
-  // Add configuration for larger file uploads
-  experimental: {
-    serverComponentsExternalPackages: ['@supabase/ssr'],
-  },
-  // Increase the body size limit for API routes
-  api: {
-    bodyParser: {
-      sizeLimit: '50mb',
-    },
-    responseLimit: false,
-  },
+  
+  // External packages for server components
+  serverExternalPackages: ['@vercel/blob'],
+
   images: {
-    domains: ['quizlabai.com', 'www.quizlabai.com'],
     remotePatterns: [
       {
         protocol: 'https',
@@ -45,6 +37,24 @@ const nextConfig: NextConfig = {
           {
             key: 'X-XSS-Protection',
             value: '1; mode=block',
+          },
+        ],
+      },
+      // Add specific headers for API routes to handle larger uploads
+      {
+        source: '/api/(.*)',
+        headers: [
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, POST, PUT, DELETE, OPTIONS',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization',
           },
         ],
       },
