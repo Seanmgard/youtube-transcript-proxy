@@ -23,6 +23,8 @@ export interface QuizSettings {
   numberOfQuestions: number;
   difficulty: 'easy' | 'medium' | 'hard';
   questionType: 'multiple_choice' | 'open_ended' | 'mixed';
+  sourceType?: 'file' | 'youtube';
+  youtubeUrl?: string;
   isLanguageLearning?: boolean;
   sourceLanguage?: string;
   targetLanguage?: string;
