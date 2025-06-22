@@ -140,7 +140,7 @@ async function generateQuestionsWithRetry(openai: OpenAI, threadId: string, assi
   // Send initial progress
   sendJson({ 
     type: 'progress', 
-    message: `Starting quiz generation - analyzing document content...` 
+    message: `🔬 Starting quiz generation - analyzing content for educational value...` 
   });
   
   while (allQuestions.length < targetCount && attempts < maxAttempts) {
@@ -150,21 +150,40 @@ async function generateQuestionsWithRetry(openai: OpenAI, threadId: string, assi
     try {
       sendJson({ 
         type: 'progress', 
-        message: `Generating ${remaining} questions from your document...` 
+        message: `📝 Creating ${remaining} high-quality educational questions...` 
       });
       
       // Simulate progress updates for better UX
       let simulatedProgress = allQuestions.length;
+      const progressMessages = [
+        '🔍 Analyzing content for key concepts and learning objectives...',
+        '📚 Identifying important definitions and formulas...',
+        '🧩 Crafting questions to test understanding...',
+        '✏️ Refining questions for educational value...',
+        '🎯 Ensuring questions focus on core subject matter...',
+        '📝 Finalizing high-quality educational questions...'
+      ];
+      let messageIndex = 0;
+      
       const progressInterval = setInterval(() => {
         if (simulatedProgress < targetCount) {
-          // Linear incremental progress (1 question at a time)
-          simulatedProgress++;
-          sendJson({ 
-            type: 'progress', 
-            message: `Progress update: ${simulatedProgress}/${targetCount} questions completed (${Math.round((simulatedProgress/targetCount)*100)}%)` 
-          });
+          // Alternate between progress count and descriptive messages
+          if (messageIndex % 2 === 0) {
+            simulatedProgress++;
+            sendJson({ 
+              type: 'progress', 
+              message: `📊 Progress: ${simulatedProgress}/${targetCount} questions crafted (${Math.round((simulatedProgress/targetCount)*100)}%)` 
+            });
+          } else {
+            const msgIdx = Math.floor(messageIndex / 2) % progressMessages.length;
+            sendJson({ 
+              type: 'progress', 
+              message: progressMessages[msgIdx]
+            });
+          }
+          messageIndex++;
         }
-      }, 1500); // Update every 1.5 seconds for smoother progression
+      }, 1200); // Update every 1.2 seconds for smoother progression
       
       // Add a message to the thread for this batch
       await openai.beta.threads.messages.create(threadId, {
@@ -227,13 +246,13 @@ Return in JSON format:
         
         sendJson({ 
           type: 'progress', 
-          message: `Generated ${validQuestions.length} valid questions (${currentTotal}/${targetCount} total)` 
+          message: `✅ Created ${validQuestions.length} educational questions (${currentTotal}/${targetCount} total)` 
         });
         
         if (currentTotal >= targetCount) {
           sendJson({ 
             type: 'success', 
-            message: `Excellent! Successfully generated all ${targetCount} questions from your document!` 
+            message: `🎉 Excellent! Successfully generated all ${targetCount} educational questions focused on the core subject matter!` 
           });
           break; // Exit the loop when we have enough questions
         }
@@ -423,19 +442,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
     }
 
-    const { blobUrl, settings } = await request.json();
-    if (!blobUrl || !settings) {
-      return NextResponse.json({ error: 'Missing blobUrl or settings' }, { status: 400 });
-    }
-
-    // Validate the blob URL has a proper file extension
-    const fileExtension = getFileExtensionFromUrl(blobUrl);
-    const allowedExtensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'txt', 'csv'];
+    const { blobUrl, settings, transcriptText } = await request.json();
     
-    if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
-      return NextResponse.json({ 
-        error: `Invalid file type. Supported formats: ${allowedExtensions.join(', ')}` 
-      }, { status: 400 });
+    // Handle YouTube transcript or file upload
+    if (settings.sourceType === 'youtube' && transcriptText) {
+      // YouTube transcript path - no file validation needed
+      if (!transcriptText || !settings) {
+        return NextResponse.json({ error: 'Missing transcript text or settings for YouTube quiz generation' }, { status: 400 });
+      }
+    } else {
+      // File upload path - validate blob URL and file type
+      if (!blobUrl || !settings) {
+        return NextResponse.json({ error: 'Missing blobUrl or settings' }, { status: 400 });
+      }
+
+      // Validate the blob URL has a proper file extension
+      const fileExtension = getFileExtensionFromUrl(blobUrl);
+      const allowedExtensions = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'txt', 'csv'];
+      
+      if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
+        return NextResponse.json({ 
+          error: `Invalid file type. Supported formats: ${allowedExtensions.join(', ')}` 
+        }, { status: 400 });
+      }
     }
 
     const readableStream = new ReadableStream({
@@ -445,38 +474,131 @@ export async function POST(request: Request) {
         const keepAliveInterval = setInterval(() => controller.enqueue(encoder.encode(':keepalive\n\n')), 15000);
 
         try {
-          sendJson({ type: 'info', message: 'Fetching uploaded file...' });
+          let thread;
+          let fileUpload = null;
           
-          const fileResponse = await fetch(blobUrl);
-          if (!fileResponse.ok) {
-            throw new Error(`Failed to fetch file from blob storage: ${fileResponse.statusText}`);
-          }
-          
-          const fileBlob = await fileResponse.blob();
-          
-          // Validate file size (should be under 50MB for processing)
-          const maxSize = 50 * 1024 * 1024; // 50MB
-          if (fileBlob.size > maxSize) {
-            throw new Error(`File size (${Math.round(fileBlob.size / 1024 / 1024)}MB) exceeds the 50MB limit for AI processing.`);
-          }
-          
-          const file = createFileWithExtension(fileBlob, blobUrl);
-          
-          sendJson({ type: 'info', message: `📄 Processing ${file.name} (${Math.round(fileBlob.size / 1024)}KB)...` });
-          sendJson({ type: 'info', message: '🚀 Uploading to AI for analysis...' });
-          
-          const fileUpload = await openai.files.create({ 
-            file, 
-            purpose: 'assistants' 
-          });
-
-          sendJson({ type: 'info', message: '🧠 AI is reading your document...' });
-          sendJson({ type: 'progress', message: `🎯 Getting ready to create ${settings.numberOfQuestions} questions just for you...` });
-          
-          const thread = await openai.beta.threads.create({
-            messages: [{
+          if (settings.sourceType === 'youtube' && transcriptText) {
+            // Handle YouTube transcript
+            sendJson({ type: 'info', message: '🎬 Processing video transcript for educational content...' });
+            sendJson({ type: 'info', message: '🧠 AI is identifying key concepts and learning objectives...' });
+            sendJson({ type: 'progress', message: `🎯 Crafting ${settings.numberOfQuestions} educational questions focused on the subject matter...` });
+            
+            thread = await openai.beta.threads.create({
+              messages: [{
                 role: 'user',
-              content: `Analyze the attached document thoroughly and generate exactly ${settings.numberOfQuestions} high-quality quiz questions.
+                content: `Analyze the following YouTube video transcript thoroughly and generate exactly ${settings.numberOfQuestions} high-quality educational quiz questions.
+
+VIDEO TRANSCRIPT:
+${transcriptText}
+
+CRITICAL CONTENT FOCUS REQUIREMENTS:
+- ONLY create questions about the MAIN SUBJECT MATTER and educational content of the video
+- Focus EXCLUSIVELY on concepts, theories, formulas, definitions, processes, and factual information being taught
+- COMPLETELY IGNORE any mentions of: 
+  * Homework policies, grading, administrative details
+  * Teaching methods, classroom procedures, study tips
+  * Problem-solving strategies or general advice (e.g., "use a calculator", "check your work")
+  * Personal anecdotes, technical difficulties, or classroom management
+  * Speaker's opinions on non-academic matters
+  * General educational advice or meta-learning concepts
+- Questions must be about SPECIFIC ACADEMIC CONTENT that can be found in textbooks
+- Prioritize substantive subject matter that students need to learn and memorize
+- Focus on the "what" and "how" of the academic discipline, not the "how to study" or "how to approach problems"
+
+TRANSCRIPT ANALYSIS INSTRUCTIONS:
+- Identify the core academic subject being taught (e.g., mathematics, science, history, etc.)
+- Extract key concepts, definitions, formulas, theories, and important facts
+- Focus on learning objectives and educational takeaways
+- Look for explanations of processes, problem-solving methods, and conceptual understanding
+
+QUESTION REQUIREMENTS:
+- Generate exactly ${settings.numberOfQuestions} questions (difficulty: ${settings.difficulty}, type: ${settings.questionType})
+- Each question must test understanding of SPECIFIC ACADEMIC FACTS, CONCEPTS, OR FORMULAS
+- Questions should be about content that would appear in a textbook or academic curriculum
+- Focus ONLY on subject-specific knowledge (definitions, formulas, theorems, facts, processes)
+- NEVER ask about teaching methods, study strategies, or classroom procedures
+- NEVER ask about what students "should do" when solving problems
+- NEVER use phrases like "What does the speaker emphasize/suggest/recommend/advise"
+- NEVER ask about the instructor's opinions, preferences, or teaching approach
+- Each question must be a complete, well-formed question ending with "?"
+- Questions should test memorization and understanding of academic content, not study skills or pedagogical methods
+
+EXAMPLES OF GOOD QUESTIONS (if this were a statistics video):
+- "What is the definition of probability as explained in the lecture?"
+- "What is the formula for calculating combinations?"
+- "What is the difference between permutations and combinations?"
+- "What does the multiplication principle state?"
+- "How is conditional probability defined?"
+
+EXAMPLES OF BAD QUESTIONS TO AVOID (DO NOT CREATE THESE TYPES):
+- "What should be done if a problem involves tedious calculations?"
+- "What is the recommended method for checking answers?"
+- "What does the speaker suggest when approaching difficult problems?"
+- "What does the speaker emphasize about checking answers in mathematical problems?"
+- "How should students verify their work?"
+- "What advice does the instructor give about problem-solving?"
+- "What is the speaker's stance on homework submission policies?"
+- "What study methods are recommended?"
+- "What does the instructor recommend for difficult calculations?"
+- "What approach does the speaker suggest for complex problems?"
+
+JSON FORMAT (REQUIRED):
+{
+  "title": "Quiz on [Main Academic Subject]",
+  "questions": [
+    {
+      "text": "What [academic concept/definition/formula] was explained in the video?",
+      "type": "${settings.questionType === 'mixed' ? 'multiple_choice' : settings.questionType}",
+      "options": ["Academic option A", "Academic option B", "Academic option C", "Academic option D"],
+      "correctAnswer": "Academic option A"
+    }
+  ]
+}
+
+FINAL INSTRUCTION: Before creating each question, ask yourself these validation questions:
+1. "Is this question about a specific academic fact, concept, definition, or formula that would be in a textbook?"
+2. "Does this question ask about WHAT something is, rather than what the speaker thinks/suggests/emphasizes?"
+3. "Would this question be appropriate for testing knowledge of the subject matter itself, not teaching methods?"
+
+If the answer to ANY of these is no, DO NOT include that question.
+
+Generate exactly ${settings.numberOfQuestions} questions focused ONLY on objective academic content:`
+              }]
+            });
+          } else {
+            // Handle file upload
+            sendJson({ type: 'info', message: 'Fetching uploaded file...' });
+            
+            const fileResponse = await fetch(blobUrl);
+            if (!fileResponse.ok) {
+              throw new Error(`Failed to fetch file from blob storage: ${fileResponse.statusText}`);
+            }
+            
+            const fileBlob = await fileResponse.blob();
+            
+            // Validate file size (should be under 50MB for processing)
+            const maxSize = 50 * 1024 * 1024; // 50MB
+            if (fileBlob.size > maxSize) {
+              throw new Error(`File size (${Math.round(fileBlob.size / 1024 / 1024)}MB) exceeds the 50MB limit for AI processing.`);
+            }
+            
+            const file = createFileWithExtension(fileBlob, blobUrl);
+            
+            sendJson({ type: 'info', message: `📄 Processing ${file.name} (${Math.round(fileBlob.size / 1024)}KB)...` });
+            sendJson({ type: 'info', message: '🚀 Uploading to AI for analysis...' });
+            
+            fileUpload = await openai.files.create({ 
+              file, 
+              purpose: 'assistants' 
+            });
+
+            sendJson({ type: 'info', message: '🧠 AI is reading your document...' });
+            sendJson({ type: 'progress', message: `🎯 Getting ready to create ${settings.numberOfQuestions} questions just for you...` });
+            
+            thread = await openai.beta.threads.create({
+              messages: [{
+                  role: 'user',
+                content: `Analyze the attached document thoroughly and generate exactly ${settings.numberOfQuestions} high-quality quiz questions.
 
 DOCUMENT ANALYSIS INSTRUCTIONS:
 - Read through the ENTIRE document carefully, including all sections
@@ -505,9 +627,10 @@ JSON FORMAT (REQUIRED):
 }
 
 Generate exactly ${settings.numberOfQuestions} questions now based on the document content:`,
-              attachments: [{ file_id: fileUpload.id, tools: [{ type: 'file_search' }] }]
-            }]
-          });
+                attachments: [{ file_id: fileUpload.id, tools: [{ type: 'file_search' }] }]
+              }]
+            });
+          }
 
           const responseText = await generateQuestionsWithRetry(openai, thread.id, process.env.OPENAI_ASSISTANT_ID!, sendJson, settings.numberOfQuestions);
           const parsed = parseAssistantResponse(responseText, settings.numberOfQuestions);
@@ -531,12 +654,14 @@ Generate exactly ${settings.numberOfQuestions} questions now based on the docume
 
           sendJson({ type: 'final', quiz: parsed });
 
-          // Clean up the uploaded file from OpenAI
-          try {
-            await openai.files.del(fileUpload.id);
-            sendJson({ type: 'info', message: '🧹 Cleanup completed.' });
-          } catch (cleanupError) {
-            console.error("Cleanup error:", cleanupError);
+          // Clean up the uploaded file from OpenAI (only if it was uploaded)
+          if (fileUpload) {
+            try {
+              await openai.files.del(fileUpload.id);
+              sendJson({ type: 'info', message: '🧹 Cleanup completed.' });
+            } catch (cleanupError) {
+              console.error("Cleanup error:", cleanupError);
+            }
           }
 
           // Send completion signal

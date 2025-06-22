@@ -306,9 +306,9 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
       )}
 
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex min-h-screen w-64 bg-white border-r border-gray-200 flex-col fixed top-20 left-0 pt-0 z-40 min-h-[calc(100vh-5rem)]">
+      <aside className="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col fixed top-20 left-0 bottom-0 z-40">
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
