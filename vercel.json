@@ -12,6 +12,10 @@
     "api/youtube_transcript.py": {
       "maxDuration": 60,
       "memory": 512
+    },
+    "api/test_python.py": {
+      "maxDuration": 30,
+      "memory": 256
     }
   },
   "headers": [
