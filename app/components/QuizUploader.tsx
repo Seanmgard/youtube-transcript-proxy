@@ -10,6 +10,7 @@ import { Loader2 } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
 import { QuizSettings } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
 interface QuizUploaderProps {
   onQuizGenerated: (quiz: any) => void;
@@ -30,6 +31,7 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
     sourceType: 'file',
   });
   const { toast } = useToast();
+  const router = useRouter();
 
   const validateFile = (file: File): { valid: boolean; error?: string } => {
     // Check file size (50MB limit)
@@ -174,30 +176,120 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
 
     try {
       if (settings.sourceType === 'youtube') {
-        // YouTube transcript path
-        onStreamingUpdate('🎬 Fetching YouTube video transcript...');
+        // YouTube transcript path - use client-side extraction
+        onStreamingUpdate('🎬 Extracting YouTube video transcript...');
         
-        const transcriptResponse = await fetch('/api/youtube-transcript', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ youtubeUrl: youtubeUrl.trim() }),
-        });
-
-        if (!transcriptResponse.ok) {
-          const errorData = await transcriptResponse.json();
-          throw new Error(errorData.error || 'Failed to fetch YouTube transcript');
+        // Extract video ID
+        const videoId = youtubeUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([^&\n?#]+)/)?.[1] ||
+                         youtubeUrl.match(/^([a-zA-Z0-9_-]{11})$/)?.[1];
+        
+        if (!videoId) {
+          throw new Error('Could not extract video ID from YouTube URL');
         }
 
+        // Step 1: Get video page HTML via proxy
+        const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        const pageResponse = await fetch(`/api/youtube-proxy?url=${encodeURIComponent(videoUrl)}`);
+        
+        if (!pageResponse.ok) {
+          throw new Error('Failed to fetch video page. Video may be private or unavailable.');
+        }
+        
+        const html = await pageResponse.text();
+        
+        // Step 2: Extract API key
+        const apiKeyMatch = html.match(/"INNERTUBE_API_KEY":"([^"]+)"/);
+        if (!apiKeyMatch) {
+          throw new Error('Could not find API key. Video may be unavailable.');
+        }
+        
+        const apiKey = apiKeyMatch[1];
+        onStreamingUpdate('🔑 Found API key, getting video details...');
+        
+        // Step 3: Get player response via proxy
+        const playerResponse = await fetch('/api/youtube-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            endpoint: `https://www.youtube.com/youtubei/v1/player?key=${apiKey}`,
+            body: {
+              context: {
+                client: {
+                  clientName: "WEB",
+                  clientVersion: "2.20231101.00.00",
+                },
+              },
+              videoId: videoId,
+            }
+          }),
+        });
+        
+        if (!playerResponse.ok) {
+          throw new Error('Failed to get video details from YouTube API');
+        }
+        
+        const playerData = await playerResponse.json();
+        
+        if (!playerData.videoDetails) {
+          throw new Error('Video not found or unavailable. It may be private, deleted, or restricted.');
+        }
+        
+        onStreamingUpdate(`📺 Found video: "${playerData.videoDetails.title}"`);
+        
+        // Step 4: Extract caption track URL
+        const tracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+        if (!tracks) {
+          throw new Error('No captions available for this video. Please try a video with subtitles/captions enabled.');
+        }
+        
+        // Find best track (English preferred)
+        let track = tracks.find((t: any) => t.languageCode === 'en') ||
+                    tracks.find((t: any) => t.languageCode.startsWith('en')) ||
+                    tracks[0];
+        
+        if (!track) {
+          throw new Error('No suitable captions found');
+        }
+        
+        const captionUrl = track.baseUrl.replace(/&fmt=\w+$/, '') + '&fmt=json3';
+        onStreamingUpdate('📝 Downloading transcript...');
+        
+        // Step 5: Get transcript via proxy
+        const transcriptResponse = await fetch(`/api/youtube-proxy?url=${encodeURIComponent(captionUrl)}`);
+        if (!transcriptResponse.ok) {
+          throw new Error('Failed to fetch transcript data');
+        }
+        
         const transcriptData = await transcriptResponse.json();
-        onStreamingUpdate(`📝 Successfully extracted transcript from "${transcriptData.videoTitle}" (${transcriptData.wordCount} words)`);
+        
+        if (!transcriptData.events) {
+          throw new Error('No transcript events found');
+        }
+        
+        // Process transcript
+        const transcriptText = transcriptData.events
+          .filter((event: any) => event.segs)
+          .map((event: any) => event.segs.map((seg: any) => seg.utf8).join(''))
+          .join(' ')
+          .replace(/[\u200B-\u200D\uFEFF]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        const wordCount = transcriptText.split(' ').length;
+        const segmentCount = transcriptData.events.filter((e: any) => e.segs).length;
+        
+        onStreamingUpdate(`✅ Successfully extracted transcript: ${wordCount} words from ${segmentCount} segments`);
 
         // Generate quiz from transcript
         const response = await fetch('/api/generate-quiz', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            transcriptText: transcriptData.transcriptText,
+            transcriptText: transcriptText,
             settings: settings,
+            sourceType: 'youtube',
+            youtubeVideoId: videoId,
+            youtubeVideoTitle: playerData.videoDetails.title,
           }),
         });
 
@@ -370,6 +462,8 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
       }
     }
   };
+
+
 
   const isFormValid = () => {
     if (settings.sourceType === 'file') {
