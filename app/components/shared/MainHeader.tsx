@@ -97,7 +97,7 @@ export function MainHeader() {
     
     await supabase.auth.signOut();
     router.refresh();
-    router.push('/auth/sign-in');
+    router.push('/');
   };
 
   // Determine which navigation items to show

@@ -31,7 +31,76 @@ function validateAndCompleteQuestions(questions: any[], targetCount: number): an
   return validQuestions.slice(0, targetCount);
 }
 
-function parseAssistantResponse(response: string, maxQuestions: number): any {
+function extractMeaningfulTitle(aiTitle: string | null | undefined, fallbackFileName?: string): string {
+  console.log('📝 TITLE DEBUG: Raw AI title received:', aiTitle);
+  console.log('📝 TITLE DEBUG: Fallback filename:', fallbackFileName);
+  
+  // Use AI-generated title if it exists and isn't completely generic
+  if (aiTitle && aiTitle.trim().length > 0) {
+    let cleanTitle = aiTitle.trim();
+    console.log('📝 TITLE DEBUG: Cleaned AI title:', cleanTitle);
+    
+    // Remove instructional text that might be included in the response
+    cleanTitle = cleanTitle.replace(/^(Create a specific, descriptive title that reflects|Generate a specific, descriptive title|Title:|TITLE:)/i, '').trim();
+    console.log('📝 TITLE DEBUG: After removing instructions:', cleanTitle);
+    
+    // Only filter out the most obviously generic titles - be much less restrictive
+    const exactGenericTitles = [
+      'generated quiz', 'quiz generation error', 'untitled', 'document quiz',
+      '[main academic subject]', '[main document topic]', 'main academic subject', 'main document topic',
+      'academic subject', 'document topic', 'quiz title', 'untitled quiz', 'quiz'
+    ];
+    const isExactlyGeneric = exactGenericTitles.some(generic => cleanTitle.toLowerCase() === generic);
+    console.log('📝 TITLE DEBUG: Is exactly generic?', isExactlyGeneric);
+    
+    // Also check if it's just instructional text
+    const isInstructional = cleanTitle.toLowerCase().includes('create a specific') || 
+                           cleanTitle.toLowerCase().includes('generate a specific') ||
+                           cleanTitle.toLowerCase().includes('reflects the main topics') ||
+                           cleanTitle.toLowerCase().includes('e.g.');
+    console.log('📝 TITLE DEBUG: Is instructional?', isInstructional);
+    
+    if (!isExactlyGeneric && !isInstructional && cleanTitle.length > 3) {
+      // Clean up the title
+      cleanTitle = cleanTitle.replace(/[()]/g, '').trim(); // Remove parentheses
+      cleanTitle = cleanTitle.replace(/^['"]|['"]$/g, '').trim(); // Remove quotes
+      
+      // If it doesn't already end with "Quiz", add it
+      if (!cleanTitle.toLowerCase().endsWith('quiz')) {
+        cleanTitle += ' Quiz';
+      }
+      console.log('📝 TITLE DEBUG: Final processed title:', cleanTitle);
+      return cleanTitle;
+    }
+  }
+  
+  console.log('📝 TITLE DEBUG: AI title rejected, trying filename fallback');
+  
+  // Fallback to filename-based title only for clean filenames
+  if (fallbackFileName && fallbackFileName.length < 50 && !fallbackFileName.includes('%')) {
+    const cleanFileName = fallbackFileName
+      .replace(/\.(pdf|doc|docx|ppt|pptx|txt|csv)$/i, '') // Remove file extension
+      .replace(/[_-]/g, ' ') // Replace underscores and hyphens with spaces
+      .replace(/([a-z])([A-Z])/g, '$1 $2') // Add space between camelCase
+      .split(' ')
+      .filter(word => word.length > 2) // Remove very short words
+      .slice(0, 3) // Keep only first 3 meaningful words
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ')
+      .trim();
+    
+    if (cleanFileName.length > 0) {
+      console.log('📝 TITLE DEBUG: Using filename-based title:', `${cleanFileName} Quiz`);
+      return `${cleanFileName} Quiz`;
+    }
+  }
+  
+  // Final fallback
+  console.log('📝 TITLE DEBUG: Using final fallback: Generated Quiz');
+  return 'Generated Quiz';
+}
+
+function parseAssistantResponse(response: string, maxQuestions: number, fallbackFileName?: string): any {
   console.log('🔍 Parsing final assistant response...');
   
   try {
@@ -41,7 +110,7 @@ function parseAssistantResponse(response: string, maxQuestions: number): any {
       console.log(`✅ Successfully parsed ${parsed.questions.length} questions from final response`);
       const validatedQuestions = validateAndCompleteQuestions(parsed.questions, maxQuestions);
       return {
-        title: parsed.title || 'Generated Quiz',
+        title: extractMeaningfulTitle(parsed.title, fallbackFileName),
         questions: validatedQuestions
       };
     }
@@ -68,7 +137,7 @@ function parseAssistantResponse(response: string, maxQuestions: number): any {
         console.log(`✅ Successfully parsed ${parsed.questions.length} questions`);
         const validatedQuestions = validateAndCompleteQuestions(parsed.questions, maxQuestions);
         return {
-          title: parsed.title || 'Generated Quiz',
+          title: extractMeaningfulTitle(parsed.title, fallbackFileName),
           questions: validatedQuestions
         };
       } else {
@@ -84,7 +153,7 @@ function parseAssistantResponse(response: string, maxQuestions: number): any {
     if (textQuestions.length > 0) {
       console.log(`✅ Extracted ${textQuestions.length} questions from text`);
       return {
-        title: 'Generated Quiz',
+        title: extractMeaningfulTitle(null, fallbackFileName),
         questions: textQuestions
       };
     }
@@ -96,7 +165,7 @@ function parseAssistantResponse(response: string, maxQuestions: number): any {
 
   console.log('⚠️ Using fallback questions');
   const fallbackQuestions = generateFallbackQuestions(maxQuestions);
-  return { title: 'Quiz Generation Error', questions: fallbackQuestions };
+  return { title: extractMeaningfulTitle('Quiz Generation Error', fallbackFileName), questions: fallbackQuestions };
 }
 
 function extractQuestionsFromText(text: string, maxQuestions: number): any[] {
@@ -134,6 +203,7 @@ function generateFallbackQuestions(count: number): any[] {
 
 async function generateQuestionsWithRetry(openai: OpenAI, threadId: string, assistantId: string, sendJson: Function, targetCount: number): Promise<string> {
   let allQuestions: any[] = [];
+  let aiGeneratedTitle: string | null = null; // Track the AI-generated title
   let attempts = 0;
   const maxAttempts = 3; // Increase attempts for larger files
   
@@ -199,7 +269,7 @@ CRITICAL REQUIREMENTS:
 
 Return in JSON format:
 {
-  "title": "Quiz on [Document Topic]",
+  "title": "[Main Topic]",
   "questions": [
     {
       "text": "What specific concept does the document explain about [topic]?",
@@ -226,11 +296,17 @@ Return in JSON format:
       clearInterval(progressInterval); // Stop simulated progress
       
       // Parse the batch response
-      const batchQuestions = parseQuestionsFromResponse(bufferAll);
+      const batchResult = parseQuestionsFromResponse(bufferAll);
       
-      if (batchQuestions.length > 0) {
+      // Capture the title from the first successful response
+      if (!aiGeneratedTitle && batchResult.title) {
+        aiGeneratedTitle = batchResult.title;
+        console.log('🔍 TITLE DEBUG: Captured AI title from response:', aiGeneratedTitle);
+      }
+      
+      if (batchResult.questions.length > 0) {
         // Add valid questions
-        const validQuestions = batchQuestions.filter(q =>
+        const validQuestions = batchResult.questions.filter(q =>
           q && typeof q.text === 'string' && q.text.trim().length > 0 &&
           q.type && q.correctAnswer && typeof q.correctAnswer === 'string' &&
           q.correctAnswer.trim().length > 0 &&
@@ -304,8 +380,8 @@ Return in JSON format:
           }
         }
         
-        const additionalQuestions = parseQuestionsFromResponse(bufferAll);
-        const validAdditional = additionalQuestions.filter(q =>
+        const additionalResult = parseQuestionsFromResponse(bufferAll);
+        const validAdditional = additionalResult.questions.filter(q =>
           q && typeof q.text === 'string' && q.text.trim().length > 0 &&
           q.type && q.correctAnswer && typeof q.correctAnswer === 'string' &&
           q.correctAnswer.trim().length > 0 &&
@@ -324,15 +400,19 @@ Return in JSON format:
   
   // Format the final response
   const finalResponse = {
-    title: "Generated Quiz",
+    title: aiGeneratedTitle || "Generated Quiz", // Use AI title if captured, fallback otherwise
     questions: allQuestions.slice(0, targetCount) // Ensure we don't exceed target
   };
   
+  console.log('🔍 TITLE DEBUG: Final response title:', finalResponse.title);
   return JSON.stringify(finalResponse);
 }
 
-function parseQuestionsFromResponse(response: string): any[] {
+function parseQuestionsFromResponse(response: string): { questions: any[], title?: string } {
   const questions: any[] = [];
+  let title: string | undefined = undefined;
+  
+  console.log('🔍 PARSING DEBUG: Raw response:', response.substring(0, 200) + '...');
   
   try {
     // Try to parse as JSON first
@@ -341,10 +421,17 @@ function parseQuestionsFromResponse(response: string): any[] {
     
     if (jsonMatch && jsonMatch[1]) {
       const parsed = JSON.parse(jsonMatch[1]);
+      console.log('🔍 PARSING DEBUG: Parsed JSON:', parsed);
+      
       if (parsed.questions && Array.isArray(parsed.questions)) {
-        return parsed.questions.filter((q: any) => 
+        const filteredQuestions = parsed.questions.filter((q: any) => 
           q && q.text && !q.text.toLowerCase().includes('please review the document')
         );
+        console.log('🔍 PARSING DEBUG: Extracted title from JSON:', parsed.title);
+        return {
+          questions: filteredQuestions,
+          title: parsed.title
+        };
       }
     }
   } catch (e) {
@@ -366,7 +453,8 @@ function parseQuestionsFromResponse(response: string): any[] {
     }
   }
   
-  return questions;
+  console.log('🔍 PARSING DEBUG: Returning fallback with questions:', questions.length);
+  return { questions, title: undefined };
 }
 
 function getFileExtensionFromUrl(url: string): string {
@@ -544,7 +632,7 @@ EXAMPLES OF BAD QUESTIONS TO AVOID (DO NOT CREATE THESE TYPES):
 
 JSON FORMAT (REQUIRED):
 {
-  "title": "Quiz on [Main Academic Subject]",
+  "title": "Statistics Probability Theory",
   "questions": [
     {
       "text": "What [academic concept/definition/formula] was explained in the video?",
@@ -554,6 +642,12 @@ JSON FORMAT (REQUIRED):
     }
   ]
 }
+
+TITLE REQUIREMENT: 
+- Generate a SPECIFIC, DESCRIPTIVE title that reflects the actual content analyzed (e.g., "Algebra Quadratic Equations", "Biology Cell Structure", "History Roman Empire")
+- DO NOT use placeholder text like "[Main Academic Subject]" or "[Main Document Topic]"
+- The title should be 2-5 words describing the specific academic topic(s) covered
+- Base the title on the key concepts, subject matter, and topics identified in the video
 
 FINAL INSTRUCTION: Before creating each question, ask yourself these validation questions:
 1. "Is this question about a specific academic fact, concept, definition, or formula that would be in a textbook?"
@@ -615,7 +709,7 @@ QUESTION REQUIREMENTS:
 
 JSON FORMAT (REQUIRED):
 {
-  "title": "Quiz on [Main Document Topic]",
+  "title": "Cell Biology Mitosis",
   "questions": [
     {
       "text": "What specific [concept/fact] does the document explain about [topic]?",
@@ -626,6 +720,12 @@ JSON FORMAT (REQUIRED):
   ]
 }
 
+TITLE REQUIREMENT: 
+- Generate a SPECIFIC, DESCRIPTIVE title that reflects the actual content analyzed (e.g., "Chemistry Molecular Bonds", "Literature Shakespeare Analysis", "Economics Supply Demand")  
+- DO NOT use placeholder text like "[Main Document Topic]" or "[Main Academic Subject]"
+- The title should be 2-5 words describing the specific academic topic(s) covered
+- Base the title on the key concepts, subject matter, and topics identified in the document
+
 Generate exactly ${settings.numberOfQuestions} questions now based on the document content:`,
                 attachments: [{ file_id: fileUpload.id, tools: [{ type: 'file_search' }] }]
               }]
@@ -633,7 +733,10 @@ Generate exactly ${settings.numberOfQuestions} questions now based on the docume
           }
 
           const responseText = await generateQuestionsWithRetry(openai, thread.id, process.env.OPENAI_ASSISTANT_ID!, sendJson, settings.numberOfQuestions);
-          const parsed = parseAssistantResponse(responseText, settings.numberOfQuestions);
+          // Extract filename for meaningful title generation
+          const originalFileName = settings.sourceType === 'youtube' ? 'YouTube Video' : 
+                                  (blobUrl ? new URL(blobUrl).pathname.split('/').pop() || 'uploaded_file' : 'uploaded_file');
+          const parsed = parseAssistantResponse(responseText, settings.numberOfQuestions, originalFileName);
 
           sendJson({ type: 'info', message: '💾 Saving your quiz to the database...' });
 

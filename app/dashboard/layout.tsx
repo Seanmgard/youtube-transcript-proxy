@@ -148,7 +148,7 @@ export default function DashboardLayout({
               onClick={async () => {
                 try {
                   await signOut();
-                  router.push('/auth/sign-in');
+                  router.push('/');
                 } catch (error) {
                   console.error('Error signing out:', error);
                 }

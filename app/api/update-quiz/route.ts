@@ -1,63 +1,52 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse } from 'next/server'
-import { getCookieOptions } from '@/utils/supabase/cookies-helper'
+import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
-export async function POST(request: Request) {
+export async function PUT(request: Request) {
   try {
-    const cookieOptions = await getCookieOptions()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: cookieOptions,
-      }
-    )
-    
-    const { data: { session } } = await supabase.auth.getSession()
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!session) {
-      return new NextResponse('Unauthorized', { status: 401 })
+    if (!user) {
+      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
     }
 
-    // Parse the request body
-    const { quizId, title, questions } = await request.json()
+    const { quizId, title } = await request.json();
 
-    if (!quizId || !title || !questions) {
-      return new NextResponse('Missing required fields', { status: 400 })
+    if (!quizId || !title || title.trim().length === 0) {
+      return NextResponse.json({ error: 'Quiz ID and title are required' }, { status: 400 });
     }
 
-    // Verify the quiz belongs to the user
-    const { data: existingQuiz, error: fetchError } = await supabase
+    // Validate title length
+    if (title.trim().length > 200) {
+      return NextResponse.json({ error: 'Title is too long (max 200 characters)' }, { status: 400 });
+    }
+
+    // Update the quiz title, but only if the user owns the quiz
+    const { data, error } = await supabase
       .from('quizzes')
-      .select('id')
+      .update({ title: title.trim() })
       .eq('id', quizId)
-      .eq('user_id', session.user.id)
-      .single()
+      .eq('user_id', user.id)
+      .select('id, title')
+      .single();
 
-    if (fetchError || !existingQuiz) {
-      return new NextResponse('Quiz not found or access denied', { status: 404 })
+    if (error) {
+      console.error('Error updating quiz:', error);
+      return NextResponse.json({ error: 'Failed to update quiz' }, { status: 500 });
     }
 
-    // Update the quiz
-    const { error: updateError } = await supabase
-      .from('quizzes')
-      .update({
-        title,
-        questions
-      })
-      .eq('id', quizId)
-
-    if (updateError) {
-      console.error('Error updating quiz:', updateError)
-      return new NextResponse(`Failed to update quiz: ${updateError.message}`, { status: 500 })
+    if (!data) {
+      return NextResponse.json({ error: 'Quiz not found or access denied' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ 
+      success: true, 
+      quiz: data,
+      message: 'Quiz title updated successfully' 
+    });
+
   } catch (error) {
-    console.error('Error in update-quiz API:', error)
-    const errorMessage = error instanceof Error 
-      ? `${error.message}\n${error.stack}` 
-      : 'Unknown error'
-    return new NextResponse(`Error updating quiz: ${errorMessage}`, { status: 500 })
+    console.error('Error in update-quiz route:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 

@@ -34,33 +34,36 @@ interface SidebarProps {
 // Upgrade Reminder Component
 function UpgradeReminder() {
   const { isOnPlan } = useSubscription();
+  const [isDismissed, setIsDismissed] = useState(false);
   
-  // Don't show if user is already on premium
-  if (isOnPlan('premium')) {
+  // Don't show if user is already on premium or has dismissed
+  if (isOnPlan('premium') || isDismissed) {
     return null;
   }
 
   return (
-    <div className="mx-4 mb-4">
-      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-3">
-        <div className="flex items-start space-x-2">
-          <div className="flex-shrink-0">
-            <Zap className="h-5 w-5 text-indigo-600 mt-0.5" />
-          </div>
+    <div className="mx-4 mb-2">
+      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg p-2 relative">
+        <button
+          onClick={() => setIsDismissed(true)}
+          className="absolute top-1 right-1 text-white/70 hover:text-white p-0.5 rounded-sm hover:bg-black/10 transition-colors"
+        >
+          <X className="h-3 w-3" />
+        </button>
+        <div className="flex items-center space-x-2 pr-6">
+          <Zap className="h-4 w-4 text-white flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-indigo-900">
-              Unlock Premium
+            <p className="text-xs font-semibold text-white">
+              Unlock Premium - $4/mo
             </p>
-            <p className="text-xs text-indigo-700 mt-1 leading-relaxed">
-              Just $4/month ☕ for unlimited uploads and advanced features
-            </p>
-            <Link href="/dashboard/subscription">
+            <Link href="/dashboard/subscription" className="block">
               <Button 
                 size="sm" 
-                className="mt-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-7"
+                variant="secondary"
+                className="mt-1 w-full text-xs h-6 bg-white/20 hover:bg-white/30 text-white border-none"
               >
-                Upgrade Now
-                <ArrowRight className="ml-1 h-3 w-3" />
+                Upgrade
+                <ArrowRight className="ml-1 h-2.5 w-2.5" />
               </Button>
             </Link>
           </div>
@@ -286,8 +289,13 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
                 </Link>
               </nav>
               
+              {/* Upgrade Reminder for Mobile */}
+              <div className="mt-4 px-0">
+                <UpgradeReminder />
+              </div>
+              
               {/* Sign Out Button */}
-              <div className="mt-8 pt-4 border-t border-gray-200">
+              <div className="mt-6 pt-4 border-t border-gray-200">
                 <Button 
                   variant="outline"
                   className="w-full justify-start"
@@ -326,13 +334,15 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
               </Link>
             );
           })}
+          
+          {/* Upgrade Reminder positioned after navigation */}
+          <div className="pt-3">
+            <UpgradeReminder />
+          </div>
         </nav>
 
         {/* Quiz Counter */}
         <QuizCounter />
-
-        {/* Upgrade Reminder for Non-Premium Users */}
-        <UpgradeReminder />
 
         {/* User Profile */}
         <div className="p-4 border-t border-gray-200 flex-shrink-0">
