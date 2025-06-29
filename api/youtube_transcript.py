@@ -4,9 +4,7 @@ import json
 import re
 import sys
 import traceback
-import time
-import random
-from http.server import BaseHTTPRequestHandler
+from urllib.parse import parse_qs
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import (
     TranscriptsDisabled,
@@ -16,34 +14,9 @@ from youtube_transcript_api._errors import (
     InvalidVideoId
 )
 
-# Production-grade configuration
+# Set longer timeouts for network requests
 import socket
-socket.setdefaulttimeout(45)
-
-# Add realistic browser headers to avoid bot detection
-import requests
-from youtube_transcript_api._http_client import HttpClient
-
-class ProductionHttpClient(HttpClient):
-    """Custom HTTP client with browser-like headers for production"""
-    
-    def __init__(self):
-        super().__init__()
-        # Realistic browser headers to avoid bot detection
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Cache-Control': 'max-age=0'
-        })
+socket.setdefaulttimeout(30)
 
 def extract_video_id(url):
     """Extract video ID from various YouTube URL formats"""
@@ -59,239 +32,205 @@ def extract_video_id(url):
     
     return None
 
-def get_transcript_with_retry(video_url, max_retries=3):
-    """Get transcript with retry logic and production optimizations"""
-    
-    for attempt in range(max_retries):
-        try:
-            print(f"🔄 Attempt {attempt + 1}/{max_retries} for video: {video_url}")
-            
-            # Extract video ID
-            video_id = extract_video_id(video_url)
-            if not video_id:
-                return {
-                    'success': False,
-                    'error': 'Invalid YouTube URL. Please provide a valid YouTube video URL or video ID.'
-                }
-            
-            print(f"🎯 Extracting transcript for video ID: {video_id}")
-            
-            # Add small random delay to avoid rate limiting
-            if attempt > 0:
-                delay = (2 ** attempt) + random.uniform(0, 1)
-                print(f"⏳ Waiting {delay:.1f}s before retry...")
-                time.sleep(delay)
-            
-            # Try with custom HTTP client first
+def get_transcript(video_url):
+    """Get transcript for a YouTube video"""
+    try:
+        # Extract video ID
+        video_id = extract_video_id(video_url)
+        if not video_id:
+            return {
+                'success': False,
+                'error': 'Invalid YouTube URL. Please provide a valid YouTube video URL or video ID.'
+            }
+        
+        print(f"🎯 Extracting transcript for video ID: {video_id}")
+        
+        # Fetch transcript using the Python API (try multiple language options)
+        transcript_list = None
+        languages_to_try = ['en', 'en-US', 'en-GB', 'auto']
+        
+        for lang in languages_to_try:
             try:
-                http_client = ProductionHttpClient()
-                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id, http_client=http_client)
-                
-                # Try to get English transcript first
-                try:
-                    transcript = transcript_list.find_transcript(['en', 'en-US', 'en-GB'])
-                    transcript_data = transcript.fetch()
-                    print(f"✅ Found English transcript with {len(transcript_data)} segments")
-                except NoTranscriptFound:
-                    # Fallback to any available transcript
-                    try:
-                        transcript = transcript_list.find_manually_created_transcript(['en', 'en-US', 'en-GB'])
-                        transcript_data = transcript.fetch()
-                        print(f"✅ Found manual English transcript with {len(transcript_data)} segments")
-                    except NoTranscriptFound:
-                        # Last resort: get any transcript
-                        available_transcripts = list(transcript_list)
-                        if available_transcripts:
-                            transcript = available_transcripts[0]
-                            transcript_data = transcript.fetch()
-                            print(f"✅ Found {transcript.language_code} transcript with {len(transcript_data)} segments")
-                        else:
-                            raise NoTranscriptFound(video_id, [], {})
-                
-            except Exception as custom_error:
-                print(f"⚠️ Custom client failed: {str(custom_error)}, trying default...")
-                # Fallback to default method
-                transcript_data = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'en-US', 'en-GB'])
-                print(f"✅ Found transcript with default client: {len(transcript_data)} segments")
-            
-            if not transcript_data:
-                raise NoTranscriptFound(video_id, [], {})
-            
-            # Format transcript text
-            transcript_text = ' '.join([entry['text'] for entry in transcript_data])
-            transcript_text = re.sub(r'\s+', ' ', transcript_text).strip()
-            
-            # Calculate duration from last segment
-            duration = 0
-            if transcript_data:
-                last_entry = transcript_data[-1]
-                duration = int(last_entry.get('start', 0) + last_entry.get('duration', 0))
-            
-            print(f"🎉 Successfully extracted {len(transcript_text)} characters, {len(transcript_data)} segments")
-            
-            return {
-                'success': True,
-                'videoId': video_id,
-                'videoTitle': f'Video {video_id}',
-                'transcriptText': transcript_text,
-                'wordCount': len(transcript_text.split()),
-                'duration': duration,
-                'segmentCount': len(transcript_data),
-                'attempt': attempt + 1
-            }
-            
-        except TranscriptsDisabled:
-            return {
-                'success': False,
-                'error': 'Transcripts are disabled for this video.',
-                'errorType': 'TranscriptsDisabled'
-            }
-        except VideoUnavailable:
-            return {
-                'success': False,
-                'error': 'Video is unavailable. It may be private, deleted, or restricted in your region.',
-                'errorType': 'VideoUnavailable'
-            }
-        except NoTranscriptFound:
-            if attempt < max_retries - 1:
-                print(f"⚠️ No transcript found on attempt {attempt + 1}, retrying...")
+                transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang])
+                print(f"✅ Found transcript in language: {lang}")
+                break
+            except NoTranscriptFound:
                 continue
-            return {
-                'success': False,
-                'error': 'No transcript available for this video. The video may not have captions or transcripts enabled.',
-                'errorType': 'NoTranscriptFound'
-            }
-        except InvalidVideoId:
-            return {
-                'success': False,
-                'error': 'Invalid video ID provided.',
-                'errorType': 'InvalidVideoId'
-            }
-        except YouTubeRequestFailed as e:
-            if attempt < max_retries - 1:
-                print(f"⚠️ YouTube request failed on attempt {attempt + 1}: {str(e)}, retrying...")
+            except Exception as e:
+                print(f"⚠️ Failed to get transcript in {lang}: {str(e)}")
                 continue
+        
+        if not transcript_list:
+            # Try getting any available transcript
+            try:
+                transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+                print("✅ Found transcript in default language")
+            except Exception as e:
+                raise NoTranscriptFound(f"No transcript found in any language: {str(e)}")
+        
+        if not transcript_list:
             return {
                 'success': False,
-                'error': f'YouTube request failed: {str(e)}',
-                'errorType': 'YouTubeRequestFailed'
+                'error': 'No transcript available for this video.'
             }
-        except Exception as e:
-            error_details = traceback.format_exc()
-            print(f"💥 Unexpected error on attempt {attempt + 1}: {str(e)}")
-            print(f"🔍 Full traceback: {error_details}")
-            
-            if attempt < max_retries - 1:
-                print(f"🔄 Retrying after unexpected error...")
-                continue
-            
-            # Provide more specific error messages for common issues
-            error_msg = str(e)
-            if "timeout" in error_msg.lower():
-                error_msg = "Request timed out. The video may be too long or YouTube is experiencing issues."
-            elif "connection" in error_msg.lower():
-                error_msg = "Connection failed. Please check your internet connection and try again."
-            elif "http" in error_msg.lower() and "403" in error_msg:
-                error_msg = "Access forbidden. The video may be private or region-restricted."
-            elif "http" in error_msg.lower() and "404" in error_msg:
-                error_msg = "Video not found. Please check the URL and try again."
-            elif "blocked" in error_msg.lower():
-                error_msg = "Request was blocked. This may be due to regional restrictions or bot detection."
-            
-            return {
-                'success': False,
-                'error': f'Unexpected error: {error_msg}',
-                'errorType': 'UnexpectedError',
-                'debug': {
-                    'original_error': str(e),
-                    'python_version': sys.version,
-                    'attempt': attempt + 1,
-                    'traceback': error_details[-1000:] if len(error_details) > 1000 else error_details
-                }
+        
+        # Format transcript text
+        transcript_text = ' '.join([entry['text'] for entry in transcript_list])
+        transcript_text = re.sub(r'\s+', ' ', transcript_text).strip()
+        
+        # Calculate duration from last segment
+        duration = 0
+        if transcript_list:
+            last_entry = transcript_list[-1]
+            duration = int(last_entry.get('start', 0) + last_entry.get('duration', 0))
+        
+        print(f"🎉 Successfully extracted {len(transcript_text)} characters, {len(transcript_list)} segments")
+        
+        return {
+            'success': True,
+            'videoId': video_id,
+            'videoTitle': f'Video {video_id}',
+            'transcriptText': transcript_text,
+            'wordCount': len(transcript_text.split()),
+            'duration': duration,
+            'segmentCount': len(transcript_list)
+        }
+        
+    except TranscriptsDisabled:
+        return {
+            'success': False,
+            'error': 'Transcripts are disabled for this video.'
+        }
+    except VideoUnavailable:
+        return {
+            'success': False,
+            'error': 'Video is unavailable. It may be private, deleted, or restricted in your region.'
+        }
+    except NoTranscriptFound:
+        return {
+            'success': False,
+            'error': 'No transcript available for this video. The video may not have captions or transcripts enabled.'
+        }
+    except InvalidVideoId:
+        return {
+            'success': False,
+            'error': 'Invalid video ID provided.'
+        }
+    except YouTubeRequestFailed as e:
+        return {
+            'success': False,
+            'error': f'YouTube request failed: {str(e)}'
+        }
+    except Exception as e:
+        error_details = traceback.format_exc()
+        print(f"💥 Unexpected error: {str(e)}")
+        print(f"🔍 Full traceback: {error_details}")
+        
+        # Provide more specific error messages for common issues
+        error_msg = str(e)
+        if "timeout" in error_msg.lower():
+            error_msg = "Request timed out. The video may be too long or YouTube is experiencing issues."
+        elif "connection" in error_msg.lower():
+            error_msg = "Connection failed. Please check your internet connection and try again."
+        elif "http" in error_msg.lower() and "403" in error_msg:
+            error_msg = "Access forbidden. The video may be private or region-restricted."
+        elif "http" in error_msg.lower() and "404" in error_msg:
+            error_msg = "Video not found. Please check the URL and try again."
+        
+        return {
+            'success': False,
+            'error': f'Unexpected error: {error_msg}',
+            'debug': {
+                'original_error': str(e),
+                'python_version': sys.version,
+                'traceback': error_details[-500:] if len(error_details) > 500 else error_details  # Limit traceback size
             }
-    
-    # If we get here, all retries failed
-    return {
-        'success': False,
-        'error': f'Failed to extract transcript after {max_retries} attempts',
-        'errorType': 'MaxRetriesExceeded'
-    }
+        }
 
-class handler(BaseHTTPRequestHandler):
-    """Vercel Python function handler using BaseHTTPRequestHandler"""
-    
-    def do_OPTIONS(self):
-        """Handle CORS preflight requests"""
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.end_headers()
-    
-    def do_POST(self):
-        """Handle POST requests"""
+def handler(request):
+    """Vercel Python function handler"""
+    try:
+        print("🚀 Python YouTube transcript API called")
+        
+        # Handle CORS preflight
+        if request.method == 'OPTIONS':
+            return {
+                'statusCode': 200,
+                'headers': {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type',
+                },
+                'body': ''
+            }
+        
+        if request.method != 'POST':
+            return {
+                'statusCode': 405,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                'body': json.dumps({'error': 'Method not allowed'})
+            }
+        
+        # Parse request data
         try:
-            print("🚀 Production YouTube transcript API called")
-            print(f"🌍 Environment: Production")
-            print(f"🐍 Python version: {sys.version}")
-            
-            # Read the request body
-            content_length = int(self.headers.get('Content-Length', 0))
-            if content_length > 0:
-                post_data = self.rfile.read(content_length)
-                try:
-                    data = json.loads(post_data.decode('utf-8'))
-                except json.JSONDecodeError:
-                    self.send_response(400)
-                    self.send_header('Content-Type', 'application/json')
-                    self.send_header('Access-Control-Allow-Origin', '*')
-                    self.end_headers()
-                    response = {'error': 'Invalid JSON in request body'}
-                    self.wfile.write(json.dumps(response).encode())
-                    return
+            if hasattr(request, 'json') and request.json:
+                data = request.json
+            elif hasattr(request, 'data'):
+                data = json.loads(request.data.decode('utf-8')) if request.data else {}
+            elif hasattr(request, 'body'):
+                data = json.loads(request.body) if request.body else {}
             else:
                 data = {}
-            
-            youtube_url = data.get('youtubeUrl', '')
-            
-            print(f"📺 Processing URL: {youtube_url}")
-            
-            if not youtube_url:
-                self.send_response(400)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                response = {'error': 'YouTube URL is required'}
-                self.wfile.write(json.dumps(response).encode())
-                return
-            
-            # Get transcript with retry logic
-            result = get_transcript_with_retry(youtube_url)
-            
-            # Send response
-            status_code = 200 if result.get('success') else 422  # Use 422 for business logic errors
-            self.send_response(status_code)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-            self.end_headers()
-            
-            # Add production info to response
-            result['production'] = True
-            result['timestamp'] = time.time()
-            
-            self.wfile.write(json.dumps(result).encode())
-            
-        except Exception as e:
-            print(f"💥 Handler error: {str(e)}")
-            self.send_response(500)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            response = {
-                'error': f'Internal server error: {str(e)}',
-                'production': True,
-                'timestamp': time.time()
+        except json.JSONDecodeError:
+            return {
+                'statusCode': 400,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                'body': json.dumps({'error': 'Invalid JSON in request body'})
             }
-            self.wfile.write(json.dumps(response).encode()) 
+        
+        youtube_url = data.get('youtubeUrl', '')
+        
+        print(f"📺 Processing URL: {youtube_url}")
+        
+        if not youtube_url:
+            return {
+                'statusCode': 400,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                'body': json.dumps({'error': 'YouTube URL is required'})
+            }
+        
+        # Get transcript
+        result = get_transcript(youtube_url)
+        
+        # Return response
+        status_code = 200 if result.get('success') else 404
+        return {
+            'statusCode': status_code,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type',
+            },
+            'body': json.dumps(result)
+        }
+        
+    except Exception as e:
+        print(f"💥 Handler error: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({'error': f'Internal server error: {str(e)}'})
+        } 
