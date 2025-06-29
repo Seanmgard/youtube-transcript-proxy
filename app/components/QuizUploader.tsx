@@ -22,6 +22,7 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [fileName, setFileName] = useState('');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const [settings, setSettings] = useState<QuizSettings>({
     numberOfQuestions: 10,
     difficulty: 'medium',
@@ -73,7 +74,28 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
     return { valid: true };
   };
 
+  const validateYoutubeUrl = (url: string): { valid: boolean; error?: string } => {
+    if (!url.trim()) {
+      return { valid: false, error: 'YouTube URL is required' };
+    }
 
+    // YouTube URL patterns
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([^&\n?#]+)/,
+      /^([a-zA-Z0-9_-]{11})$/ // Direct video ID
+    ];
+    
+    const isValid = patterns.some(pattern => pattern.test(url.trim()));
+    
+    if (!isValid) {
+      return {
+        valid: false,
+        error: 'Please enter a valid YouTube URL (e.g., https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID)'
+      };
+    }
+
+    return { valid: true };
+  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -98,120 +120,227 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
     }
   };
 
+  const handleSourceTypeChange = (sourceType: string) => {
+    setSettings({ ...settings, sourceType: sourceType as 'file' | 'youtube' });
+    // Clear the other input when switching
+    if (sourceType === 'file') {
+      setYoutubeUrl('');
+    } else {
+      setFileName('');
+      if (inputFileRef.current) {
+        inputFileRef.current.value = '';
+      }
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     
-    // Update settings for file upload only
-    const updatedSettings = { ...settings, sourceType: 'file' };
-    
-    // Validate file upload
-    if (!inputFileRef.current?.files?.[0]) {
-      toast({
-        title: 'No file selected',
-        description: 'Please choose a file to upload.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    // Validate based on source type
+    if (settings.sourceType === 'file') {
+      if (!inputFileRef.current?.files?.[0]) {
+        toast({
+          title: 'No file selected',
+          description: 'Please choose a file to upload.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-    const file = inputFileRef.current.files[0];
-    
-    // Re-validate file before upload
-    const validation = validateFile(file);
-    if (!validation.valid) {
-      toast({
-        title: 'Invalid file',
-        description: validation.error,
-        variant: 'destructive',
-      });
-      return;
+      const file = inputFileRef.current.files[0];
+      const validation = validateFile(file);
+      if (!validation.valid) {
+        toast({
+          title: 'Invalid file',
+          description: validation.error,
+          variant: 'destructive',
+        });
+        return;
+      }
+    } else if (settings.sourceType === 'youtube') {
+      const validation = validateYoutubeUrl(youtubeUrl);
+      if (!validation.valid) {
+        toast({
+          title: 'Invalid YouTube URL',
+          description: validation.error,
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     setIsGenerating(true);
     onQuizGenerated({ loading: true });
 
     try {
-      // File upload path
-      const file = inputFileRef.current.files[0];
-      setIsUploading(true);
-      onStreamingUpdate(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
-      
-      const newBlob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-        onUploadProgress: (progressEvent) => {
-          const percentage = Math.round(progressEvent.percentage);
-          setUploadProgress(percentage);
-          onStreamingUpdate(`Upload progress: ${percentage}%`);
-        },
-      });
+      if (settings.sourceType === 'youtube') {
+        // YouTube transcript path
+        onStreamingUpdate('🎬 Fetching YouTube video transcript...');
+        
+        const transcriptResponse = await fetch('/api/youtube-transcript', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ youtubeUrl: youtubeUrl.trim() }),
+        });
 
-      setIsUploading(false);
-      const blobUrl = newBlob.url;
-      onStreamingUpdate('File uploaded successfully. Starting quiz generation...');
+        if (!transcriptResponse.ok) {
+          const errorData = await transcriptResponse.json();
+          throw new Error(errorData.error || 'Failed to fetch YouTube transcript');
+        }
 
-      const response = await fetch('/api/generate-quiz', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          blobUrl,
-          settings: updatedSettings,
-        }),
-      });
+        const transcriptData = await transcriptResponse.json();
+        onStreamingUpdate(`📝 Successfully extracted transcript from "${transcriptData.videoTitle}" (${transcriptData.wordCount} words)`);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate quiz');
-      }
+        // Generate quiz from transcript
+        const response = await fetch('/api/generate-quiz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            transcriptText: transcriptData.transcriptText,
+            settings: settings,
+          }),
+        });
 
-      if (!response.body) {
-        throw new Error('The response body is empty.');
-      }
-      
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let done = false;
-      let fullResponse = '';
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to generate quiz');
+        }
 
-      while (!done) {
-        const { value, done: readerDone } = await reader.read();
-        done = readerDone;
-        if (value) {
-          const chunk = decoder.decode(value, { stream: true });
-          fullResponse += chunk;
-          
-          const lines = fullResponse.split('\n\n');
-          fullResponse = lines.pop() || '';
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-                const dataContent = line.substring(6);
-                if (dataContent === '[DONE]') {
-                    break;
-                }
-                try {
-                    const parsed = JSON.parse(dataContent);
-                    if (parsed.type === 'info' || parsed.type === 'warning' || parsed.type === 'progress' || parsed.type === 'success') {
-                        onStreamingUpdate(parsed.message);
-                    } else if (parsed.type === 'final') {
-                        console.log('🎯 QuizUploader: Received final quiz data:', parsed.quiz);
-                        onQuizGenerated(parsed.quiz);
-                        onStreamingUpdate('Quiz generation completed!');
-                        // Don't break here, wait for complete signal
-                    } else if (parsed.type === 'error') {
-                        throw new Error(parsed.message);
-                    } else if (parsed.type === 'complete') {
-                        console.log('✅ QuizUploader: Received complete signal');
-                        onStreamingUpdate(parsed.message);
-                        done = true; // Set done flag to exit the outer loop
-                        break; // Exit the inner loop
-                    } else {
-                        console.log('🔄 QuizUploader: Received fallback quiz data:', parsed);
-                        onQuizGenerated(parsed);
-                    }
-                } catch (e) {
-                    console.error('Error parsing stream data chunk:', dataContent, e);
-                }
+        if (!response.body) {
+          throw new Error('The response body is empty.');
+        }
+        
+        // Handle streaming response (same as file upload)
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let done = false;
+        let fullResponse = '';
+
+        while (!done) {
+          const { value, done: readerDone } = await reader.read();
+          done = readerDone;
+          if (value) {
+            const chunk = decoder.decode(value, { stream: true });
+            fullResponse += chunk;
+            
+            const lines = fullResponse.split('\n\n');
+            fullResponse = lines.pop() || '';
+            
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                  const dataContent = line.substring(6);
+                  if (dataContent === '[DONE]') {
+                      break;
+                  }
+                  try {
+                      const parsed = JSON.parse(dataContent);
+                      if (parsed.type === 'info' || parsed.type === 'warning' || parsed.type === 'progress' || parsed.type === 'success') {
+                          onStreamingUpdate(parsed.message);
+                      } else if (parsed.type === 'final') {
+                          console.log('🎯 QuizUploader: Received final quiz data:', parsed.quiz);
+                          onQuizGenerated(parsed.quiz);
+                          onStreamingUpdate('Quiz generation completed!');
+                      } else if (parsed.type === 'error') {
+                          throw new Error(parsed.message);
+                      } else if (parsed.type === 'complete') {
+                          console.log('✅ QuizUploader: Received complete signal');
+                          onStreamingUpdate(parsed.message);
+                          done = true;
+                          break;
+                      } else {
+                          console.log('🔄 QuizUploader: Received fallback quiz data:', parsed);
+                          onQuizGenerated(parsed);
+                      }
+                  } catch (e) {
+                      console.error('Error parsing stream data chunk:', dataContent, e);
+                  }
+              }
+            }
+          }
+        }
+
+      } else {
+        // File upload path (existing logic)
+        const file = inputFileRef.current!.files![0];
+        setIsUploading(true);
+        onStreamingUpdate(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
+        
+        const newBlob = await upload(file.name, file, {
+          access: 'public',
+          handleUploadUrl: '/api/upload',
+          onUploadProgress: (progressEvent) => {
+            const percentage = Math.round(progressEvent.percentage);
+            setUploadProgress(percentage);
+            onStreamingUpdate(`Upload progress: ${percentage}%`);
+          },
+        });
+
+        setIsUploading(false);
+        const blobUrl = newBlob.url;
+        onStreamingUpdate('File uploaded successfully. Starting quiz generation...');
+
+        const response = await fetch('/api/generate-quiz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            blobUrl,
+            settings: settings,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to generate quiz');
+        }
+
+        if (!response.body) {
+          throw new Error('The response body is empty.');
+        }
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let done = false;
+        let fullResponse = '';
+
+        while (!done) {
+          const { value, done: readerDone } = await reader.read();
+          done = readerDone;
+          if (value) {
+            const chunk = decoder.decode(value, { stream: true });
+            fullResponse += chunk;
+            
+            const lines = fullResponse.split('\n\n');
+            fullResponse = lines.pop() || '';
+            
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                  const dataContent = line.substring(6);
+                  if (dataContent === '[DONE]') {
+                      break;
+                  }
+                  try {
+                      const parsed = JSON.parse(dataContent);
+                      if (parsed.type === 'info' || parsed.type === 'warning' || parsed.type === 'progress' || parsed.type === 'success') {
+                          onStreamingUpdate(parsed.message);
+                      } else if (parsed.type === 'final') {
+                          console.log('🎯 QuizUploader: Received final quiz data:', parsed.quiz);
+                          onQuizGenerated(parsed.quiz);
+                          onStreamingUpdate('Quiz generation completed!');
+                      } else if (parsed.type === 'error') {
+                          throw new Error(parsed.message);
+                      } else if (parsed.type === 'complete') {
+                          console.log('✅ QuizUploader: Received complete signal');
+                          onStreamingUpdate(parsed.message);
+                          done = true;
+                          break;
+                      } else {
+                          console.log('🔄 QuizUploader: Received fallback quiz data:', parsed);
+                          onQuizGenerated(parsed);
+                      }
+                  } catch (e) {
+                      console.error('Error parsing stream data chunk:', dataContent, e);
+                  }
+              }
             }
           }
         }
@@ -231,10 +360,22 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
       setIsGenerating(false);
       setIsUploading(false);
       setUploadProgress(0);
-      setFileName('');
-      if (inputFileRef.current) {
-        inputFileRef.current.value = '';
+      if (settings.sourceType === 'file') {
+        setFileName('');
+        if (inputFileRef.current) {
+          inputFileRef.current.value = '';
+        }
+      } else {
+        setYoutubeUrl('');
       }
+    }
+  };
+
+  const isFormValid = () => {
+    if (settings.sourceType === 'file') {
+      return fileName.length > 0;
+    } else {
+      return youtubeUrl.trim().length > 0;
     }
   };
 
@@ -250,54 +391,84 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
                 type="radio"
                 name="sourceType"
                 value="file"
-                defaultChecked={true}
+                checked={settings.sourceType === 'file'}
+                onChange={(e) => handleSourceTypeChange(e.target.value)}
                 disabled={isGenerating}
                 className="mr-2"
               />
               <span className="text-sm">📄 Upload File</span>
             </label>
-            <label className="flex items-center cursor-not-allowed opacity-50">
+            <label className="flex items-center cursor-pointer">
               <input
                 type="radio"
                 name="sourceType"
                 value="youtube"
-                disabled={true}
+                checked={settings.sourceType === 'youtube'}
+                onChange={(e) => handleSourceTypeChange(e.target.value)}
+                disabled={isGenerating}
                 className="mr-2"
               />
               <span className="text-sm">🎬 YouTube Video</span>
-              <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded ml-2">Temporarily Unavailable</span>
             </label>
           </div>
-
         </div>
 
-        {/* File Upload */}
-        <div>
-          <Label htmlFor="file-upload" className="block mb-2">Upload Document</Label>
-          <Input
-            id="file-upload"
-            ref={inputFileRef}
-            type="file"
-            accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.csv"
-            onChange={handleFileChange}
-            disabled={isGenerating}
-            className="cursor-pointer"
-          />
-          <p className="text-xs text-gray-500 mt-1 space-y-1">
-            <span className="block sm:inline">
-              <strong className="text-gray-600">Supported formats:</strong>
-            </span>
-            <span className="block sm:inline sm:ml-1">
-              PDF, Word (.doc/.docx), PowerPoint (.ppt/.pptx), Text (.txt/.csv)
-            </span>
-            <span className="block mt-1">
-              <strong className="text-gray-600">Maximum file size:</strong> 50MB
-            </span>
-            <span className="hidden sm:block text-amber-600 mt-1">
-              💡 Larger files may take longer to process
-            </span>
-          </p>
-        </div>
+        {/* Conditional Input - File Upload */}
+        {settings.sourceType === 'file' && (
+          <div>
+            <Label htmlFor="file-upload" className="block mb-2">Upload Document</Label>
+            <Input
+              id="file-upload"
+              ref={inputFileRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.csv"
+              onChange={handleFileChange}
+              disabled={isGenerating}
+              className="cursor-pointer"
+            />
+            <p className="text-xs text-gray-500 mt-1 space-y-1">
+              <span className="block sm:inline">
+                <strong className="text-gray-600">Supported formats:</strong>
+              </span>
+              <span className="block sm:inline sm:ml-1">
+                PDF, Word (.doc/.docx), PowerPoint (.ppt/.pptx), Text (.txt/.csv)
+              </span>
+              <span className="block mt-1">
+                <strong className="text-gray-600">Maximum file size:</strong> 50MB
+              </span>
+              <span className="hidden sm:block text-amber-600 mt-1">
+                💡 Larger files may take longer to process
+              </span>
+            </p>
+          </div>
+        )}
+
+        {/* Conditional Input - YouTube URL */}
+        {settings.sourceType === 'youtube' && (
+          <div>
+            <Label htmlFor="youtube-url" className="block mb-2">YouTube Video URL</Label>
+            <Input
+              id="youtube-url"
+              type="url"
+              placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
+              value={youtubeUrl}
+              onChange={(e) => setYoutubeUrl(e.target.value)}
+              disabled={isGenerating}
+              className="w-full"
+            />
+            <p className="text-xs text-gray-500 mt-1 space-y-1">
+              <span className="block">
+                <strong className="text-gray-600">Supported formats:</strong> Full YouTube URLs or video IDs
+              </span>
+              <span className="block text-amber-600">
+                ⚠️ Video must have captions/transcripts enabled to work
+              </span>
+              <span className="block text-blue-600">
+                💡 Educational videos work best for quiz generation
+              </span>
+            </p>
+          </div>
+        )}
 
         {/* Number of Questions */}
         <div>
@@ -371,14 +542,15 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
         <Button 
           type="submit" 
           className="w-full"
-          disabled={isGenerating || !fileName}
+          disabled={isGenerating || !isFormValid()}
         >
           {isGenerating ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {isUploading ? `Uploading... ${uploadProgress}%` : 'Generating Quiz...'}
+              {isUploading ? `Uploading... ${uploadProgress}%` : 
+               settings.sourceType === 'youtube' ? 'Extracting transcript & generating quiz...' : 'Generating Quiz...'}
             </>
-          ) : 'Generate Quiz'}
+          ) : `Generate Quiz from ${settings.sourceType === 'youtube' ? 'YouTube Video' : 'File'}`}
         </Button>
       </div>
     </form>
