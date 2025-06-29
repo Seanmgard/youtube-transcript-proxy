@@ -8,9 +8,6 @@
   "functions": {
     "app/api/generate-quiz/route.ts": {
       "maxDuration": 300
-    },
-    "api/youtube-transcript.py": {
-      "runtime": "@vercel/python"
     }
   },
   "headers": [
@@ -34,11 +31,5 @@
   ],
   "env": {
     "NEXT_PUBLIC_SITE_URL": "https://quizlabai.com"
-  },
-  "builds": [
-    {
-      "src": "api/youtube-transcript.py",
-      "use": "@vercel/python"
-    }
-  ]
+  }
 } 
