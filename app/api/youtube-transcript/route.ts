@@ -1,135 +1,129 @@
 import { NextResponse } from 'next/server';
-import TranscriptClient from 'youtube-transcript-api';
-import { createClient } from '@/lib/supabase/server';
+import { spawn } from 'child_process';
+import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
-function extractVideoId(url: string): string | null {
-  // Handle various YouTube URL formats
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([^&\n?#]+)/,
-    /^([a-zA-Z0-9_-]{11})$/ // Direct video ID
-  ];
-  
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) {
-      return match[1];
-    }
-  }
-  
-  return null;
-}
-
-function formatTranscriptText(transcript: any[]): string {
-  if (!transcript || !Array.isArray(transcript)) {
-    throw new Error('Invalid transcript format');
-  }
-  
-  // Combine all transcript segments into a single text
-  const fullText = transcript
-    .map(segment => segment.text)
-    .join(' ')
-    .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-    .replace(/\n/g, ' ') // Replace newlines with spaces
-    .trim();
+function executePythonScript(youtubeUrl: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const scriptPath = path.join(process.cwd(), 'scripts', 'youtube_transcript.py');
     
-  return fullText;
+    console.log('🐍 Executing Python script:', scriptPath);
+    console.log('📺 YouTube URL:', youtubeUrl);
+    
+    const pythonProcess = spawn('python', [scriptPath, youtubeUrl]);
+    
+    let dataString = '';
+    let errorString = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      dataString += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      errorString += data.toString();
+      console.error('🐍 Python stderr:', data.toString());
+    });
+    
+    pythonProcess.on('close', (code) => {
+      console.log('🐍 Python process exited with code:', code);
+      
+      if (code !== 0) {
+        console.error('🐍 Python error output:', errorString);
+        reject(new Error(`Python script failed with code ${code}: ${errorString}`));
+        return;
+      }
+      
+      try {
+        console.log('🐍 Python output:', dataString);
+        const result = JSON.parse(dataString.trim());
+        resolve(result);
+      } catch (parseError) {
+        console.error('🐍 Failed to parse Python output:', dataString);
+        reject(new Error(`Failed to parse Python output: ${parseError}`));
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('🐍 Failed to start Python process:', error);
+      reject(new Error(`Failed to start Python process: ${error.message}`));
+    });
+  });
 }
 
 export async function POST(request: Request) {
   try {
-    // Check authentication
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
-    }
-
     const { youtubeUrl } = await request.json();
+    
+    console.log('🔍 Received YouTube URL:', youtubeUrl);
     
     if (!youtubeUrl) {
       return NextResponse.json({ error: 'YouTube URL is required' }, { status: 400 });
     }
 
-    // Extract video ID from URL
-    const videoId = extractVideoId(youtubeUrl);
-    if (!videoId) {
-      return NextResponse.json({ 
-        error: 'Invalid YouTube URL. Please provide a valid YouTube video URL or video ID.' 
-      }, { status: 400 });
-    }
-
     try {
-      // Create transcript client and fetch transcript
-      console.log('Creating transcript client for video ID:', videoId);
-      const client = new TranscriptClient();
+      // Call the Python script to extract transcript
+      console.log('🚀 Calling Python transcript extractor...');
+      const result = await executePythonScript(youtubeUrl);
       
-      console.log('Initializing YouTube transcript service...');
-      await client.ready;
+      console.log('✅ Python script result:', result);
       
-      console.log('Connecting to YouTube and extracting captions...');
-      const result = await client.getTranscript(videoId);
-      
-      if (!result.tracks || result.tracks.length === 0 || !result.tracks[0].transcript) {
+      if (!result.success) {
         return NextResponse.json({
-          error: 'No transcript available for this video. The video may not have captions or transcripts enabled.'
+          error: result.error
         }, { status: 404 });
       }
 
-      const transcript = result.tracks[0].transcript;
-      
-      // Format transcript text
-      const transcriptText = formatTranscriptText(transcript);
-      
       // Validate transcript length
-      if (transcriptText.length < 100) {
+      if (result.transcriptText.length < 100) {
         return NextResponse.json({
           error: 'Transcript is too short to generate meaningful questions. Please try a longer video.'
         }, { status: 400 });
       }
 
-      // Calculate approximate duration from last transcript segment
-      const lastSegment = transcript[transcript.length - 1];
-      const duration = lastSegment ? parseFloat(lastSegment.start) + parseFloat(lastSegment.dur || '0') : 0;
+      console.log('🎉 Successfully extracted transcript!');
+      console.log('📄 Transcript length:', result.transcriptText.length);
+      console.log('📄 First 200 characters:', result.transcriptText.substring(0, 200));
 
       // Return the transcript text and metadata
       return NextResponse.json({
         success: true,
-        videoId,
-        videoTitle: result.title || 'Unknown Video',
-        transcriptText,
-        wordCount: transcriptText.split(' ').length,
-        duration: Math.round(duration),
-        segmentCount: transcript.length
+        videoId: result.videoId,
+        videoTitle: result.videoTitle,
+        transcriptText: result.transcriptText,
+        wordCount: result.wordCount,
+        duration: result.duration,
+        segmentCount: result.segmentCount
       });
 
-    } catch (transcriptError: any) {
-      console.error('Error fetching YouTube transcript:', transcriptError);
+    } catch (scriptError: any) {
+      console.error('💥 Error running Python script:', scriptError);
       
-      // Handle specific YouTube transcript errors
-      if (transcriptError.message?.includes('video not found') || transcriptError.message?.includes('unavailable')) {
+      // Check if it's a Python not found error
+      if (scriptError.message.includes('ENOENT') || scriptError.message.includes('not found')) {
         return NextResponse.json({
-          error: 'Video is unavailable. It may be private, deleted, or restricted in your region.'
-        }, { status: 404 });
+          error: 'Python is required but not found. Please install Python and the youtube-transcript-api package.',
+          debug: {
+            message: scriptError.message,
+            suggestion: 'Run: pip install youtube-transcript-api'
+          }
+        }, { status: 500 });
       }
       
-      if (transcriptError.message?.includes('Transcript not available')) {
-        return NextResponse.json({
-          error: 'No transcript available for this video. The video may be private, age-restricted, or have transcripts disabled.'
-        }, { status: 404 });
-      }
-
       return NextResponse.json({
-        error: 'Failed to extract transcript from YouTube video. Please check the URL and try again.'
+        error: `Failed to extract transcript: ${scriptError.message}`,
+        debug: {
+          originalUrl: youtubeUrl,
+          errorMessage: scriptError.message
+        }
       }, { status: 500 });
     }
 
   } catch (error) {
-    console.error('Error in YouTube transcript API:', error);
+    console.error('💥 General error in YouTube transcript API:', error);
     return NextResponse.json({
-      error: 'Internal server error while processing YouTube transcript'
+      error: 'Internal server error while processing YouTube transcript',
+      debug: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
 } 
