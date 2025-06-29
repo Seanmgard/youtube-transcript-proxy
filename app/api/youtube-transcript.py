@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-YouTube Transcript Extractor using the reliable Python youtube-transcript-api package
-This script is called by the Node.js application to extract YouTube transcripts
+Vercel Python API endpoint for YouTube transcript extraction
 """
 
-import sys
 import json
 import re
+from http.server import BaseHTTPRequestHandler
+from urllib.parse import parse_qs
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import (
     TranscriptsDisabled,
@@ -104,14 +104,50 @@ def get_transcript(video_url):
         }
 
 
-if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        print(json.dumps({
-            'success': False,
-            'error': 'Usage: python youtube_transcript.py <youtube_url>'
-        }))
-        sys.exit(1)
+class handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        try:
+            # Read the request body
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            
+            # Parse JSON data
+            data = json.loads(post_data.decode('utf-8'))
+            youtube_url = data.get('youtubeUrl')
+            
+            if not youtube_url:
+                self.send_response(400)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {'error': 'YouTube URL is required'}
+                self.wfile.write(json.dumps(response).encode())
+                return
+            
+            # Get transcript
+            result = get_transcript(youtube_url)
+            
+            # Send response
+            status_code = 200 if result.get('success') else 404
+            self.send_response(status_code)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+            self.end_headers()
+            
+            self.wfile.write(json.dumps(result).encode())
+            
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            response = {'error': f'Internal server error: {str(e)}'}
+            self.wfile.write(json.dumps(response).encode())
     
-    youtube_url = sys.argv[1]
-    result = get_transcript(youtube_url)
-    print(json.dumps(result)) 
+    def do_OPTIONS(self):
+        # Handle CORS preflight requests
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers() 
