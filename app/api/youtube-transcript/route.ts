@@ -27,7 +27,23 @@ function extractVideoId(url: string): string | null {
 async function getInnertubeApiKey(videoId: string): Promise<string | null> {
   try {
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const response = await fetch(videoUrl);
+    const response = await fetch(videoUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Referer': 'https://www.youtube.com/',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+      }
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to fetch video page:', response.status, response.statusText);
+      return null;
+    }
+    
     const html = await response.text();
     
     const apiKeyMatch = html.match(/"INNERTUBE_API_KEY":"([^"]+)"/);
@@ -46,6 +62,8 @@ async function getPlayerResponse(videoId: string, apiKey: string) {
       client: {
         clientName: "ANDROID",
         clientVersion: "20.10.38",
+        androidSdkVersion: 30,
+        userAgent: "com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip",
       },
     },
     videoId: videoId,
@@ -53,9 +71,23 @@ async function getPlayerResponse(videoId: string, apiKey: string) {
   
   const response = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": "com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip",
+      "X-YouTube-Client-Name": "3",
+      "X-YouTube-Client-Version": "20.10.38",
+      "Origin": "https://www.youtube.com",
+      "Referer": `https://www.youtube.com/watch?v=${videoId}`,
+    },
     body: JSON.stringify(body),
   });
+  
+  if (!response.ok) {
+    console.error('Player API failed:', response.status, response.statusText);
+    const errorText = await response.text();
+    console.error('Player API error response:', errorText);
+    throw new Error(`Player API request failed: ${response.status}`);
+  }
   
   return await response.json();
 }
@@ -89,7 +121,20 @@ function extractCaptionTrackUrl(playerResponse: any, lang: string = "en"): strin
 }
 
 async function fetchAndParseCaptions(baseUrl: string): Promise<TranscriptEntry[]> {
-  const response = await fetch(baseUrl);
+  const response = await fetch(baseUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+      'Accept': 'application/json, text/plain, */*',
+      'Accept-Language': 'en-US,en;q=0.5',
+      'Referer': 'https://www.youtube.com/',
+    }
+  });
+  
+  if (!response.ok) {
+    console.error('Failed to fetch captions:', response.status, response.statusText);
+    throw new Error(`Failed to fetch captions: ${response.status}`);
+  }
+  
   const data = await response.json();
   
   if (!data.events) {
@@ -117,24 +162,51 @@ async function getYoutubeTranscript(videoId: string, language: string = "en"): P
   error?: string;
 }> {
   try {
+    console.log(`🎯 Step 1: Getting API key for video ${videoId}`);
     // Step 1: Get API key
     const apiKey = await getInnertubeApiKey(videoId);
     if (!apiKey) {
-      throw new Error("INNERTUBE_API_KEY not found.");
+      throw new Error("Failed to extract INNERTUBE_API_KEY from YouTube page. Video may be private or unavailable.");
     }
+    console.log(`✅ Step 1: Got API key: ${apiKey.substring(0, 10)}...`);
     
+    console.log(`🎯 Step 2: Getting player response`);
     // Step 2: Get player response
     const playerData = await getPlayerResponse(videoId, apiKey);
     
+    console.log(`📋 Player response keys:`, Object.keys(playerData));
+    
     if (!playerData.videoDetails) {
-      throw new Error("Video not found or unavailable.");
+      console.error(`❌ No videoDetails in player response:`, playerData);
+      
+      // Check for specific error messages
+      if (playerData.playabilityStatus) {
+        const status = playerData.playabilityStatus;
+        console.error(`📺 Playability status:`, status);
+        
+        if (status.status === 'UNPLAYABLE') {
+          throw new Error(`Video is unplayable: ${status.reason || 'Unknown reason'}`);
+        } else if (status.status === 'LOGIN_REQUIRED') {
+          throw new Error('Video requires login or is private.');
+        } else if (status.status === 'ERROR') {
+          throw new Error(`YouTube error: ${status.reason || 'Unknown error'}`);
+        }
+      }
+      
+      throw new Error("Video not found or unavailable. The video may be private, deleted, or restricted.");
     }
     
+    console.log(`✅ Step 2: Got video details: "${playerData.videoDetails.title}"`);
+    
+    console.log(`🎯 Step 3: Extracting caption track URL`);
     // Step 3: Extract caption track URL
     const captionUrl = extractCaptionTrackUrl(playerData, language);
+    console.log(`✅ Step 3: Got caption URL`);
     
+    console.log(`🎯 Step 4: Fetching and parsing captions`);
     // Step 4: Fetch and parse captions
     const transcript = await fetchAndParseCaptions(captionUrl);
+    console.log(`✅ Step 4: Parsed ${transcript.length} transcript segments`);
     
     // Format transcript text
     const transcriptText = transcript
@@ -151,6 +223,8 @@ async function getYoutubeTranscript(videoId: string, language: string = "en"): P
         ? Math.ceil(transcript[transcript.length - 1].endTime)
         : 0;
     
+    console.log(`🎉 Successfully extracted transcript: ${transcriptText.length} characters, ${transcriptText.split(' ').length} words`);
+    
     return {
       success: true,
       videoId,
@@ -162,6 +236,7 @@ async function getYoutubeTranscript(videoId: string, language: string = "en"): P
     };
     
   } catch (error: any) {
+    console.error(`💥 Error in getYoutubeTranscript:`, error.message);
     return {
       success: false,
       videoId,
