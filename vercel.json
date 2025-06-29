@@ -8,6 +8,9 @@
   "functions": {
     "app/api/generate-quiz/route.ts": {
       "maxDuration": 300
+    },
+    "api/youtube_transcript.py": {
+      "maxDuration": 30
     }
   },
   "headers": [
