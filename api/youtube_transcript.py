@@ -4,7 +4,7 @@ import json
 import re
 import sys
 import traceback
-from urllib.parse import parse_qs
+from http.server import BaseHTTPRequestHandler
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import (
     TranscriptsDisabled,
@@ -149,90 +149,71 @@ def get_transcript(video_url):
             }
         }
 
-def handler(request):
-    """Vercel Python function handler"""
-    try:
-        print("🚀 Python YouTube transcript API called")
-        
-        # Handle CORS preflight
-        if request.method == 'OPTIONS':
-            return {
-                'statusCode': 200,
-                'headers': {
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type',
-                },
-                'body': ''
-            }
-        
-        if request.method != 'POST':
-            return {
-                'statusCode': 405,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                },
-                'body': json.dumps({'error': 'Method not allowed'})
-            }
-        
-        # Parse request data
+class handler(BaseHTTPRequestHandler):
+    """Vercel Python function handler using BaseHTTPRequestHandler"""
+    
+    def do_OPTIONS(self):
+        """Handle CORS preflight requests"""
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+    
+    def do_POST(self):
+        """Handle POST requests"""
         try:
-            if hasattr(request, 'json') and request.json:
-                data = request.json
-            elif hasattr(request, 'data'):
-                data = json.loads(request.data.decode('utf-8')) if request.data else {}
-            elif hasattr(request, 'body'):
-                data = json.loads(request.body) if request.body else {}
+            print("🚀 Python YouTube transcript API called")
+            
+            # Read the request body
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length > 0:
+                post_data = self.rfile.read(content_length)
+                try:
+                    data = json.loads(post_data.decode('utf-8'))
+                except json.JSONDecodeError:
+                    self.send_response(400)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    response = {'error': 'Invalid JSON in request body'}
+                    self.wfile.write(json.dumps(response).encode())
+                    return
             else:
                 data = {}
-        except json.JSONDecodeError:
-            return {
-                'statusCode': 400,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                },
-                'body': json.dumps({'error': 'Invalid JSON in request body'})
-            }
-        
-        youtube_url = data.get('youtubeUrl', '')
-        
-        print(f"📺 Processing URL: {youtube_url}")
-        
-        if not youtube_url:
-            return {
-                'statusCode': 400,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                },
-                'body': json.dumps({'error': 'YouTube URL is required'})
-            }
-        
-        # Get transcript
-        result = get_transcript(youtube_url)
-        
-        # Return response
-        status_code = 200 if result.get('success') else 404
-        return {
-            'statusCode': status_code,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type',
-            },
-            'body': json.dumps(result)
-        }
-        
-    except Exception as e:
-        print(f"💥 Handler error: {str(e)}")
-        return {
-            'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps({'error': f'Internal server error: {str(e)}'})
-        } 
+            
+            youtube_url = data.get('youtubeUrl', '')
+            
+            print(f"📺 Processing URL: {youtube_url}")
+            
+            if not youtube_url:
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                response = {'error': 'YouTube URL is required'}
+                self.wfile.write(json.dumps(response).encode())
+                return
+            
+            # Get transcript
+            result = get_transcript(youtube_url)
+            
+            # Send response
+            status_code = 200 if result.get('success') else 404
+            self.send_response(status_code)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+            self.end_headers()
+            
+            self.wfile.write(json.dumps(result).encode())
+            
+        except Exception as e:
+            print(f"💥 Handler error: {str(e)}")
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            response = {'error': f'Internal server error: {str(e)}'}
+            self.wfile.write(json.dumps(response).encode()) 

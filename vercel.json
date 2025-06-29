@@ -10,16 +10,9 @@
       "maxDuration": 300
     },
     "api/youtube_transcript.py": {
-      "runtime": "python3.9",
       "maxDuration": 30
     }
   },
-  "builds": [
-    {
-      "src": "api/youtube_transcript.py",
-      "use": "@vercel/python"
-    }
-  ],
   "headers": [
     {
       "source": "/(.*)",
