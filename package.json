@@ -41,6 +41,7 @@
     "openai": "^4.85.3",
     "pdf-parse": "^1.1.1",
     "prettier": "^3.3.3",
+    "puppeteer": "^24.11.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sonner": "^2.0.1",
