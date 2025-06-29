@@ -262,5 +262,5 @@ export const signOutAction = async () => {
   } catch (error) {
     console.error('Unexpected error during sign out:', error);
   }
-  return redirect("/sign-in");
+  return redirect("/");
 };

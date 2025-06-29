@@ -122,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Add a small delay before redirecting
       setTimeout(() => {
-        router.push('/auth/sign-in');
+        router.push('/');
         isRedirecting.current = false;
       }, 100);
     } catch (error) {
@@ -132,7 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Force clear session on error
       setUser(null);
       setSession(null);
-      router.push('/auth/sign-in');
+      router.push('/');
     }
   }, [router, supabase]);
 

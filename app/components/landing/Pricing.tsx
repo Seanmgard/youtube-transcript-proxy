@@ -32,7 +32,7 @@ const tiers = [
     description: 'Less than your daily coffee ☕ - unlock unlimited learning potential for serious students and educators.',
     features: [
       'Unlimited PDF uploads',
-      'Up to 30 questions per quiz',
+      'Up to 50 questions per quiz',
       'Advanced analytics',
       'Export to doc, csv, and Anki',
       'Priority support',

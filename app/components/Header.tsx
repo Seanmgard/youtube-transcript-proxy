@@ -24,7 +24,7 @@ export default function Header() {
     
     await supabase.auth.signOut()
     router.refresh()
-    router.push('/auth/sign-in')
+    router.push('/')
   }
 
   return (

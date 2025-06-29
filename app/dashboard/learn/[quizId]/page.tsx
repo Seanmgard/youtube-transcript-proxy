@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, KeyboardEvent } from 'react';
-import { Loader2, ArrowLeft, ThumbsUp, ThumbsDown, RotateCcw, ChevronLeft, ChevronRight, Check, X, CheckCircle, XCircle, AlertCircle, FileText, Send } from 'lucide-react';
+import { Loader2, ArrowLeft, ThumbsUp, ThumbsDown, RotateCcw, ChevronLeft, ChevronRight, Check, X, CheckCircle, XCircle, AlertCircle, FileText, Send, Eye, EyeOff, Settings, Lightbulb, Brain, Zap, Trophy, Target } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import Link from 'next/link';
 import { Quiz, Question, LearningProgress, QuestionStat } from '@/lib/types';
@@ -38,6 +38,8 @@ export default function LearnQuizPage() {
   const [flipped, setFlipped] = useState(false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [showOptions, setShowOptions] = useState(true); // New state for toggle
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null); // Track selected answer
   const { supabase, loading: supabaseLoading, error: supabaseError } = useSupabase();
   const { toast } = useToast();
   const router = useRouter();
@@ -362,12 +364,57 @@ export default function LearnQuizPage() {
     setFlipped(false);
   };
 
+  const handleOptionClick = (option: string, index: number) => {
+    if (!currentQuestion) return;
+    
+    setSelectedAnswer(option);
+    
+    // Check if answer is correct
+    let correct = false;
+    
+    // Strategy 1: Direct match with full option text
+    if (option.trim().toLowerCase() === currentQuestion.correctAnswer.trim().toLowerCase()) {
+      correct = true;
+    } else {
+      // Strategy 2: If correctAnswer is just a letter (A, B, C, D), convert to index
+      const answerLetter = currentQuestion.correctAnswer.trim().toUpperCase();
+      if (answerLetter.match(/^[A-D]$/)) {
+        const correctIndex = answerLetter.charCodeAt(0) - 65;
+        if (index === correctIndex) {
+          correct = true;
+        }
+      } else {
+        // Strategy 3: If correctAnswer starts with a letter and parenthesis, extract the option
+        const letterMatch = currentQuestion.correctAnswer.match(/^([A-D])\)\s*(.+)$/i);
+        if (letterMatch) {
+          const correctIndex = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
+          if (index === correctIndex) {
+            correct = true;
+          }
+        }
+      }
+    }
+    
+    setIsCorrect(correct);
+    
+    // Add a small delay before flipping to show the color feedback
+    setTimeout(() => {
+      handleFlip();
+    }, 500);
+  };
+
   const handleFlip = useCallback(() => {
     // When flipping to see the answer, update the stats
     if (!flipped) {
       updateCardStats();
     }
     setFlipped(!flipped);
+    
+    // Reset selection when flipping back to question
+    if (flipped) {
+      setSelectedAnswer(null);
+      setIsCorrect(null);
+    }
   }, [flipped, updateCardStats]);
 
   // Update handleNextAfterReview to use the new logic
@@ -515,229 +562,491 @@ export default function LearnQuizPage() {
   console.log("Options:", currentQuestion?.options);
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="flex items-center gap-2 mb-6">
-        <Link href="/dashboard/learn">
-          <Button variant="outline" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <h1 className="text-2xl font-bold">{quiz.title}</h1>
-      </div>
-
-      <div className="p-6 bg-white rounded-lg shadow-md">
-        <div className="flex justify-between items-center mb-4">
-          <div className="text-sm text-gray-600">
-            Question {currentQuestionIndex + 1} of {totalQuestions}
-          </div>
-          <Button variant="outline" size="sm" onClick={resetQuiz}>
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Reset
-          </Button>
-        </div>
-
-        <Progress 
-          value={progress} 
-          className="h-2 mb-4 bg-gray-100" 
-          style={{ "--progress-foreground": "rgb(21, 128, 61)" } as React.CSSProperties}
-        />
-
-        {/* Flashcard */}
-        <div
-          className={`relative w-full rounded-lg border bg-white text-gray-900 shadow-sm perspective-1000 ${flipped ? 'rotate-y-180' : ''} transform-style-preserve-3d transition-all duration-500 cursor-pointer`}
-          style={{ minHeight: '190px', height: '270px', maxHeight: '270px' }}
-          onClick={handleFlip}
-          tabIndex={0}
-          role="button"
-          aria-pressed={flipped}
-          aria-label="Flashcard, press space or click to flip"
-        >
-          {/* Front of card (Question) */}
-          <div className={`absolute w-full h-full backface-hidden ${!flipped ? 'visible' : 'invisible'} overflow-auto p-6 bg-white`}>
-            <h3 className="font-medium text-sm text-gray-700 mb-1">Question {currentQuestionIndex + 1}</h3>
-            <p className="mb-2 text-gray-900">{currentQuestion?.text}</p>
-            
-            {currentQuestion?.type === 'multiple_choice' && currentQuestion?.options && (
-              <>
-                <p className="text-xs text-gray-600 mb-1">Options:</p>
-                <ul className="space-y-1 mb-2">
-                  {currentQuestion.options.map((option, index) => (
-                    <li key={index} className="text-sm py-1 px-3 rounded-md bg-gray-50 text-gray-700">
-                      {option}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-            
-            <div className="mt-4 text-center text-xs text-gray-500">
-              Click or press space to see answer
-            </div>
-          </div>
-          
-          {/* Back of card (Answer) */}
-          <div className={`absolute w-full h-full backface-hidden rotate-y-180 ${flipped ? 'visible' : 'invisible'} overflow-auto p-6 flex flex-col bg-white`}>
-            <h3 className="font-medium text-sm text-gray-700 mb-1">Answer</h3>
-            
-            <div className="flex-grow flex items-center justify-center">
-              {currentQuestion?.type === 'multiple_choice' && currentQuestion?.options ? (
-                (() => {
-                  // Try to find the correct answer using multiple matching strategies
-                  let correctIndex = -1;
-                  let correctText = currentQuestion.correctAnswer;
-                  
-                  // Strategy 1: Direct match with full option text
-                  correctIndex = currentQuestion.options.findIndex((option: string) => 
-                    option.trim().toLowerCase() === currentQuestion.correctAnswer.trim().toLowerCase()
-                  );
-                  
-                  // Strategy 2: If correctAnswer is just a letter (A, B, C, D), convert to index
-                  if (correctIndex === -1) {
-                    const answerLetter = currentQuestion.correctAnswer.trim().toUpperCase();
-                    if (answerLetter.match(/^[A-D]$/)) {
-                      correctIndex = answerLetter.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
-                      if (correctIndex >= 0 && correctIndex < currentQuestion.options.length) {
-                        correctText = currentQuestion.options[correctIndex];
-                      }
-                    }
-                  }
-                  
-                  // Strategy 3: If correctAnswer starts with a letter and parenthesis, extract the option
-                  if (correctIndex === -1) {
-                    const letterMatch = currentQuestion.correctAnswer.match(/^([A-D])\)\s*(.+)$/i);
-                    if (letterMatch) {
-                      correctIndex = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
-                      correctText = letterMatch[2];
-                    }
-                  }
-                  
-                  const answerLetter = correctIndex !== -1 ? String.fromCharCode(65 + correctIndex) : '';
-                  
-                  return (
-                    <div className="text-center">
-                      {answerLetter && (
-                        <div className="text-lg font-bold text-blue-600 mb-2">
-                          {answerLetter})
-                        </div>
-                      )}
-                      <p className="text-sm font-medium text-gray-900">{correctText}</p>
-                    </div>
-                  );
-                })()
-              ) : (
-                <p className="text-sm font-medium text-gray-900">{currentQuestion?.correctAnswer}</p>
-              )}
-            </div>
-            
-            <div className="mt-4 text-center text-xs text-gray-500">
-              Click or press space to see question
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-between mt-4">
-          <Button
-            variant="outline"
-            onClick={handlePrevQuestion}
-            disabled={currentQuestionIndex === 0}
-          >
-            <ChevronLeft className="h-4 w-4 mr-2" />
-            Previous
-          </Button>
-          
-          <Button
-            onClick={handleNextAfterReview}
-          >
-            Next
-            <ChevronRight className="h-4 w-4 ml-2" />
-          </Button>
-        </div>
-      </div>
-
-      <div className="p-6 bg-white rounded-lg shadow-md">
-        <h2 className="text-xl font-semibold mb-4 text-gray-900">Your Progress</h2>
-        
-        <div className="space-y-4">
-          <div>
-            <div className="flex justify-between text-sm mb-1 text-gray-700">
-              <span>Cards Viewed</span>
-              <span>{Object.values(questionStats).filter(stat => stat.last_studied).length} of {quiz.questions.length}</span>
-            </div>
-            <Progress 
-              value={(Object.values(questionStats).filter(stat => stat.last_studied).length / quiz.questions.length) * 100} 
-              className="h-2 bg-gray-100" 
-              style={{ "--progress-foreground": "rgb(21, 128, 61)" } as React.CSSProperties}
-            />
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <h3 className="text-sm font-medium mb-1 text-gray-700">Completed Sessions</h3>
-              <p className="text-2xl font-bold text-gray-900">{learningProgress?.completed_sessions || 0}</p>
-            </div>
-            
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <h3 className="text-sm font-medium mb-1 text-gray-700">Last Studied</h3>
-              <p className="text-sm text-gray-600">
-                {learningProgress?.last_studied 
-                  ? new Date(learningProgress.last_studied).toLocaleDateString() 
-                  : 'Never'}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="space-y-6 max-w-4xl mx-auto px-4 py-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard/learn">
+              <Button variant="outline" size="icon" className="rounded-full shadow-md hover:shadow-lg transition-shadow">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{quiz.title}</h1>
+              <p className="text-sm text-gray-600 flex items-center gap-2 mt-1">
+                <Brain className="h-4 w-4" />
+                Interactive Learning Mode
               </p>
             </div>
           </div>
           
-          <Button 
-            onClick={saveProgress}
-            disabled={savingProgress}
-            className="w-full"
-          >
-            {savingProgress ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : 'Save Progress'}
-          </Button>
+          {/* Options Toggle */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-white rounded-full px-4 py-2 shadow-md">
+              <Settings className="h-4 w-4 text-gray-600" />
+              <span className="text-sm font-medium text-gray-700">Answer Choices</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowOptions(!showOptions)}
+                className={`rounded-full p-2 transition-colors ${
+                  showOptions 
+                    ? 'bg-blue-100 text-blue-600 hover:bg-blue-200' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {showOptions ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              </Button>
+            </div>
+            
+            <Button variant="outline" size="sm" onClick={resetQuiz} className="rounded-full shadow-md">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reset
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <div className="p-6 bg-white rounded-lg shadow-md">
-        <h2 className="text-xl font-semibold mb-4 text-gray-900">Export Quiz</h2>
-        
-        <div className="space-y-4">
+        {/* Progress Bar */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+          <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-indigo-600" />
+              <span className="text-sm font-semibold text-gray-700">
+                Question {currentQuestionIndex + 1} of {totalQuestions}
+              </span>
+            </div>
+            <div className="text-sm text-gray-600">
+              {Math.round(progress)}% Complete
+            </div>
+          </div>
+
+          <Progress 
+            value={progress} 
+            className="h-3 bg-gray-100 rounded-full overflow-hidden" 
+            style={{ 
+              "--progress-foreground": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
+            } as React.CSSProperties}
+          />
+        </div>
+
+        {/* Enhanced Flashcard */}
+        <div className="relative">
+          <div
+            className={`relative w-full rounded-3xl bg-gradient-to-br from-white to-gray-50 shadow-2xl border border-gray-100 perspective-1000 ${flipped ? 'rotate-y-180' : ''} transform-style-preserve-3d transition-all duration-700 cursor-pointer hover:shadow-3xl`}
+            style={{ minHeight: '400px', height: '450px', maxHeight: '450px' }}
+            onClick={handleFlip}
+            tabIndex={0}
+            role="button"
+            aria-pressed={flipped}
+            aria-label="Flashcard, press space or click to flip"
+          >
+            {/* Front of card (Question) */}
+            <div className={`absolute w-full h-full backface-hidden ${!flipped ? 'visible' : 'invisible'} overflow-auto rounded-3xl`}>
+              <div className="p-6 h-full flex flex-col">
+                {/* Question Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
+                      <Lightbulb className="h-3.5 w-3.5 text-white" />
+                    </div>
+                    <span className="font-semibold text-gray-700 text-xs uppercase tracking-wide">
+                      Question {currentQuestionIndex + 1}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
+                    {currentQuestion?.type === 'multiple_choice' ? 'Multiple Choice' : 'Open Ended'}
+                  </div>
+                </div>
+                
+                {/* Question Text */}
+                <div className="flex-grow flex flex-col justify-center">
+                  <h2 className="text-lg font-semibold text-gray-900 leading-relaxed mb-4 text-center">
+                    {currentQuestion?.text}
+                  </h2>
+                  
+                  {/* Multiple Choice Options (if enabled) */}
+                  {showOptions && currentQuestion?.type === 'multiple_choice' && currentQuestion?.options && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-3 h-3 rounded bg-gradient-to-r from-green-400 to-blue-500"></div>
+                        <span className="text-xs font-medium text-gray-600">Choose the best answer:</span>
+                      </div>
+                      <div className="grid gap-2">
+                        {currentQuestion.options.map((option, index) => {
+                          const isSelected = selectedAnswer === option;
+                          const isCorrectAnswer = isSelected && isCorrect === true;
+                          const isWrongAnswer = isSelected && isCorrect === false;
+                          
+                          return (
+                            <div
+                              key={index}
+                              onClick={() => handleOptionClick(option, index)}
+                              className={`flex items-center gap-2.5 p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
+                                isCorrectAnswer
+                                  ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 shadow-md'
+                                  : isWrongAnswer
+                                  ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-300 shadow-md'
+                                  : 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200 hover:from-blue-50 hover:to-indigo-50 hover:border-blue-200'
+                              }`}
+                            >
+                              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center font-semibold text-xs ${
+                                isCorrectAnswer
+                                  ? 'bg-green-500 border-green-500 text-white'
+                                  : isWrongAnswer
+                                  ? 'bg-red-500 border-red-500 text-white'
+                                  : 'bg-white border-gray-300 text-gray-600'
+                              }`}>
+                                {isCorrectAnswer ? (
+                                  <Check className="h-3 w-3" />
+                                ) : isWrongAnswer ? (
+                                  <X className="h-3 w-3" />
+                                ) : (
+                                  String.fromCharCode(65 + index)
+                                )}
+                              </div>
+                              <span className={`text-sm flex-1 ${
+                                isCorrectAnswer
+                                  ? 'text-green-800 font-medium'
+                                  : isWrongAnswer
+                                  ? 'text-red-800 font-medium'
+                                  : 'text-gray-700'
+                              }`}>
+                                {option}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Flip Instruction */}
+                <div className="text-center mt-4">
+                  <div className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-3 py-1.5 rounded-full text-xs font-medium">
+                    <Zap className="h-3.5 w-3.5" />
+                    Click or press Space to reveal answer
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Back of card (Answer) */}
+            <div className={`absolute w-full h-full backface-hidden rotate-y-180 ${flipped ? 'visible' : 'invisible'} overflow-auto rounded-3xl`}>
+              <div className={`p-6 h-full flex flex-col ${
+                isCorrect === true 
+                  ? 'bg-gradient-to-br from-green-50 to-emerald-50' 
+                  : isCorrect === false
+                  ? 'bg-gradient-to-br from-red-50 to-rose-50'
+                  : 'bg-gradient-to-br from-green-50 to-emerald-50'
+              }`}>
+                {/* Answer Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                      isCorrect === true 
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
+                        : isCorrect === false
+                        ? 'bg-gradient-to-r from-red-500 to-rose-600'
+                        : 'bg-gradient-to-r from-green-500 to-emerald-600'
+                    }`}>
+                      {isCorrect === true ? (
+                        <CheckCircle className="h-3.5 w-3.5 text-white" />
+                      ) : isCorrect === false ? (
+                        <XCircle className="h-3.5 w-3.5 text-white" />
+                      ) : (
+                        <CheckCircle className="h-3.5 w-3.5 text-white" />
+                      )}
+                    </div>
+                    <span className="font-semibold text-gray-700 text-xs uppercase tracking-wide">
+                      {isCorrect === true ? 'Correct!' : isCorrect === false ? 'Incorrect' : 'Correct Answer'}
+                    </span>
+                  </div>
+                  <div className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                    isCorrect === true 
+                      ? 'text-green-700 bg-green-100' 
+                      : isCorrect === false
+                      ? 'text-red-700 bg-red-100'
+                      : 'text-green-700 bg-green-100'
+                  }`}>
+                    {isCorrect === true ? 'Well Done!' : isCorrect === false ? 'Try Again' : 'Solution'}
+                  </div>
+                </div>
+                
+                {/* Answer Content */}
+                <div className="flex-grow flex items-center justify-center">
+                  {currentQuestion?.type === 'multiple_choice' && currentQuestion?.options ? (
+                    (() => {
+                      // Try to find the correct answer using multiple matching strategies
+                      let correctIndex = -1;
+                      let correctText = currentQuestion.correctAnswer;
+                      
+                      // Strategy 1: Direct match with full option text
+                      correctIndex = currentQuestion.options.findIndex((option: string) => 
+                        option.trim().toLowerCase() === currentQuestion.correctAnswer.trim().toLowerCase()
+                      );
+                      
+                      // Strategy 2: If correctAnswer is just a letter (A, B, C, D), convert to index
+                      if (correctIndex === -1) {
+                        const answerLetter = currentQuestion.correctAnswer.trim().toUpperCase();
+                        if (answerLetter.match(/^[A-D]$/)) {
+                          correctIndex = answerLetter.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
+                          if (correctIndex >= 0 && correctIndex < currentQuestion.options.length) {
+                            correctText = currentQuestion.options[correctIndex];
+                          }
+                        }
+                      }
+                      
+                      // Strategy 3: If correctAnswer starts with a letter and parenthesis, extract the option
+                      if (correctIndex === -1) {
+                        const letterMatch = currentQuestion.correctAnswer.match(/^([A-D])\)\s*(.+)$/i);
+                        if (letterMatch) {
+                          correctIndex = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
+                          correctText = letterMatch[2];
+                        }
+                      }
+                      
+                      const answerLetter = correctIndex !== -1 ? String.fromCharCode(65 + correctIndex) : '';
+                      
+                      return (
+                        <div className="text-center max-w-md">
+                          {answerLetter && (
+                            <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-bold mx-auto mb-3 shadow-lg ${
+                              isCorrect === true 
+                                ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
+                                : isCorrect === false
+                                ? 'bg-gradient-to-r from-red-500 to-rose-600'
+                                : 'bg-gradient-to-r from-green-500 to-emerald-600'
+                            }`}>
+                              {answerLetter}
+                            </div>
+                          )}
+                          <p className="text-base font-semibold text-gray-900 leading-relaxed">
+                            {correctText}
+                          </p>
+                          {isCorrect === false && selectedAnswer && (
+                            <div className="mt-3 p-3 bg-white rounded-lg border border-red-200">
+                              <p className="text-sm text-red-700">
+                                <span className="font-medium">You selected:</span> {selectedAnswer}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="text-center max-w-md">
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white mx-auto mb-3 shadow-lg ${
+                        isCorrect === true 
+                          ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
+                          : isCorrect === false
+                          ? 'bg-gradient-to-r from-red-500 to-rose-600'
+                          : 'bg-gradient-to-r from-green-500 to-emerald-600'
+                      }`}>
+                        {isCorrect === true ? (
+                          <Check className="h-7 w-7" />
+                        ) : isCorrect === false ? (
+                          <X className="h-7 w-7" />
+                        ) : (
+                          <Check className="h-7 w-7" />
+                        )}
+                      </div>
+                      <p className="text-base font-semibold text-gray-900 leading-relaxed">
+                        {currentQuestion?.correctAnswer}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Flip Back Instruction */}
+                <div className="text-center mt-4">
+                  <div className={`inline-flex items-center gap-2 text-white px-3 py-1.5 rounded-full text-xs font-medium ${
+                    isCorrect === true 
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
+                      : isCorrect === false
+                      ? 'bg-gradient-to-r from-red-500 to-rose-600'
+                      : 'bg-gradient-to-r from-green-500 to-emerald-600'
+                  }`}>
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Click or press Space to see question
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation Controls */}
+        <div className="flex justify-between items-center">
           <Button
-            size="sm"
             variant="outline"
-            onClick={() => {
-              if (quiz) {
-                handleAnkiExport(quiz);
-              }
-            }}
-            className={`flex items-center bg-white text-black border border-gray-200 hover:bg-gray-50 ${
-              isMobileOrTablet 
-                ? 'opacity-60 cursor-help' 
-                : ''
-            }`}
+            onClick={handlePrevQuestion}
+            disabled={currentQuestionIndex === 0}
+            className="rounded-full px-6 py-3 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
           >
-            {isMobileOrTablet && (
-              <AlertCircle className="h-4 w-4 mr-1 text-gray-400" />
-            )}
-            {!isMobileOrTablet && (
-              <Send className="h-4 w-4 mr-1" />
-            )}
-            Export to Anki
+            <ChevronLeft className="h-5 w-5 mr-2" />
+            Previous
+          </Button>
+          
+          <div className="flex items-center gap-2 text-sm text-gray-600 bg-white rounded-full px-4 py-2 shadow-md">
+            <Trophy className="h-4 w-4" />
+            Keep going! You're doing great.
+          </div>
+          
+          <Button
+            onClick={handleNextAfterReview}
+            className="rounded-full px-6 py-3 shadow-md hover:shadow-lg transition-all bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
+          >
+            Next
+            <ChevronRight className="h-5 w-5 ml-2" />
           </Button>
         </div>
-      </div>
 
-      {/* Replace the old Anki Dialog with our new AnkiExportDialog component */}
-      {quiz && (
-        <AnkiExportDialog
-          isOpen={isAnkiDialogOpen}
-          onClose={closeAnkiDialog}
-          quizId={quiz.id}
-        />
-      )}
+        {/* Enhanced Progress Section */}
+        <div className="bg-white rounded-2xl shadow-lg p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
+              <Target className="h-5 w-5 text-white" />
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900">Your Progress</h2>
+          </div>
+          
+          <div className="space-y-6">
+            <div>
+              <div className="flex justify-between text-sm mb-2 text-gray-700">
+                <span className="font-medium">Cards Viewed</span>
+                <span className="font-semibold">
+                  {Object.values(questionStats).filter(stat => stat.last_studied).length} of {quiz.questions.length}
+                </span>
+              </div>
+              <Progress 
+                value={(Object.values(questionStats).filter(stat => stat.last_studied).length / quiz.questions.length) * 100} 
+                className="h-3 bg-gray-100 rounded-full" 
+                style={{ 
+                  "--progress-foreground": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
+                } as React.CSSProperties}
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-6">
+              <div className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                    <Trophy className="h-4 w-4 text-white" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-blue-900">Completed Sessions</h3>
+                </div>
+                <p className="text-2xl font-bold text-blue-900">{learningProgress?.completed_sessions || 0}</p>
+              </div>
+              
+              <div className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                    <CheckCircle className="h-4 w-4 text-white" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-green-900">Last Studied</h3>
+                </div>
+                <p className="text-sm font-medium text-green-800">
+                  {learningProgress?.last_studied 
+                    ? new Date(learningProgress.last_studied).toLocaleDateString() 
+                    : 'Today'}
+                </p>
+              </div>
+            </div>
+            
+            <Button 
+              onClick={saveProgress}
+              disabled={savingProgress}
+              className="w-full rounded-xl py-4 text-lg font-semibold bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-xl transition-all"
+            >
+              {savingProgress ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-3 animate-spin" />
+                  Saving Progress...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-5 w-5 mr-3" />
+                  Save Progress
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {/* Export Section */}
+        <div className="bg-white rounded-2xl shadow-lg p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-600 flex items-center justify-center">
+              <Send className="h-5 w-5 text-white" />
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900">Export Quiz</h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => {
+                if (quiz) {
+                  handleExport(quiz, 'doc');
+                }
+              }}
+              className="flex items-center justify-center rounded-xl py-4 border-2 border-blue-200 hover:bg-blue-50 hover:border-blue-300"
+            >
+              <FileText className="h-5 w-5 mr-2 text-blue-600" />
+              <span className="font-semibold">Word Document</span>
+            </Button>
+            
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => {
+                if (quiz) {
+                  handleExport(quiz, 'csv');
+                }
+              }}
+              className="flex items-center justify-center rounded-xl py-4 border-2 border-green-200 hover:bg-green-50 hover:border-green-300"
+            >
+              <FileText className="h-5 w-5 mr-2 text-green-600" />
+              <span className="font-semibold">CSV File</span>
+            </Button>
+            
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => {
+                if (quiz) {
+                  handleAnkiExport(quiz);
+                }
+              }}
+              className={`flex items-center justify-center rounded-xl py-4 border-2 ${
+                isMobileOrTablet 
+                  ? 'opacity-60 cursor-help border-gray-200 hover:bg-gray-50' 
+                  : 'border-purple-200 hover:bg-purple-50 hover:border-purple-300'
+              }`}
+            >
+              {isMobileOrTablet && (
+                <AlertCircle className="h-5 w-5 mr-2 text-gray-400" />
+              )}
+              {!isMobileOrTablet && (
+                <Send className="h-5 w-5 mr-2 text-purple-600" />
+              )}
+              <span className="font-semibold">Anki Export</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Replace the old Anki Dialog with our new AnkiExportDialog component */}
+        {quiz && (
+          <AnkiExportDialog
+            isOpen={isAnkiDialogOpen}
+            onClose={closeAnkiDialog}
+            quizId={quiz.id}
+          />
+        )}
+      </div>
     </div>
   );
 }

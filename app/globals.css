@@ -41,7 +41,7 @@
   }
 }
 
-/* Flashcard 3D effect styles */
+/* Enhanced Flashcard 3D effect styles */
 .perspective-1000 {
   perspective: 1000px;
 }
@@ -56,4 +56,14 @@
 
 .rotate-y-180 {
   transform: rotateY(180deg);
+}
+
+/* Enhanced shadow effects */
+.shadow-3xl {
+  box-shadow: 0 35px 60px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* Smooth gradient transitions for better performance */
+.bg-gradient-to-br {
+  background-attachment: fixed;
 }

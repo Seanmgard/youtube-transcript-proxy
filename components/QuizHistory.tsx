@@ -61,6 +61,8 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
   const [isAnkiDialogOpen, setIsAnkiDialogOpen] = useState(false);
   const [sendingToAnki, setSendingToAnki] = useState(false);
   const [isMobileAnkiWarningOpen, setIsMobileAnkiWarningOpen] = useState(false);
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+  const [editingTitleValue, setEditingTitleValue] = useState('');
 
   // Combine loading states
   const isLoading = loading || supabaseLoading;
@@ -277,6 +279,84 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
   const closeQuizDetails = () => {
     setSelectedQuiz(null);
     setIsDialogOpen(false);
+    // Cancel any ongoing title editing when closing the modal
+    if (editingTitleId) {
+      cancelEditingTitle();
+    }
+  };
+
+  const startEditingTitle = (quiz: Quiz) => {
+    setEditingTitleId(quiz.id);
+    setEditingTitleValue(quiz.title);
+  };
+
+  const cancelEditingTitle = () => {
+    setEditingTitleId(null);
+    setEditingTitleValue('');
+  };
+
+  const saveTitle = async (quizId: string) => {
+    if (!editingTitleValue.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Title cannot be empty',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const response = await fetch('/api/update-quiz', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          quizId,
+          title: editingTitleValue.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update quiz title');
+      }
+
+      const result = await response.json();
+      
+      // Update the quiz in the local state
+      setQuizzes(prevQuizzes => 
+        prevQuizzes.map(quiz => 
+          quiz.id === quizId 
+            ? { ...quiz, title: result.quiz.title }
+            : quiz
+        )
+      );
+
+      // Also update selectedQuiz if it's currently open
+      if (selectedQuiz?.id === quizId) {
+        setSelectedQuiz(prev => prev ? { ...prev, title: result.quiz.title } : null);
+      }
+
+      setEditingTitleId(null);
+      setEditingTitleValue('');
+
+      toast({
+        title: 'Success',
+        description: 'Quiz title updated successfully',
+        className: "border-green-200 bg-green-50 text-green-900",
+      });
+    } catch (error) {
+      console.error('Error updating quiz title:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to update quiz title',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -297,19 +377,19 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
         {quizzes.map((quiz) => (
           <div
             key={quiz.id}
-            className={`p-4 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer ${
+            className={`group p-4 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer ${
               quiz.subject && quiz.color 
                 ? 'border-l-4' 
                 : 'bg-gray-50'
             }`}
             style={quiz.subject && quiz.color ? {
               borderLeftColor: quiz.color,
-              backgroundColor: `${quiz.color}20`, // Add 20% opacity to the color
+              backgroundColor: `${quiz.color}20`,
             } : {}}
             onClick={() => openQuizDetails(quiz)}
           >
             <div className="flex flex-col">
-              {quiz.subject ? (
+              {quiz.subject && (
                 <div className="mb-2">
                   <div 
                     className="inline-flex items-center px-3 py-1 rounded-md text-sm"
@@ -322,28 +402,87 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
                     {quiz.subject}
                   </div>
                 </div>
-              ) : null}
+              )}
               
-              <div>
-                <h3 className="font-semibold">{quiz.title}</h3>
-                <div className="flex flex-wrap gap-x-4 mt-1">
-                  <p className="text-sm text-gray-500 flex items-center">
-                    <Calendar className="h-3.5 w-3.5 mr-1" />
-                    {new Date(quiz.created_at).toLocaleDateString()}
-                  </p>
-                  <p className="text-sm text-gray-500 flex items-center">
-                    <FileText className="h-3.5 w-3.5 mr-1" />
-                    {quiz.questions.length} questions
-                  </p>
-                  <p className="text-sm text-gray-500 flex items-center">
-                    <BarChart3 className="h-3.5 w-3.5 mr-1" />
-                    {quiz.settings.difficulty} difficulty
-                  </p>
-                  <p className="text-sm text-gray-500 flex items-center">
-                    <Clock className="h-3.5 w-3.5 mr-1" />
-                    {quiz.settings.questionType} questions
-                  </p>
-                </div>
+              <div className="space-y-1">
+                {editingTitleId === quiz.id ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={editingTitleValue}
+                      onChange={(e) => setEditingTitleValue(e.target.value)}
+                      className="font-semibold text-lg"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          saveTitle(quiz.id);
+                        } else if (e.key === 'Escape') {
+                          cancelEditingTitle();
+                        }
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                      placeholder="Enter quiz title..."
+                    />
+                    <Button
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        saveTitle(quiz.id);
+                      }}
+                      disabled={saving}
+                      className="h-9 px-3 bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        cancelEditingTitle();
+                      }}
+                      className="h-9 px-3"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <div 
+                      className="inline-flex items-center gap-2 cursor-pointer rounded-md px-2 py-1 hover:bg-blue-50 hover:border-blue-200 border border-transparent transition-all group/edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEditingTitle(quiz);
+                      }}
+                      title="Click to edit quiz title"
+                    >
+                      <h3 className="font-semibold text-lg group-hover/edit:text-blue-600 transition-colors">
+                        {quiz.title}
+                      </h3>
+                      <Edit className="h-4 w-4 opacity-0 group-hover/edit:opacity-100 transition-opacity text-blue-500" />
+                    </div>
+                    <p className="text-xs text-gray-500 ml-2 opacity-0 group-hover/edit:opacity-100 transition-opacity">
+                      Click title to edit
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-x-4 mt-1">
+                <p className="text-sm text-gray-500 flex items-center">
+                  <Calendar className="h-3.5 w-3.5 mr-1" />
+                  {new Date(quiz.created_at).toLocaleDateString()}
+                </p>
+                <p className="text-sm text-gray-500 flex items-center">
+                  <FileText className="h-3.5 w-3.5 mr-1" />
+                  {quiz.questions.length} questions
+                </p>
+                <p className="text-sm text-gray-500 flex items-center">
+                  <BarChart3 className="h-3.5 w-3.5 mr-1" />
+                  {quiz.settings.difficulty} difficulty
+                </p>
+                <p className="text-sm text-gray-500 flex items-center">
+                  <Clock className="h-3.5 w-3.5 mr-1" />
+                  {quiz.settings.questionType} questions
+                </p>
               </div>
             </div>
           </div>
@@ -369,7 +508,74 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
                   </div>
                 </div>
               )}
-              <div className="text-xl font-semibold text-gray-900">{selectedQuiz?.title}</div>
+              <div className="space-y-2">
+                {editingTitleId === selectedQuiz?.id ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={editingTitleValue}
+                        onChange={(e) => setEditingTitleValue(e.target.value)}
+                        className="text-xl font-semibold"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            saveTitle(selectedQuiz.id);
+                          } else if (e.key === 'Escape') {
+                            cancelEditingTitle();
+                          }
+                        }}
+                        autoFocus
+                        placeholder="Enter quiz title..."
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => saveTitle(selectedQuiz.id)}
+                        disabled={saving}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        {saving ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Check className="h-4 w-4 mr-2" />
+                            Save Changes
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={cancelEditingTitle}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div 
+                      className="inline-flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2 hover:bg-blue-50 hover:border-blue-200 border-2 border-transparent transition-all group/modal-edit"
+                      onClick={() => selectedQuiz && startEditingTitle(selectedQuiz)}
+                      title="Click to edit quiz title"
+                    >
+                      <div className="text-xl font-semibold text-gray-900 group-hover/modal-edit:text-blue-600 transition-colors">
+                        {selectedQuiz?.title}
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover/modal-edit:opacity-100 transition-opacity">
+                        <Edit className="h-5 w-5 text-blue-500" />
+                        <span className="text-sm text-blue-600 font-medium">Edit</span>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-500 ml-3 opacity-0 group-hover/modal-edit:opacity-100 transition-opacity">
+                      Click title above to rename this quiz
+                    </p>
+                  </div>
+                )}
+              </div>
             </DialogTitle>
             <DialogDescription className="flex flex-wrap gap-4 text-gray-500">
               <span className="flex items-center">
