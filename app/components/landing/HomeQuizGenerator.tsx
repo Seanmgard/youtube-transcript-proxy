@@ -14,8 +14,6 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
   onProgressUpdate?: (step: number, message: string) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
-  const [youtubeUrl, setYoutubeUrl] = useState('');
-  const [sourceType, setSourceType] = useState<'file' | 'youtube'>('file');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -28,8 +26,7 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
     numberOfQuestions: 10,
     difficulty: 'medium',
     questionType: 'multiple_choice',
-    sourceType: sourceType,
-    youtubeUrl: sourceType === 'youtube' ? youtubeUrl : undefined,
+    sourceType: 'file',
   };
 
   const validateFile = (file: File): { valid: boolean; error?: string } => {
@@ -75,31 +72,7 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
     return { valid: true };
   };
 
-  const validateYouTubeUrl = (url: string): { valid: boolean; error?: string } => {
-    if (!url.trim()) {
-      return { valid: false, error: 'YouTube URL is required' };
-    }
 
-    // YouTube URL patterns
-    const patterns = [
-      /^https?:\/\/(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
-      /^https?:\/\/youtu\.be\/([a-zA-Z0-9_-]{11})/,
-      /^https?:\/\/(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
-      /^https?:\/\/(?:www\.)?youtube\.com\/v\/([a-zA-Z0-9_-]{11})/,
-      /^([a-zA-Z0-9_-]{11})$/ // Direct video ID
-    ];
-
-    const isValid = patterns.some(pattern => pattern.test(url.trim()));
-    
-    if (!isValid) {
-      return {
-        valid: false,
-        error: 'Please enter a valid YouTube URL (e.g., https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID)'
-      };
-    }
-
-    return { valid: true };
-  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -157,37 +130,25 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate based on source type
-    if (sourceType === 'file') {
-      if (!file) {
-        toast({
-          title: 'File required',
-          description: 'Please select a file to upload',
-          variant: 'destructive',
-        });
-        return;
-      }
+    // Validate file upload
+    if (!file) {
+      toast({
+        title: 'File required',
+        description: 'Please select a file to upload',
+        variant: 'destructive',
+      });
+      return;
+    }
 
-      // Re-validate file before upload
-      const validation = validateFile(file);
-      if (!validation.valid) {
-        toast({
-          title: 'Invalid file',
-          description: validation.error,
-          variant: 'destructive',
-        });
-        return;
-      }
-    } else if (sourceType === 'youtube') {
-      const validation = validateYouTubeUrl(youtubeUrl);
-      if (!validation.valid) {
-        toast({
-          title: 'Invalid YouTube URL',
-          description: validation.error,
-          variant: 'destructive',
-        });
-        return;
-      }
+    // Re-validate file before upload
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      toast({
+        title: 'Invalid file',
+        description: validation.error,
+        variant: 'destructive',
+      });
+      return;
     }
 
     setIsGenerating(true);
@@ -197,46 +158,23 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
     onQuizGenerated({ title: 'Generating Quiz...', questions: [] });
 
     try {
-      let blobUrl = null;
-      let transcriptText = null;
+      // File upload path
+      setIsUploading(true);
+      updateProgress(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
+      
+      const newBlob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+        onUploadProgress: (progressEvent) => {
+          const percentage = Math.round(progressEvent.percentage);
+          setUploadProgress(percentage);
+          updateProgress(`Upload progress: ${percentage}%`);
+        },
+      });
 
-      if (sourceType === 'file' && file) {
-        // File upload path
-        setIsUploading(true);
-        updateProgress(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
-        
-        const newBlob = await upload(file.name, file, {
-          access: 'public',
-          handleUploadUrl: '/api/upload',
-          onUploadProgress: (progressEvent) => {
-            const percentage = Math.round(progressEvent.percentage);
-            setUploadProgress(percentage);
-            updateProgress(`Upload progress: ${percentage}%`);
-          },
-        });
-
-        setIsUploading(false);
-        blobUrl = newBlob.url;
-        updateProgress('File uploaded successfully. Starting quiz generation...');
-      } else if (sourceType === 'youtube') {
-        // YouTube transcript path
-        updateProgress('🔍 Analyzing YouTube video and locating captions...');
-        
-        const transcriptResponse = await fetch('/api/youtube-transcript', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ youtubeUrl }),
-        });
-
-        if (!transcriptResponse.ok) {
-          const errorData = await transcriptResponse.json();
-          throw new Error(errorData.error || 'Failed to extract YouTube transcript');
-        }
-
-        const transcriptData = await transcriptResponse.json();
-        transcriptText = transcriptData.transcriptText;
-        updateProgress(`✅ Successfully extracted ${transcriptData.wordCount} words from "${transcriptData.videoTitle}". Preparing educational quiz...`);
-      }
+      setIsUploading(false);
+      const blobUrl = newBlob.url;
+      updateProgress('File uploaded successfully. Starting quiz generation...');
 
       // Now generate quiz
       const response = await fetch('/api/generate-quiz', {
@@ -244,7 +182,6 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           blobUrl,
-          transcriptText,
           settings,
         }),
       });
@@ -332,81 +269,29 @@ export function HomeQuizGenerator({ onQuizGenerated, onProgressUpdate }: {
     <div className="bg-white shadow-lg rounded-lg p-4 sm:p-6 border border-gray-200 h-full">
       <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-gray-900">Generate Your Quiz!</h2>
       <p className="mb-4 sm:mb-6 text-gray-600 text-sm sm:text-base">
-        Transform your learning materials into practice questions. Give it a try.
+        Upload your learning materials and transform them into practice questions. Give it a try.
       </p>
       
-      {/* Source Type Selection */}
-      <form onSubmit={handleSubmit} className="mb-4 sm:mb-6">
-        <div className="mb-4">
-          <Label className="text-sm sm:text-base text-gray-900 mb-3 block">Choose your content source</Label>
-          <div className="flex gap-4 mb-4">
-            <label className="flex items-center cursor-pointer">
-              <input
-                type="radio"
-                name="sourceType"
-                value="file"
-                checked={sourceType === 'file'}
-                onChange={(e) => setSourceType(e.target.value as 'file' | 'youtube')}
-                disabled={isGenerating}
-                className="mr-2"
-              />
-              <span className="text-sm">📄 Upload File</span>
-            </label>
-            <label className="flex items-center cursor-pointer">
-              <input
-                type="radio"
-                name="sourceType"
-                value="youtube"
-                checked={sourceType === 'youtube'}
-                onChange={(e) => setSourceType(e.target.value as 'file' | 'youtube')}
-                disabled={isGenerating}
-                className="mr-2"
-              />
-              <span className="text-sm">🎬 YouTube Video</span>
-            </label>
-          </div>
+            <form onSubmit={handleSubmit} className="mb-4 sm:mb-6">
+        {/* File Upload */}
+                  <div className="mb-4">
+            <Label htmlFor="file-upload" className="text-sm sm:text-base text-gray-900">Upload your document</Label>
+          <Input 
+            id="file-upload" 
+            type="file" 
+            accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.csv" 
+            onChange={handleFileChange} 
+            className="mt-1"
+            disabled={isGenerating}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Supported: PDF, Word, PowerPoint, Text files (Max: 50MB)
+          </p>
         </div>
-
-        {/* File Upload Section */}
-        {sourceType === 'file' && (
-          <div className="mb-4">
-            <Label htmlFor="file-upload" className="text-sm sm:text-base text-gray-900">Drop files here to upload</Label>
-            <Input 
-              id="file-upload" 
-              type="file" 
-              accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.csv" 
-              onChange={handleFileChange} 
-              className="mt-1"
-              disabled={isGenerating}
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Supported: PDF, Word, PowerPoint, Text files (Max: 50MB)
-            </p>
-          </div>
-        )}
-
-        {/* YouTube URL Section */}
-        {sourceType === 'youtube' && (
-          <div className="mb-4">
-            <Label htmlFor="youtube-url" className="text-sm sm:text-base text-gray-900">YouTube Video URL</Label>
-            <Input 
-              id="youtube-url" 
-              type="url" 
-              placeholder="https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID"
-              value={youtubeUrl}
-              onChange={(e) => setYoutubeUrl(e.target.value)}
-              className="mt-1"
-              disabled={isGenerating}
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Enter a YouTube video URL. The video must have captions or transcripts available.
-            </p>
-          </div>
-        )}
         
         <Button
           type="submit"
-          disabled={(sourceType === 'file' && !file) || (sourceType === 'youtube' && !youtubeUrl.trim()) || isGenerating}
+          disabled={!file || isGenerating}
           className="w-full"
         >
           {isGenerating ? (

@@ -22,8 +22,6 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [fileName, setFileName] = useState('');
-  const [youtubeUrl, setYoutubeUrl] = useState('');
-  const [sourceType, setSourceType] = useState<'file' | 'youtube'>('file');
   const [settings, setSettings] = useState<QuizSettings>({
     numberOfQuestions: 10,
     difficulty: 'medium',
@@ -75,31 +73,7 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
     return { valid: true };
   };
 
-  const validateYouTubeUrl = (url: string): { valid: boolean; error?: string } => {
-    if (!url.trim()) {
-      return { valid: false, error: 'YouTube URL is required' };
-    }
 
-    // YouTube URL patterns
-    const patterns = [
-      /^https?:\/\/(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
-      /^https?:\/\/youtu\.be\/([a-zA-Z0-9_-]{11})/,
-      /^https?:\/\/(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
-      /^https?:\/\/(?:www\.)?youtube\.com\/v\/([a-zA-Z0-9_-]{11})/,
-      /^([a-zA-Z0-9_-]{11})$/ // Direct video ID
-    ];
-
-    const isValid = patterns.some(pattern => pattern.test(url.trim()));
-    
-    if (!isValid) {
-      return {
-        valid: false,
-        error: 'Please enter a valid YouTube URL (e.g., https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID)'
-      };
-    }
-
-    return { valid: true };
-  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -127,96 +101,60 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     
-    // Update settings with current source type
-    const updatedSettings = { ...settings, sourceType, youtubeUrl: sourceType === 'youtube' ? youtubeUrl : undefined };
+    // Update settings for file upload only
+    const updatedSettings = { ...settings, sourceType: 'file' };
     
-    // Validate based on source type
-    if (sourceType === 'file') {
-      if (!inputFileRef.current?.files?.[0]) {
-        toast({
-          title: 'No file selected',
-          description: 'Please choose a file to upload.',
-          variant: 'destructive',
-        });
-        return;
-      }
+    // Validate file upload
+    if (!inputFileRef.current?.files?.[0]) {
+      toast({
+        title: 'No file selected',
+        description: 'Please choose a file to upload.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
-      const file = inputFileRef.current.files[0];
-      
-      // Re-validate file before upload
-      const validation = validateFile(file);
-      if (!validation.valid) {
-        toast({
-          title: 'Invalid file',
-          description: validation.error,
-          variant: 'destructive',
-        });
-        return;
-      }
-    } else if (sourceType === 'youtube') {
-      const validation = validateYouTubeUrl(youtubeUrl);
-      if (!validation.valid) {
-        toast({
-          title: 'Invalid YouTube URL',
-          description: validation.error,
-          variant: 'destructive',
-        });
-        return;
-      }
+    const file = inputFileRef.current.files[0];
+    
+    // Re-validate file before upload
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      toast({
+        title: 'Invalid file',
+        description: validation.error,
+        variant: 'destructive',
+      });
+      return;
     }
 
     setIsGenerating(true);
     onQuizGenerated({ loading: true });
 
     try {
-      let blobUrl = null;
-      let transcriptText = null;
+      // File upload path
+      const file = inputFileRef.current.files[0];
+      setIsUploading(true);
+      onStreamingUpdate(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
+      
+      const newBlob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+        onUploadProgress: (progressEvent) => {
+          const percentage = Math.round(progressEvent.percentage);
+          setUploadProgress(percentage);
+          onStreamingUpdate(`Upload progress: ${percentage}%`);
+        },
+      });
 
-      if (sourceType === 'file' && inputFileRef.current?.files?.[0]) {
-        // File upload path
-        const file = inputFileRef.current.files[0];
-        setIsUploading(true);
-        onStreamingUpdate(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
-        
-        const newBlob = await upload(file.name, file, {
-          access: 'public',
-          handleUploadUrl: '/api/upload',
-          onUploadProgress: (progressEvent) => {
-            const percentage = Math.round(progressEvent.percentage);
-            setUploadProgress(percentage);
-            onStreamingUpdate(`Upload progress: ${percentage}%`);
-          },
-        });
-
-        setIsUploading(false);
-        blobUrl = newBlob.url;
-        onStreamingUpdate('File uploaded successfully. Starting quiz generation...');
-      } else if (sourceType === 'youtube') {
-        // YouTube transcript path
-        onStreamingUpdate('🔍 Analyzing YouTube video and locating captions...');
-        
-        const transcriptResponse = await fetch('/api/youtube-transcript', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ youtubeUrl }),
-        });
-
-        if (!transcriptResponse.ok) {
-          const errorData = await transcriptResponse.json();
-          throw new Error(errorData.error || 'Failed to extract YouTube transcript');
-        }
-
-        const transcriptData = await transcriptResponse.json();
-        transcriptText = transcriptData.transcriptText;
-        onStreamingUpdate(`✅ Successfully extracted ${transcriptData.wordCount} words from "${transcriptData.videoTitle}". Preparing educational quiz...`);
-      }
+      setIsUploading(false);
+      const blobUrl = newBlob.url;
+      onStreamingUpdate('File uploaded successfully. Starting quiz generation...');
 
       const response = await fetch('/api/generate-quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           blobUrl,
-          transcriptText,
           settings: updatedSettings,
         }),
       });
@@ -312,87 +250,54 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
                 type="radio"
                 name="sourceType"
                 value="file"
-                checked={sourceType === 'file'}
-                onChange={(e) => {
-                  setSourceType(e.target.value as 'file' | 'youtube');
-                  setSettings({ ...settings, sourceType: e.target.value as 'file' | 'youtube' });
-                }}
+                defaultChecked={true}
                 disabled={isGenerating}
                 className="mr-2"
               />
               <span className="text-sm">📄 Upload File</span>
             </label>
-            <label className="flex items-center cursor-pointer">
+            <label className="flex items-center cursor-not-allowed opacity-50">
               <input
                 type="radio"
                 name="sourceType"
                 value="youtube"
-                checked={sourceType === 'youtube'}
-                onChange={(e) => {
-                  setSourceType(e.target.value as 'file' | 'youtube');
-                  setSettings({ ...settings, sourceType: e.target.value as 'file' | 'youtube' });
-                }}
-                disabled={isGenerating}
+                disabled={true}
                 className="mr-2"
               />
               <span className="text-sm">🎬 YouTube Video</span>
+              <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded ml-2">Temporarily Unavailable</span>
             </label>
           </div>
+
         </div>
 
         {/* File Upload */}
-        {sourceType === 'file' && (
-          <div>
-            <Label htmlFor="file-upload" className="block mb-2">Upload Document</Label>
-            <Input
-              id="file-upload"
-              ref={inputFileRef}
-              type="file"
-              accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.csv"
-              onChange={handleFileChange}
-              disabled={isGenerating}
-              className="cursor-pointer"
-            />
-            <p className="text-xs text-gray-500 mt-1 space-y-1">
-              <span className="block sm:inline">
-                <strong className="text-gray-600">Supported formats:</strong>
-              </span>
-              <span className="block sm:inline sm:ml-1">
-                PDF, Word (.doc/.docx), PowerPoint (.ppt/.pptx), Text (.txt/.csv)
-              </span>
-              <span className="block mt-1">
-                <strong className="text-gray-600">Maximum file size:</strong> 50MB
-              </span>
-              <span className="hidden sm:block text-amber-600 mt-1">
-                💡 Larger files may take longer to process
-              </span>
-            </p>
-          </div>
-        )}
-
-        {/* YouTube URL */}
-        {sourceType === 'youtube' && (
-          <div>
-            <Label htmlFor="youtube-url" className="block mb-2">YouTube Video URL</Label>
-            <Input
-              id="youtube-url"
-              type="url"
-              placeholder="https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID"
-              value={youtubeUrl}
-              onChange={(e) => setYoutubeUrl(e.target.value)}
-              disabled={isGenerating}
-              className="w-full"
-            />
-            <p className="text-xs text-gray-500 mt-1 space-y-1">
-              <span className="block">
-                <strong className="text-gray-600">Requirements:</strong> The video must have captions or transcripts available.
-              </span>
-              <span className="block text-amber-600">
-                💡 Educational videos typically work best for quiz generation
-              </span>
-            </p>
-          </div>
-        )}
+        <div>
+          <Label htmlFor="file-upload" className="block mb-2">Upload Document</Label>
+          <Input
+            id="file-upload"
+            ref={inputFileRef}
+            type="file"
+            accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.csv"
+            onChange={handleFileChange}
+            disabled={isGenerating}
+            className="cursor-pointer"
+          />
+          <p className="text-xs text-gray-500 mt-1 space-y-1">
+            <span className="block sm:inline">
+              <strong className="text-gray-600">Supported formats:</strong>
+            </span>
+            <span className="block sm:inline sm:ml-1">
+              PDF, Word (.doc/.docx), PowerPoint (.ppt/.pptx), Text (.txt/.csv)
+            </span>
+            <span className="block mt-1">
+              <strong className="text-gray-600">Maximum file size:</strong> 50MB
+            </span>
+            <span className="hidden sm:block text-amber-600 mt-1">
+              💡 Larger files may take longer to process
+            </span>
+          </p>
+        </div>
 
         {/* Number of Questions */}
         <div>
@@ -466,7 +371,7 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
         <Button 
           type="submit" 
           className="w-full"
-          disabled={isGenerating || (sourceType === 'file' && !fileName) || (sourceType === 'youtube' && !youtubeUrl.trim())}
+          disabled={isGenerating || !fileName}
         >
           {isGenerating ? (
             <>
