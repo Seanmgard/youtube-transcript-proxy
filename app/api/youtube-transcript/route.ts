@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
+import puppeteer from 'puppeteer';
 
 export const dynamic = 'force-dynamic';
 
 interface TranscriptEntry {
-  caption: string;
+  text: string;
   startTime: number;
-  endTime: number;
+  duration: number;
 }
 
 function extractVideoId(url: string): string | null {
@@ -24,134 +25,7 @@ function extractVideoId(url: string): string | null {
   return null;
 }
 
-async function getInnertubeApiKey(videoId: string): Promise<string | null> {
-  try {
-    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const response = await fetch(videoUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Referer': 'https://www.youtube.com/',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-      }
-    });
-    
-    if (!response.ok) {
-      console.error('Failed to fetch video page:', response.status, response.statusText);
-      return null;
-    }
-    
-    const html = await response.text();
-    
-    const apiKeyMatch = html.match(/"INNERTUBE_API_KEY":"([^"]+)"/);
-    return apiKeyMatch ? apiKeyMatch[1] : null;
-  } catch (error) {
-    console.error('Error fetching API key:', error);
-    return null;
-  }
-}
-
-async function getPlayerResponse(videoId: string, apiKey: string) {
-  const endpoint = `https://www.youtube.com/youtubei/v1/player?key=${apiKey}`;
-  
-  const body = {
-    context: {
-      client: {
-        clientName: "ANDROID",
-        clientVersion: "20.10.38",
-        androidSdkVersion: 30,
-        userAgent: "com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip",
-      },
-    },
-    videoId: videoId,
-  };
-  
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "User-Agent": "com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip",
-      "X-YouTube-Client-Name": "3",
-      "X-YouTube-Client-Version": "20.10.38",
-      "Origin": "https://www.youtube.com",
-      "Referer": `https://www.youtube.com/watch?v=${videoId}`,
-    },
-    body: JSON.stringify(body),
-  });
-  
-  if (!response.ok) {
-    console.error('Player API failed:', response.status, response.statusText);
-    const errorText = await response.text();
-    console.error('Player API error response:', errorText);
-    throw new Error(`Player API request failed: ${response.status}`);
-  }
-  
-  return await response.json();
-}
-
-function extractCaptionTrackUrl(playerResponse: any, lang: string = "en"): string {
-  const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-  
-  if (!tracks) {
-    throw new Error("No caption tracks found.");
-  }
-  
-  // Try to find the requested language first
-  let track = tracks.find((t: any) => t.languageCode === lang);
-  
-  // If not found, try English variants
-  if (!track) {
-    track = tracks.find((t: any) => t.languageCode.startsWith('en'));
-  }
-  
-  // If still not found, take the first available track
-  if (!track) {
-    track = tracks[0];
-  }
-  
-  if (!track) {
-    throw new Error(`No captions available for this video.`);
-  }
-  
-  // Remove "&fmt=srv3" if present and use json3 format
-  return track.baseUrl.replace(/&fmt=\w+$/, '') + '&fmt=json3';
-}
-
-async function fetchAndParseCaptions(baseUrl: string): Promise<TranscriptEntry[]> {
-  const response = await fetch(baseUrl, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-      'Accept': 'application/json, text/plain, */*',
-      'Accept-Language': 'en-US,en;q=0.5',
-      'Referer': 'https://www.youtube.com/',
-    }
-  });
-  
-  if (!response.ok) {
-    console.error('Failed to fetch captions:', response.status, response.statusText);
-    throw new Error(`Failed to fetch captions: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  
-  if (!data.events) {
-    throw new Error('No transcript events found');
-  }
-  
-  return data.events
-    // Remove invalid segments
-    .filter((event: any) => event.segs)
-    .map((event: any) => ({
-      caption: event.segs.map((seg: any) => seg.utf8).join(''),
-      startTime: parseFloat(event.tStartMs) / 1000,
-      endTime: parseFloat(event.tStartMs) / 1000 + parseFloat(event.dDurationMs || 0) / 1000,
-    }));
-}
-
-async function getYoutubeTranscript(videoId: string, language: string = "en"): Promise<{
+async function getYouTubeTranscriptWithPuppeteer(videoId: string): Promise<{
   success: boolean;
   videoId: string;
   videoTitle: string;
@@ -161,82 +35,174 @@ async function getYoutubeTranscript(videoId: string, language: string = "en"): P
   segmentCount: number;
   error?: string;
 }> {
+  let browser = null;
+  
   try {
-    console.log(`🎯 Step 1: Getting API key for video ${videoId}`);
-    // Step 1: Get API key
-    const apiKey = await getInnertubeApiKey(videoId);
-    if (!apiKey) {
-      throw new Error("Failed to extract INNERTUBE_API_KEY from YouTube page. Video may be private or unavailable.");
-    }
-    console.log(`✅ Step 1: Got API key: ${apiKey.substring(0, 10)}...`);
+    console.log(`🚀 Launching browser for video ${videoId}`);
     
-    console.log(`🎯 Step 2: Getting player response`);
-    // Step 2: Get player response
-    const playerData = await getPlayerResponse(videoId, apiKey);
+    // Launch browser with minimal detection footprint
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor',
+      ],
+    });
+
+    const page = await browser.newPage();
     
-    console.log(`📋 Player response keys:`, Object.keys(playerData));
+    // Set realistic viewport and user agent
+    await page.setViewport({ width: 1920, height: 1080 });
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36');
     
-    if (!playerData.videoDetails) {
-      console.error(`❌ No videoDetails in player response:`, playerData);
-      
-      // Check for specific error messages
-      if (playerData.playabilityStatus) {
-        const status = playerData.playabilityStatus;
-        console.error(`📺 Playability status:`, status);
+    // Add extra headers to look more like a real browser
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    });
+
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    console.log(`📺 Navigating to: ${videoUrl}`);
+    
+    // Navigate to video page
+    await page.goto(videoUrl, { 
+      waitUntil: 'networkidle0',
+      timeout: 30000 
+    });
+
+    console.log(`🔍 Extracting video data from page...`);
+
+    // Extract data using page evaluation (runs in browser context)
+    const result = await page.evaluate((vId: string) => {
+      try {
+        // Get video title
+        const titleElement = document.querySelector('h1[class*="title"] yt-formatted-string') ||
+                            document.querySelector('h1.title yt-formatted-string') ||
+                            document.querySelector('meta[property="og:title"]');
         
-        if (status.status === 'UNPLAYABLE') {
-          throw new Error(`Video is unplayable: ${status.reason || 'Unknown reason'}`);
-        } else if (status.status === 'LOGIN_REQUIRED') {
-          throw new Error('Video requires login or is private.');
-        } else if (status.status === 'ERROR') {
-          throw new Error(`YouTube error: ${status.reason || 'Unknown error'}`);
+        const videoTitle = titleElement?.textContent || 
+                          (titleElement as HTMLMetaElement)?.content || 
+                          'Unknown Title';
+
+        // Extract ytInitialPlayerResponse
+        const scripts = Array.from(document.querySelectorAll('script'));
+        let playerResponse = null;
+        
+        for (const script of scripts) {
+          const content = script.textContent || '';
+          const match = content.match(/var ytInitialPlayerResponse = ({.*?});/);
+          if (match) {
+            try {
+              playerResponse = JSON.parse(match[1]);
+              break;
+            } catch (e) {
+              continue;
+            }
+          }
         }
+
+        if (!playerResponse) {
+          throw new Error('Could not find ytInitialPlayerResponse');
+        }
+
+        // Check if video is available
+        if (!playerResponse.videoDetails) {
+          throw new Error('Video not found or unavailable');
+        }
+
+        // Get caption tracks
+        const captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+        if (!captionTracks || captionTracks.length === 0) {
+          throw new Error('No captions available for this video');
+        }
+
+        // Find best caption track (English preferred)
+        let selectedTrack = captionTracks.find((track: any) => track.languageCode === 'en') ||
+                           captionTracks.find((track: any) => track.languageCode.startsWith('en')) ||
+                           captionTracks[0];
+
+        if (!selectedTrack) {
+          throw new Error('No suitable caption track found');
+        }
+
+        return {
+          success: true,
+          videoTitle,
+          videoId: playerResponse.videoDetails.videoId || vId,
+          duration: parseInt(playerResponse.videoDetails.lengthSeconds || '0') || 0,
+          captionUrl: selectedTrack.baseUrl
+        };
+
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message
+        };
       }
-      
-      throw new Error("Video not found or unavailable. The video may be private, deleted, or restricted.");
+    }, videoId) as { success: boolean; videoTitle?: string; videoId?: string; duration?: number; captionUrl?: string; error?: string };
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to extract video data');
     }
-    
-    console.log(`✅ Step 2: Got video details: "${playerData.videoDetails.title}"`);
-    
-    console.log(`🎯 Step 3: Extracting caption track URL`);
-    // Step 3: Extract caption track URL
-    const captionUrl = extractCaptionTrackUrl(playerData, language);
-    console.log(`✅ Step 3: Got caption URL`);
-    
-    console.log(`🎯 Step 4: Fetching and parsing captions`);
-    // Step 4: Fetch and parse captions
-    const transcript = await fetchAndParseCaptions(captionUrl);
-    console.log(`✅ Step 4: Parsed ${transcript.length} transcript segments`);
-    
-    // Format transcript text
-    const transcriptText = transcript
-      .map(entry => entry.caption)
+
+    console.log(`🎯 Found video: "${result.videoTitle}"`);
+    console.log(`📝 Fetching transcript from caption URL...`);
+
+    // Fetch transcript using the browser context
+    const transcriptData = await page.evaluate(async (captionUrl: string) => {
+      try {
+        const response = await fetch(captionUrl + '&fmt=json3');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return await response.json();
+      } catch (error: any) {
+        throw new Error(`Failed to fetch transcript: ${error.message}`);
+      }
+    }, result.captionUrl);
+
+    // Process transcript data
+    if (!transcriptData.events) {
+      throw new Error('No transcript events found');
+    }
+
+    const transcriptSegments: TranscriptEntry[] = transcriptData.events
+      .filter((event: any) => event.segs)
+      .map((event: any) => ({
+        text: event.segs.map((seg: any) => seg.utf8).join(''),
+        startTime: parseFloat(event.tStartMs) / 1000,
+        duration: parseFloat(event.dDurationMs || 0) / 1000,
+      }));
+
+    const transcriptText = transcriptSegments
+      .map(segment => segment.text)
       .join(' ')
-      .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove invalid characters
-      .replace(/\s+/g, ' ') // Replace any whitespace with single space
+      .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove invisible characters
+      .replace(/\s+/g, ' ') // Normalize whitespace
       .trim();
-    
-    // Calculate duration from video details or last transcript entry
-    const duration = playerData.videoDetails.lengthSeconds 
-      ? parseInt(playerData.videoDetails.lengthSeconds)
-      : transcript.length > 0 
-        ? Math.ceil(transcript[transcript.length - 1].endTime)
-        : 0;
-    
-    console.log(`🎉 Successfully extracted transcript: ${transcriptText.length} characters, ${transcriptText.split(' ').length} words`);
-    
+
+    console.log(`✅ Successfully extracted transcript: ${transcriptText.length} characters`);
+
     return {
       success: true,
       videoId,
-      videoTitle: playerData.videoDetails.title || `Video ${videoId}`,
+      videoTitle: result.videoTitle,
       transcriptText,
       wordCount: transcriptText.split(' ').length,
-      duration,
-      segmentCount: transcript.length
+      duration: result.duration,
+      segmentCount: transcriptSegments.length
     };
-    
+
   } catch (error: any) {
-    console.error(`💥 Error in getYoutubeTranscript:`, error.message);
+    console.error(`💥 Puppeteer error:`, error.message);
     return {
       success: false,
       videoId,
@@ -247,6 +213,10 @@ async function getYoutubeTranscript(videoId: string, language: string = "en"): P
       segmentCount: 0,
       error: error.message
     };
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
   }
 }
 
@@ -271,11 +241,11 @@ export async function POST(request: Request) {
     console.log('🎯 Extracted video ID:', videoId);
 
     try {
-      // Get transcript using Innertube API
-      console.log('🚀 Calling Innertube API to extract transcript...');
-      const result = await getYoutubeTranscript(videoId);
+      // Get transcript using Puppeteer
+      console.log('🚀 Starting Puppeteer transcript extraction...');
+      const result = await getYouTubeTranscriptWithPuppeteer(videoId);
       
-      console.log('✅ Innertube API result:', { success: result.success, wordCount: result.wordCount });
+      console.log('✅ Puppeteer result:', { success: result.success, wordCount: result.wordCount });
       
       if (!result.success) {
         return NextResponse.json({
@@ -306,7 +276,7 @@ export async function POST(request: Request) {
       });
 
     } catch (apiError: any) {
-      console.error('💥 Error calling Innertube API:', apiError);
+      console.error('💥 Error with Puppeteer extraction:', apiError);
       
       return NextResponse.json({
         error: `Failed to extract transcript: ${apiError.message}`,
