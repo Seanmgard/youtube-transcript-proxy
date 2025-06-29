@@ -157,7 +157,11 @@ async function getYouTubeTranscriptWithPuppeteer(videoId: string): Promise<{
     console.log(`📝 Fetching transcript from caption URL...`);
 
     // Fetch transcript using the browser context
-    const transcriptData = await page.evaluate(async (captionUrl: string) => {
+    if (!result.captionUrl) {
+      throw new Error('No caption URL available');
+    }
+    
+    const transcriptData = await page.evaluate(async (captionUrl) => {
       try {
         const response = await fetch(captionUrl + '&fmt=json3');
         if (!response.ok) {
@@ -167,7 +171,7 @@ async function getYouTubeTranscriptWithPuppeteer(videoId: string): Promise<{
       } catch (error: any) {
         throw new Error(`Failed to fetch transcript: ${error.message}`);
       }
-    }, result.captionUrl);
+    }, result.captionUrl) as any;
 
     // Process transcript data
     if (!transcriptData.events) {
@@ -194,10 +198,10 @@ async function getYouTubeTranscriptWithPuppeteer(videoId: string): Promise<{
     return {
       success: true,
       videoId,
-      videoTitle: result.videoTitle,
+      videoTitle: result.videoTitle || 'Unknown Title',
       transcriptText,
       wordCount: transcriptText.split(' ').length,
-      duration: result.duration,
+      duration: result.duration || 0,
       segmentCount: transcriptSegments.length
     };
 
