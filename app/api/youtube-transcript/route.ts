@@ -1,54 +1,178 @@
 import { NextResponse } from 'next/server';
-import { spawn } from 'child_process';
-import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
-function executePythonScript(youtubeUrl: string): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const scriptPath = path.join(process.cwd(), 'scripts', 'youtube_transcript.py');
+interface TranscriptEntry {
+  caption: string;
+  startTime: number;
+  endTime: number;
+}
+
+function extractVideoId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([^&\n?#]+)/,
+    /^([a-zA-Z0-9_-]{11})$/ // Direct video ID
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+  
+  return null;
+}
+
+async function getInnertubeApiKey(videoId: string): Promise<string | null> {
+  try {
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const response = await fetch(videoUrl);
+    const html = await response.text();
     
-    console.log('🐍 Executing Python script:', scriptPath);
-    console.log('📺 YouTube URL:', youtubeUrl);
-    
-    const pythonProcess = spawn('python', [scriptPath, youtubeUrl]);
-    
-    let dataString = '';
-    let errorString = '';
-    
-    pythonProcess.stdout.on('data', (data) => {
-      dataString += data.toString();
-    });
-    
-    pythonProcess.stderr.on('data', (data) => {
-      errorString += data.toString();
-      console.error('🐍 Python stderr:', data.toString());
-    });
-    
-    pythonProcess.on('close', (code) => {
-      console.log('🐍 Python process exited with code:', code);
-      
-      if (code !== 0) {
-        console.error('🐍 Python error output:', errorString);
-        reject(new Error(`Python script failed with code ${code}: ${errorString}`));
-        return;
-      }
-      
-      try {
-        console.log('🐍 Python output:', dataString);
-        const result = JSON.parse(dataString.trim());
-        resolve(result);
-      } catch (parseError) {
-        console.error('🐍 Failed to parse Python output:', dataString);
-        reject(new Error(`Failed to parse Python output: ${parseError}`));
-      }
-    });
-    
-    pythonProcess.on('error', (error) => {
-      console.error('🐍 Failed to start Python process:', error);
-      reject(new Error(`Failed to start Python process: ${error.message}`));
-    });
+    const apiKeyMatch = html.match(/"INNERTUBE_API_KEY":"([^"]+)"/);
+    return apiKeyMatch ? apiKeyMatch[1] : null;
+  } catch (error) {
+    console.error('Error fetching API key:', error);
+    return null;
+  }
+}
+
+async function getPlayerResponse(videoId: string, apiKey: string) {
+  const endpoint = `https://www.youtube.com/youtubei/v1/player?key=${apiKey}`;
+  
+  const body = {
+    context: {
+      client: {
+        clientName: "ANDROID",
+        clientVersion: "20.10.38",
+      },
+    },
+    videoId: videoId,
+  };
+  
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
+  
+  return await response.json();
+}
+
+function extractCaptionTrackUrl(playerResponse: any, lang: string = "en"): string {
+  const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+  
+  if (!tracks) {
+    throw new Error("No caption tracks found.");
+  }
+  
+  // Try to find the requested language first
+  let track = tracks.find((t: any) => t.languageCode === lang);
+  
+  // If not found, try English variants
+  if (!track) {
+    track = tracks.find((t: any) => t.languageCode.startsWith('en'));
+  }
+  
+  // If still not found, take the first available track
+  if (!track) {
+    track = tracks[0];
+  }
+  
+  if (!track) {
+    throw new Error(`No captions available for this video.`);
+  }
+  
+  // Remove "&fmt=srv3" if present and use json3 format
+  return track.baseUrl.replace(/&fmt=\w+$/, '') + '&fmt=json3';
+}
+
+async function fetchAndParseCaptions(baseUrl: string): Promise<TranscriptEntry[]> {
+  const response = await fetch(baseUrl);
+  const data = await response.json();
+  
+  if (!data.events) {
+    throw new Error('No transcript events found');
+  }
+  
+  return data.events
+    // Remove invalid segments
+    .filter((event: any) => event.segs)
+    .map((event: any) => ({
+      caption: event.segs.map((seg: any) => seg.utf8).join(''),
+      startTime: parseFloat(event.tStartMs) / 1000,
+      endTime: parseFloat(event.tStartMs) / 1000 + parseFloat(event.dDurationMs || 0) / 1000,
+    }));
+}
+
+async function getYoutubeTranscript(videoId: string, language: string = "en"): Promise<{
+  success: boolean;
+  videoId: string;
+  videoTitle: string;
+  transcriptText: string;
+  wordCount: number;
+  duration: number;
+  segmentCount: number;
+  error?: string;
+}> {
+  try {
+    // Step 1: Get API key
+    const apiKey = await getInnertubeApiKey(videoId);
+    if (!apiKey) {
+      throw new Error("INNERTUBE_API_KEY not found.");
+    }
+    
+    // Step 2: Get player response
+    const playerData = await getPlayerResponse(videoId, apiKey);
+    
+    if (!playerData.videoDetails) {
+      throw new Error("Video not found or unavailable.");
+    }
+    
+    // Step 3: Extract caption track URL
+    const captionUrl = extractCaptionTrackUrl(playerData, language);
+    
+    // Step 4: Fetch and parse captions
+    const transcript = await fetchAndParseCaptions(captionUrl);
+    
+    // Format transcript text
+    const transcriptText = transcript
+      .map(entry => entry.caption)
+      .join(' ')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove invalid characters
+      .replace(/\s+/g, ' ') // Replace any whitespace with single space
+      .trim();
+    
+    // Calculate duration from video details or last transcript entry
+    const duration = playerData.videoDetails.lengthSeconds 
+      ? parseInt(playerData.videoDetails.lengthSeconds)
+      : transcript.length > 0 
+        ? Math.ceil(transcript[transcript.length - 1].endTime)
+        : 0;
+    
+    return {
+      success: true,
+      videoId,
+      videoTitle: playerData.videoDetails.title || `Video ${videoId}`,
+      transcriptText,
+      wordCount: transcriptText.split(' ').length,
+      duration,
+      segmentCount: transcript.length
+    };
+    
+  } catch (error: any) {
+    return {
+      success: false,
+      videoId,
+      videoTitle: `Video ${videoId}`,
+      transcriptText: '',
+      wordCount: 0,
+      duration: 0,
+      segmentCount: 0,
+      error: error.message
+    };
+  }
 }
 
 export async function POST(request: Request) {
@@ -61,16 +185,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'YouTube URL is required' }, { status: 400 });
     }
 
+    // Extract video ID
+    const videoId = extractVideoId(youtubeUrl);
+    if (!videoId) {
+      return NextResponse.json({
+        error: 'Invalid YouTube URL. Please provide a valid YouTube video URL or video ID.'
+      }, { status: 400 });
+    }
+
+    console.log('🎯 Extracted video ID:', videoId);
+
     try {
-      // Call the Python script to extract transcript
-      console.log('🚀 Calling Python transcript extractor...');
-      const result = await executePythonScript(youtubeUrl);
+      // Get transcript using Innertube API
+      console.log('🚀 Calling Innertube API to extract transcript...');
+      const result = await getYoutubeTranscript(videoId);
       
-      console.log('✅ Python script result:', result);
+      console.log('✅ Innertube API result:', { success: result.success, wordCount: result.wordCount });
       
       if (!result.success) {
         return NextResponse.json({
-          error: result.error
+          error: result.error || 'Failed to extract transcript'
         }, { status: 404 });
       }
 
@@ -96,25 +230,15 @@ export async function POST(request: Request) {
         segmentCount: result.segmentCount
       });
 
-    } catch (scriptError: any) {
-      console.error('💥 Error running Python script:', scriptError);
-      
-      // Check if it's a Python not found error
-      if (scriptError.message.includes('ENOENT') || scriptError.message.includes('not found')) {
-        return NextResponse.json({
-          error: 'Python is required but not found. Please install Python and the youtube-transcript-api package.',
-          debug: {
-            message: scriptError.message,
-            suggestion: 'Run: pip install youtube-transcript-api'
-          }
-        }, { status: 500 });
-      }
+    } catch (apiError: any) {
+      console.error('💥 Error calling Innertube API:', apiError);
       
       return NextResponse.json({
-        error: `Failed to extract transcript: ${scriptError.message}`,
+        error: `Failed to extract transcript: ${apiError.message}`,
         debug: {
           originalUrl: youtubeUrl,
-          errorMessage: scriptError.message
+          videoId,
+          errorMessage: apiError.message
         }
       }, { status: 500 });
     }
