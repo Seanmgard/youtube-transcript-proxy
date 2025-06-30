@@ -33,6 +33,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { generateQuiz } from '@/utils/api-client';
 import { QuizSettings } from '@/lib/types';
 import { AnkiExportDialog } from '@/app/components/AnkiExportDialog';
+import ClozeEditor from '@/app/components/ClozeEditor';
 
 export default function Dashboard() {
   const [currentQuiz, setCurrentQuiz] = useState<any>(null);
@@ -576,8 +577,25 @@ export default function Dashboard() {
           {questions.map((question: any, index: number) => (
             <div key={index} className="border-b border-gray-100 pb-4 last:border-b-0">
               <p className="text-base font-medium text-gray-900 mb-2">
-                {index + 1}. {question.text}
+                {index + 1}. {question.type === 'cloze' 
+                  ? (question.clozeText?.replace(/\{\{c1::(.*?)\}\}/g, '_______________') || question.text)
+                  : question.text
+                }
               </p>
+              
+              {question.type === 'cloze' && (
+                <ClozeEditor 
+                  question={question} 
+                  quizId={currentQuiz?.id}
+                  allQuestions={questions}
+                  onUpdate={(updatedQuestion: any) => {
+                    const updatedQuestions = [...questions];
+                    updatedQuestions[index] = updatedQuestion;
+                    // Update currentQuiz with new questions
+                    setCurrentQuiz((prev: any) => prev ? {...prev, questions: updatedQuestions} : null);
+                  }}
+                />
+              )}
               
               {question.type === 'multiple_choice' && question.options && (
                 <div className="ml-4 space-y-1">
@@ -588,7 +606,7 @@ export default function Dashboard() {
                   ))}
                 </div>
               )}
-              
+
               <div className="mt-2 ml-4">
                 <span className="text-sm font-medium text-gray-600">Answer: </span>
                 {question.type === 'multiple_choice' && question.options ? (

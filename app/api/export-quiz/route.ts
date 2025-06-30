@@ -273,21 +273,28 @@ function generateCsvFormat(quiz: any) {
 }
 
 function generateAnkiFormat(quiz: any) {
-  // Anki format: question;answer
+  // Anki format: question;answer (or cloze text for cloze deletion)
   let content = '';
 
   quiz.questions.forEach((q: any) => {
-    // Escape semicolons in both question and answer
-    let question = q.text.replace(/;/g, '\\;');
-    let answer = q.correctAnswer.replace(/;/g, '\\;');
+    if (q.type === 'cloze') {
+      // For cloze deletion, use the cloze text directly
+      // Anki will import this as a cloze deletion card
+      let clozeText = (q.clozeText || q.text).replace(/;/g, '\\;');
+      content += `${clozeText}\n`;
+    } else {
+      // For other question types, use standard question;answer format
+      let question = q.text.replace(/;/g, '\\;');
+      let answer = q.correctAnswer.replace(/;/g, '\\;');
 
-    if (q.type === 'multiple_choice') {
-      question += '\n' + q.options.map((opt: string, i: number) => 
-        `${String.fromCharCode(97 + i)}) ${opt.replace(/;/g, '\\;')}`
-      ).join('\n');
+      if (q.type === 'multiple_choice') {
+        question += '\n' + q.options.map((opt: string, i: number) => 
+          `${String.fromCharCode(97 + i)}) ${opt.replace(/;/g, '\\;')}`
+        ).join('\n');
+      }
+
+      content += `${question};${answer}\n`;
     }
-
-    content += `${question};${answer}\n`;
   });
 
   return content;

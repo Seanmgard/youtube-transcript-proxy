@@ -369,7 +369,7 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
               <Label className="block mb-2 text-sm font-medium">Question Type</Label>
               <RadioGroup
                 value={settings.questionType}
-                onValueChange={(value) => setSettings({ ...settings, questionType: value as 'multiple_choice' | 'open_ended' | 'mixed' })}
+                onValueChange={(value) => setSettings({ ...settings, questionType: value as 'multiple_choice' | 'open_ended' | 'cloze' })}
                 className="space-y-1"
                 disabled={isGenerating}
               >
@@ -382,8 +382,8 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
                   <Label htmlFor="open_ended" className="text-sm">Open Ended</Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="mixed" id="mixed" disabled={isGenerating} />
-                  <Label htmlFor="mixed" className="text-sm">Mixed</Label>
+                  <RadioGroupItem value="cloze" id="cloze" disabled={isGenerating} />
+                  <Label htmlFor="cloze" className="text-sm">Cloze Deletion</Label>
                 </div>
               </RadioGroup>
             </div>

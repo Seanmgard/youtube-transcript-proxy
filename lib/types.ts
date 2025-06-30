@@ -14,15 +14,17 @@ export interface Question {
   id: string;
   quizId: string;
   text: string;
-  type: 'multiple_choice' | 'open_ended';
+  type: 'multiple_choice' | 'open_ended' | 'cloze';
   options?: string[];
   correctAnswer: string;
+  clozeText?: string; // For cloze deletion: text with {{c1::answer}} format
+  originalText?: string; // For cloze deletion: original text without cloze markers
 }
 
 export interface QuizSettings {
   numberOfQuestions: number;
   difficulty: 'easy' | 'medium' | 'hard';
-  questionType: 'multiple_choice' | 'open_ended' | 'mixed';
+  questionType: 'multiple_choice' | 'open_ended' | 'cloze';
   sourceType?: 'file' | 'youtube';
   youtubeUrl?: string;
   isLanguageLearning?: boolean;
