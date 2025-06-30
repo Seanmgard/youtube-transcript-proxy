@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Loader2, ArrowLeft, BookOpen, BarChart3, Clock, Calendar, Tag, FileText, Plus, Trophy, Play, ArrowRight, Brain, Target, Zap, Star, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { Loader2, ArrowLeft, BookOpen, BarChart3, Clock, Calendar, Tag, FileText, Plus, Trophy, Play, ArrowRight, Brain, Target, Zap, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
@@ -24,17 +24,11 @@ import { PerformanceDashboard } from './components/PerformanceDashboard';
 import { QuizTestComponent } from './components/QuizTestComponent';
 import { LongFormatTestComponent } from './components/LongFormatTestComponent';
 
-// Add a helper function to determine text color based on background color
 function getContrastColor(hexColor: string): string {
-  // Convert hex to RGB
   const r = parseInt(hexColor.slice(1, 3), 16);
   const g = parseInt(hexColor.slice(3, 5), 16);
   const b = parseInt(hexColor.slice(5, 7), 16);
-  
-  // Calculate luminance
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  
-  // Return black or white based on luminance
   return luminance > 0.5 ? '#000000' : '#FFFFFF';
 }
 
@@ -56,22 +50,18 @@ export default function LearnPage() {
   const router = useRouter();
   const { user: authUser } = useAuth();
   
-  // Combine loading states
   const isLoading = contentLoading || supabaseLoading;
 
-  // Pagination calculations
   const totalPages = Math.ceil(quizzes.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const displayedQuizzes = quizzes.slice(startIndex, endIndex);
 
-  // Reset to page 1 when items per page changes
   const handleItemsPerPageChange = (value: string) => {
     setItemsPerPage(parseInt(value));
     setCurrentPage(1);
   };
 
-  // Navigation functions
   const goToNextPage = () => {
     if (currentPage < totalPages) {
       setCurrentPage(currentPage + 1);
@@ -87,7 +77,6 @@ export default function LearnPage() {
   useEffect(() => {
     if (!supabase) return;
     
-    // Add a function to clean up orphaned learning progress records
     const cleanupOrphanedProgress = async () => {
       try {
         const response = await fetch('/api/cleanup-progress', {
@@ -115,7 +104,6 @@ export default function LearnPage() {
       try {
         setContentLoading(true);
         
-        // Use the user from AuthProvider if available, otherwise get from Supabase
         let currentUser = authUser;
         
         if (!currentUser) {
@@ -149,7 +137,6 @@ export default function LearnPage() {
         setUser(currentUser);
         console.log("Current user:", currentUser);
 
-        // Fetch user's quizzes
         console.log("Fetching quizzes for user ID:", currentUser.id);
         const { data: quizzesData, error: quizzesError } = await supabase
           .from('quizzes')
@@ -170,11 +157,9 @@ export default function LearnPage() {
         console.log("Fetched quizzes:", quizzesData);
         console.log("Number of quizzes found:", quizzesData?.length || 0);
         
-        // Check if quizzes have the expected structure
         if (quizzesData && quizzesData.length > 0) {
           console.log("First quiz structure:", JSON.stringify(quizzesData[0], null, 2));
           
-          // Normalize quiz data to handle field name mismatches
           const normalizedQuizzes = quizzesData.map((quiz: any) => ({
             id: quiz.id,
             title: quiz.title,
@@ -197,7 +182,6 @@ export default function LearnPage() {
           setQuizzes([]);
         }
 
-        // Fetch learning progress for each quiz
         console.log("Fetching learning progress for user ID:", currentUser.id);
         const { data: progressData, error: progressError } = await supabase
           .from('learning_progress')
@@ -213,20 +197,15 @@ export default function LearnPage() {
           });
         } else {
           console.log("Learning progress data:", progressData);
-          // Convert array to record for easier lookup
           const progressRecord: Record<string, LearningProgress> = {};
           
-          // Only include progress for quizzes that still exist
           if (progressData) {
             const quizIds = new Set(quizzesData?.map((q: any) => q.id) || []);
             progressData.forEach((progress: any) => {
-              // Only add progress for quizzes that still exist
               if (quizIds.has(progress.quiz_id)) {
                 progressRecord[progress.quiz_id] = progress;
               } else {
                 console.log(`Skipping progress for deleted quiz: ${progress.quiz_id}`);
-                // Optionally clean up orphaned progress records
-                // This could be done in a separate function to avoid slowing down the page load
               }
             });
           }
@@ -234,7 +213,6 @@ export default function LearnPage() {
           setLearningProgress(progressRecord);
         }
 
-        // Fetch exams
         try {
           console.log("Fetching exams for user ID:", currentUser.id);
           const { data: examsData, error: examsError } = await supabase
@@ -263,7 +241,6 @@ export default function LearnPage() {
           });
         }
 
-        // Clean up orphaned progress records
         await cleanupOrphanedProgress();
       } catch (error: any) {
         console.error('Error fetching data:', error);
@@ -291,7 +268,6 @@ export default function LearnPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Compact Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <Link href="/dashboard">
@@ -311,27 +287,30 @@ export default function LearnPage() {
         </div>
 
         <Tabs defaultValue="quizzes" className="w-full">
-          <TabsList className="mb-6 bg-white/80 backdrop-blur-sm border border-gray-200 p-1 rounded-xl shadow-sm">
+          <TabsList className="mb-6 bg-white/80 backdrop-blur-sm border border-gray-200 p-1 rounded-xl shadow-sm w-full grid grid-cols-3 md:flex md:w-auto">
             <TabsTrigger 
               value="quizzes" 
-              className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white px-6 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2"
+              className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white px-3 md:px-6 py-2.5 rounded-lg font-medium transition-all flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm"
             >
-              <BookOpen className="w-4 h-4" />
-              Flashcards
+              <BookOpen className="w-3 h-3 md:w-4 md:h-4" />
+              <span className="hidden sm:inline">Flashcards</span>
+              <span className="sm:hidden">Cards</span>
             </TabsTrigger>
             <TabsTrigger 
               value="exams"
-              className="data-[state=active]:bg-blue-600 data-[state=active]:text-white px-6 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2"
+              className="data-[state=active]:bg-blue-600 data-[state=active]:text-white px-3 md:px-6 py-2.5 rounded-lg font-medium transition-all flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm"
             >
-              <FileText className="w-4 h-4" />
-              Practice Tests
+              <FileText className="w-3 h-3 md:w-4 md:h-4" />
+              <span className="hidden sm:inline">Practice Tests</span>
+              <span className="sm:hidden">Tests</span>
             </TabsTrigger>
             <TabsTrigger 
               value="performance"
-              className="data-[state=active]:bg-purple-600 data-[state=active]:text-white px-6 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2"
+              className="data-[state=active]:bg-purple-600 data-[state=active]:text-white px-3 md:px-6 py-2.5 rounded-lg font-medium transition-all flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm"
             >
-              <Trophy className="w-4 h-4" />
-              Performance
+              <Trophy className="w-3 h-3 md:w-4 md:h-4" />
+              <span className="hidden sm:inline">Performance</span>
+              <span className="sm:hidden">Stats</span>
             </TabsTrigger>
           </TabsList>
           
@@ -352,61 +331,61 @@ export default function LearnPage() {
               </div>
             ) : (
               <>
-                {/* Pagination Controls - Top */}
-                <div className="flex items-center justify-between bg-white rounded-xl shadow-md p-4">
-                  <div className="flex items-center gap-4">
+                <div className="hidden md:block bg-white rounded-xl shadow-md p-4">
+                  <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700">
                       Showing {startIndex + 1}-{Math.min(endIndex, quizzes.length)} of {quizzes.length} quizzes
                     </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-600">Per page:</span>
-                      <select 
-                        value={itemsPerPage.toString()} 
-                        onChange={(e) => handleItemsPerPageChange(e.target.value)}
-                        className="w-20 h-8 px-2 py-1 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      >
-                        <option value="6">6</option>
-                        <option value="9">9</option>
-                        <option value="12">12</option>
-                        <option value="18">18</option>
-                        <option value="24">24</option>
-                      </select>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">Items per page:</span>
+                        <select 
+                          value={itemsPerPage.toString()} 
+                          onChange={(e) => handleItemsPerPageChange(e.target.value)}
+                          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        >
+                          <option value="6">6</option>
+                          <option value="9">9</option>
+                          <option value="12">12</option>
+                          <option value="18">18</option>
+                          <option value="24">24</option>
+                        </select>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={goToPreviousPage}
+                          disabled={currentPage === 1}
+                          className="rounded-lg disabled:opacity-50"
+                        >
+                          <ChevronLeft className="h-4 w-4 mr-1" />
+                          Previous
+                        </Button>
+                        
+                        <div className="flex items-center gap-1 px-4 py-2 bg-indigo-50 rounded-lg">
+                          <span className="text-sm font-medium text-indigo-700">
+                            Page {currentPage} of {totalPages}
+                          </span>
+                        </div>
+                        
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={goToNextPage}
+                          disabled={currentPage === totalPages}
+                          className="rounded-lg disabled:opacity-50"
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={goToPreviousPage}
-                      disabled={currentPage === 1}
-                      className="rounded-lg disabled:opacity-50"
-                    >
-                      <ChevronLeft className="h-4 w-4 mr-1" />
-                      Previous
-                    </Button>
-                    
-                    <div className="flex items-center gap-1 px-3 py-1 bg-indigo-50 rounded-lg">
-                      <span className="text-sm font-medium text-indigo-700">
-                        Page {currentPage} of {totalPages}
-                      </span>
-                    </div>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={goToNextPage}
-                      disabled={currentPage === totalPages}
-                      className="rounded-lg disabled:opacity-50"
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
                   </div>
                 </div>
 
-                {/* Quiz Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {displayedQuizzes.map((quiz) => {
                     const progress = learningProgress[quiz.id];
                     const masteryPercentage = progress?.mastery_percentage || 0;
@@ -419,13 +398,12 @@ export default function LearnPage() {
                         key={quiz.id} 
                         className="group hover:shadow-xl transition-all duration-300 border-0 shadow-lg bg-white rounded-2xl overflow-hidden"
                       >
-                        <div className="p-6">
-                          {/* Subject Tag */}
+                        <div className="p-4 md:p-6">
                           {quiz.subject && (
-                            <div className="mb-4">
+                            <div className="mb-3 md:mb-4">
                               <Badge
                                 variant="secondary"
-                                className="rounded-full px-3 py-1 text-xs font-medium"
+                                className="rounded-full px-2 md:px-3 py-1 text-xs font-medium"
                                 style={{ 
                                   backgroundColor: quiz.color ? `${quiz.color}20` : '#f1f5f9', 
                                   color: quiz.color || '#64748b',
@@ -438,53 +416,48 @@ export default function LearnPage() {
                             </div>
                           )}
                           
-                          {/* Title */}
-                          <h3 className="font-semibold text-lg text-gray-900 mb-3 line-clamp-2 group-hover:text-indigo-600 transition-colors">
+                          <h3 className="font-semibold text-base md:text-lg text-gray-900 mb-2 md:mb-3 line-clamp-2 group-hover:text-indigo-600 transition-colors leading-tight">
                             {quiz.title}
                           </h3>
                           
-                          {/* Meta Info */}
-                          <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
+                          <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm text-gray-500 mb-3 md:mb-4">
                             <div className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
-                              {quiz.questions?.length || 0} cards
+                              <span className="truncate">{quiz.questions?.length || 0} cards</span>
                             </div>
                             <div className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
-                              {new Date(quiz.created_at).toLocaleDateString()}
+                              <span className="truncate">{new Date(quiz.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                             </div>
                           </div>
                           
-                          {/* Progress */}
-                          <div className="mb-4">
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-sm font-medium text-gray-600">Progress</span>
-                              <span className="text-sm font-semibold text-indigo-600">{masteryPercentage}%</span>
+                          <div className="mb-3 md:mb-4">
+                            <div className="flex justify-between items-center mb-1 md:mb-2">
+                              <span className="text-xs md:text-sm font-medium text-gray-600">Progress</span>
+                              <span className="text-xs md:text-sm font-semibold text-indigo-600">{masteryPercentage}%</span>
                             </div>
                             <Progress 
                               value={masteryPercentage} 
                               className="h-2 bg-gray-100 rounded-full" 
-                              style={{ 
-                                "--progress-foreground": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
-                              } as React.CSSProperties}
                             />
-                            <p className="text-xs text-gray-500 mt-2">
+                            <p className="text-xs text-gray-500 mt-1 md:mt-2 truncate">
                               Last studied: <span className="font-medium">{lastStudied}</span>
                             </p>
                           </div>
                           
-                          {/* Action Button */}
                           <Link href={`/dashboard/learn/${quiz.id}`} className="block">
-                            <Button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-medium shadow-md hover:shadow-lg transition-all">
+                            <Button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-medium shadow-md hover:shadow-lg transition-all py-2 md:py-3 text-sm md:text-base">
                               {progress ? (
                                 <>
-                                  <Play className="w-4 h-4 mr-2" />
-                                  Continue Learning
+                                  <Play className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+                                  <span className="hidden sm:inline">Continue Learning</span>
+                                  <span className="sm:hidden">Continue</span>
                                 </>
                               ) : (
                                 <>
-                                  <Zap className="w-4 h-4 mr-2" />
-                                  Start Learning
+                                  <Zap className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+                                  <span className="hidden sm:inline">Start Learning</span>
+                                  <span className="sm:hidden">Start</span>
                                 </>
                               )}
                             </Button>
@@ -495,7 +468,6 @@ export default function LearnPage() {
                   })}
                 </div>
                 
-                {/* Pagination Controls - Bottom */}
                 {totalPages > 1 && (
                   <div className="flex items-center justify-center bg-white rounded-xl shadow-md p-4">
                     <div className="flex items-center gap-2">
@@ -533,21 +505,21 @@ export default function LearnPage() {
             )}
           </TabsContent>
           
-          <TabsContent value="exams" className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-lg p-8">
-              <div className="flex items-center justify-between mb-8">
+          <TabsContent value="exams" className="space-y-4 md:space-y-6">
+            <div className="bg-white rounded-2xl shadow-lg p-4 md:p-8">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 md:mb-8 space-y-4 md:space-y-0">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
-                      <FileText className="w-5 h-5 text-white" />
+                  <h2 className="text-xl md:text-2xl font-bold text-gray-900 flex items-center gap-2 md:gap-3">
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
+                      <FileText className="w-4 h-4 md:w-5 md:h-5 text-white" />
                     </div>
                     Practice Tests
                   </h2>
-                  <p className="text-gray-600 mt-2">Combine multiple quizzes into comprehensive practice exams</p>
+                  <p className="text-sm md:text-base text-gray-600 mt-1 md:mt-2">Combine multiple quizzes into comprehensive practice exams</p>
                 </div>
-                <Link href="/dashboard/learn/exams/create">
-                  <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all">
-                    <Plus className="h-5 w-5 mr-2" />
+                <Link href="/dashboard/learn/exams/create" className="flex-shrink-0">
+                  <Button className="w-full md:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all text-sm md:text-base">
+                    <Plus className="h-4 w-4 md:h-5 md:w-5 mr-1 md:mr-2" />
                     Create Exam
                   </Button>
                 </Link>

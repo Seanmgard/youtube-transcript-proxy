@@ -563,67 +563,91 @@ export default function LearnQuizPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <div className="space-y-6 max-w-4xl mx-auto px-4 py-6">
+      <div className="space-y-4 md:space-y-6 max-w-4xl mx-auto px-3 md:px-4 py-4 md:py-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard/learn">
-              <Button variant="outline" size="icon" className="rounded-full shadow-md hover:shadow-lg transition-shadow">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">{quiz.title}</h1>
-              <p className="text-sm text-gray-600 flex items-center gap-2 mt-1">
-                <Brain className="h-4 w-4" />
-                Interactive Learning Mode
-              </p>
+        <div className="mb-3 md:mb-6">
+          {/* Top Row - Back button and title */}
+          <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4">
+        <Link href="/dashboard/learn">
+              <Button variant="outline" size="icon" className="rounded-full shadow-md hover:shadow-lg transition-shadow w-8 h-8 md:w-10 md:h-10">
+                <ArrowLeft className="h-3 w-3 md:h-4 md:w-4" />
+          </Button>
+        </Link>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base md:text-2xl font-bold text-gray-900 truncate">{quiz.title}</h1>
             </div>
-          </div>
-          
-          {/* Options Toggle */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-white rounded-full px-4 py-2 shadow-md">
-              <Settings className="h-4 w-4 text-gray-600" />
-              <span className="text-sm font-medium text-gray-700">Answer Choices</span>
+      </div>
+
+          {/* Bottom Row - Controls (mobile: simplified, desktop: full) */}
+          <div className="flex items-center justify-between">
+            {/* Mobile: Just the options toggle */}
+            <div className="md:hidden">
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={() => setShowOptions(!showOptions)}
-                className={`rounded-full p-2 transition-colors ${
+                className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
                   showOptions 
-                    ? 'bg-blue-100 text-blue-600 hover:bg-blue-200' 
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    ? 'bg-blue-100 text-blue-600 border-blue-300' 
+                    : 'bg-gray-100 text-gray-600 border-gray-300'
                 }`}
               >
-                {showOptions ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                {showOptions ? <Eye className="h-3 w-3 mr-1" /> : <EyeOff className="h-3 w-3 mr-1" />}
+                {showOptions ? 'Hide Options' : 'Show Options'}
               </Button>
+          </div>
+            
+            {/* Desktop: Full controls */}
+            <div className="hidden md:flex items-center gap-3">
+              <div className="flex items-center gap-2 bg-white rounded-full px-4 py-2 shadow-md">
+                <Settings className="h-4 w-4 text-gray-600" />
+                <span className="text-sm font-medium text-gray-700">Answer Choices</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowOptions(!showOptions)}
+                  className={`rounded-full p-2 transition-colors ${
+                    showOptions 
+                      ? 'bg-blue-100 text-blue-600 hover:bg-blue-200' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {showOptions ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                </Button>
+              </div>
+              
+              <Button variant="outline" size="sm" onClick={resetQuiz} className="rounded-full shadow-md px-3 py-2">
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Reset
+          </Button>
             </div>
             
-            <Button variant="outline" size="sm" onClick={resetQuiz} className="rounded-full shadow-md">
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Reset
-            </Button>
+            {/* Mobile: Reset button */}
+            <div className="md:hidden">
+              <Button variant="outline" size="sm" onClick={resetQuiz} className="rounded-full shadow-md px-3 py-1.5">
+                <RotateCcw className="h-3 w-3" />
+              </Button>
+            </div>
           </div>
         </div>
 
         {/* Progress Bar */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-          <div className="flex justify-between items-center mb-3">
-            <div className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-indigo-600" />
-              <span className="text-sm font-semibold text-gray-700">
-                Question {currentQuestionIndex + 1} of {totalQuestions}
+        <div className="bg-white rounded-xl md:rounded-2xl shadow-lg p-3 md:p-6 mb-3 md:mb-6">
+          <div className="flex justify-between items-center mb-2 md:mb-3">
+            <div className="flex items-center gap-1 md:gap-2">
+              <Target className="h-3 w-3 md:h-5 md:w-5 text-indigo-600" />
+              <span className="text-xs md:text-sm font-semibold text-gray-700">
+                {currentQuestionIndex + 1} of {totalQuestions}
               </span>
             </div>
-            <div className="text-sm text-gray-600">
-              {Math.round(progress)}% Complete
+            <div className="text-xs md:text-sm text-gray-600">
+              {Math.round(progress)}%
             </div>
-          </div>
+        </div>
 
-          <Progress 
-            value={progress} 
-            className="h-3 bg-gray-100 rounded-full overflow-hidden" 
+        <Progress 
+          value={progress} 
+            className="h-1.5 md:h-3 bg-gray-100 rounded-full overflow-hidden" 
             style={{ 
               "--progress-foreground": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
             } as React.CSSProperties}
@@ -633,46 +657,50 @@ export default function LearnQuizPage() {
         {/* Enhanced Flashcard */}
         <div className="relative">
           <div
-            className={`relative w-full rounded-3xl bg-gradient-to-br from-white to-gray-50 shadow-2xl border border-gray-100 perspective-1000 ${flipped ? 'rotate-y-180' : ''} transform-style-preserve-3d transition-all duration-700 cursor-pointer hover:shadow-3xl`}
-            style={{ minHeight: '400px', height: '450px', maxHeight: '450px' }}
-            onClick={handleFlip}
-            tabIndex={0}
-            role="button"
-            aria-pressed={flipped}
-            aria-label="Flashcard, press space or click to flip"
-          >
-            {/* Front of card (Question) */}
-            <div className={`absolute w-full h-full backface-hidden ${!flipped ? 'visible' : 'invisible'} overflow-auto rounded-3xl`}>
-              <div className="p-6 h-full flex flex-col">
+            className={`relative w-full rounded-xl md:rounded-3xl bg-gradient-to-br from-white to-gray-50 shadow-2xl border border-gray-100 perspective-1000 ${flipped ? 'rotate-y-180' : ''} transform-style-preserve-3d transition-all duration-700 cursor-pointer hover:shadow-3xl active:scale-[0.98] touch-manipulation`}
+            style={{ 
+              minHeight: isMobileOrTablet ? (showOptions && currentQuestion?.type === 'multiple_choice' ? '620px' : '450px') : '400px', 
+              height: isMobileOrTablet ? 'auto' : '450px',
+              maxHeight: isMobileOrTablet ? 'none' : '450px' 
+            }}
+          onClick={handleFlip}
+          tabIndex={0}
+          role="button"
+          aria-pressed={flipped}
+          aria-label="Flashcard, press space or click to flip"
+        >
+          {/* Front of card (Question) */}
+            <div className={`absolute w-full h-full backface-hidden ${!flipped ? 'visible' : 'invisible'} ${isMobileOrTablet ? 'overflow-hidden' : 'overflow-auto'} rounded-xl md:rounded-3xl`}>
+              <div className="p-4 md:p-6 h-full flex flex-col" style={{ minHeight: isMobileOrTablet ? (showOptions && currentQuestion?.type === 'multiple_choice' ? '620px' : '450px') : 'auto' }}>
                 {/* Question Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
-                      <Lightbulb className="h-3.5 w-3.5 text-white" />
+                <div className="flex items-center justify-between mb-4 md:mb-4 flex-shrink-0">
+                  <div className="flex items-center gap-1.5 md:gap-2">
+                    <div className="w-5 h-5 md:w-7 md:h-7 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
+                      <Lightbulb className="h-2.5 w-2.5 md:h-3.5 md:w-3.5 text-white" />
                     </div>
-                    <span className="font-semibold text-gray-700 text-xs uppercase tracking-wide">
-                      Question {currentQuestionIndex + 1}
+                    <span className="font-semibold text-gray-700 text-xs md:text-xs uppercase tracking-wide">
+                      #{currentQuestionIndex + 1}
                     </span>
                   </div>
-                  <div className="text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
+                  <div className="text-xs text-gray-500 bg-gray-100 px-2 md:px-2.5 py-1 rounded-full">
                     {currentQuestion?.type === 'multiple_choice' ? 'Multiple Choice' : 'Open Ended'}
                   </div>
                 </div>
                 
                 {/* Question Text */}
-                <div className="flex-grow flex flex-col justify-center">
-                  <h2 className="text-lg font-semibold text-gray-900 leading-relaxed mb-4 text-center">
+                <div className="flex-grow flex flex-col justify-start">
+                  <h2 className="text-lg md:text-lg font-semibold text-gray-900 leading-relaxed mb-4 md:mb-4 text-center px-1 md:px-2">
                     {currentQuestion?.text}
                   </h2>
                   
                   {/* Multiple Choice Options (if enabled) */}
                   {showOptions && currentQuestion?.type === 'multiple_choice' && currentQuestion?.options && (
-                    <div className="space-y-2">
+                    <div className="space-y-3 mt-2">
                       <div className="flex items-center gap-2 mb-3">
-                        <div className="w-3 h-3 rounded bg-gradient-to-r from-green-400 to-blue-500"></div>
-                        <span className="text-xs font-medium text-gray-600">Choose the best answer:</span>
+                        <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-gradient-to-r from-green-400 to-blue-500"></div>
+                        <span className="text-xs md:text-xs font-medium text-gray-600">Choose the best answer:</span>
                       </div>
-                      <div className="grid gap-2">
+                      <div className="grid gap-2.5 md:gap-2">
                         {currentQuestion.options.map((option, index) => {
                           const isSelected = selectedAnswer === option;
                           const isCorrectAnswer = isSelected && isCorrect === true;
@@ -682,7 +710,7 @@ export default function LearnQuizPage() {
                             <div
                               key={index}
                               onClick={() => handleOptionClick(option, index)}
-                              className={`flex items-center gap-2.5 p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
+                              className={`flex items-start gap-3 p-3 md:p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
                                 isCorrectAnswer
                                   ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 shadow-md'
                                   : isWrongAnswer
@@ -690,7 +718,7 @@ export default function LearnQuizPage() {
                                   : 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200 hover:from-blue-50 hover:to-indigo-50 hover:border-blue-200'
                               }`}
                             >
-                              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center font-semibold text-xs ${
+                              <div className={`w-6 h-6 md:w-6 md:h-6 rounded-full border-2 flex items-center justify-center font-semibold text-xs flex-shrink-0 mt-0.5 md:mt-0 ${
                                 isCorrectAnswer
                                   ? 'bg-green-500 border-green-500 text-white'
                                   : isWrongAnswer
@@ -705,14 +733,14 @@ export default function LearnQuizPage() {
                                   String.fromCharCode(65 + index)
                                 )}
                               </div>
-                              <span className={`text-sm flex-1 ${
+                              <span className={`text-sm md:text-sm flex-1 leading-relaxed ${
                                 isCorrectAnswer
                                   ? 'text-green-800 font-medium'
                                   : isWrongAnswer
                                   ? 'text-red-800 font-medium'
                                   : 'text-gray-700'
                               }`}>
-                                {option}
+                      {option}
                               </span>
                             </div>
                           );
@@ -723,28 +751,32 @@ export default function LearnQuizPage() {
                 </div>
                 
                 {/* Flip Instruction */}
-                <div className="text-center mt-4">
-                  <div className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-3 py-1.5 rounded-full text-xs font-medium">
-                    <Zap className="h-3.5 w-3.5" />
-                    Click or press Space to reveal answer
+                <div className="text-center mt-4 md:mt-4 flex-shrink-0">
+                  <div className="inline-flex items-center gap-1.5 md:gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-3 md:px-3 py-1.5 rounded-full text-xs font-medium">
+                    <Zap className="h-3 w-3 md:h-3.5 md:w-3.5" />
+                    <span className="hidden sm:inline">Click or press Space to reveal answer</span>
+                    <span className="sm:hidden">Tap to reveal answer</span>
                   </div>
                 </div>
-              </div>
             </div>
-            
-            {/* Back of card (Answer) */}
-            <div className={`absolute w-full h-full backface-hidden rotate-y-180 ${flipped ? 'visible' : 'invisible'} overflow-auto rounded-3xl`}>
-              <div className={`p-6 h-full flex flex-col ${
-                isCorrect === true 
-                  ? 'bg-gradient-to-br from-green-50 to-emerald-50' 
-                  : isCorrect === false
-                  ? 'bg-gradient-to-br from-red-50 to-rose-50'
-                  : 'bg-gradient-to-br from-green-50 to-emerald-50'
-              }`}>
+          </div>
+          
+          {/* Back of card (Answer) */}
+            <div className={`absolute w-full h-full backface-hidden rotate-y-180 ${flipped ? 'visible' : 'invisible'} ${isMobileOrTablet ? 'overflow-hidden' : 'overflow-auto'} rounded-xl md:rounded-3xl`}>
+              <div 
+                className={`p-4 md:p-6 h-full flex flex-col ${
+                  isCorrect === true 
+                    ? 'bg-gradient-to-br from-green-50 to-emerald-50' 
+                    : isCorrect === false
+                    ? 'bg-gradient-to-br from-red-50 to-rose-50'
+                    : 'bg-gradient-to-br from-green-50 to-emerald-50'
+                }`}
+                style={{ minHeight: isMobileOrTablet ? (showOptions && currentQuestion?.type === 'multiple_choice' ? '620px' : '450px') : 'auto' }}
+              >
                 {/* Answer Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                <div className="flex items-center justify-between mb-4 md:mb-4 flex-shrink-0">
+                  <div className="flex items-center gap-1.5 md:gap-2">
+                    <div className={`w-5 h-5 md:w-7 md:h-7 rounded-full flex items-center justify-center ${
                       isCorrect === true 
                         ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
                         : isCorrect === false
@@ -752,66 +784,66 @@ export default function LearnQuizPage() {
                         : 'bg-gradient-to-r from-green-500 to-emerald-600'
                     }`}>
                       {isCorrect === true ? (
-                        <CheckCircle className="h-3.5 w-3.5 text-white" />
+                        <CheckCircle className="h-2.5 w-2.5 md:h-3.5 md:w-3.5 text-white" />
                       ) : isCorrect === false ? (
-                        <XCircle className="h-3.5 w-3.5 text-white" />
+                        <XCircle className="h-2.5 w-2.5 md:h-3.5 md:w-3.5 text-white" />
                       ) : (
-                        <CheckCircle className="h-3.5 w-3.5 text-white" />
+                        <CheckCircle className="h-2.5 w-2.5 md:h-3.5 md:w-3.5 text-white" />
                       )}
                     </div>
-                    <span className="font-semibold text-gray-700 text-xs uppercase tracking-wide">
-                      {isCorrect === true ? 'Correct!' : isCorrect === false ? 'Incorrect' : 'Correct Answer'}
+                    <span className="font-semibold text-gray-700 text-xs md:text-xs uppercase tracking-wide">
+                      {isCorrect === true ? 'Correct!' : isCorrect === false ? 'Incorrect' : 'Answer'}
                     </span>
                   </div>
-                  <div className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                  <div className={`text-xs font-medium px-2 md:px-2.5 py-1 rounded-full ${
                     isCorrect === true 
                       ? 'text-green-700 bg-green-100' 
                       : isCorrect === false
                       ? 'text-red-700 bg-red-100'
                       : 'text-green-700 bg-green-100'
                   }`}>
-                    {isCorrect === true ? 'Well Done!' : isCorrect === false ? 'Try Again' : 'Solution'}
+                    {isCorrect === true ? 'Great!' : isCorrect === false ? 'Try Again' : 'Solution'}
                   </div>
                 </div>
                 
                 {/* Answer Content */}
-                <div className="flex-grow flex items-center justify-center">
-                  {currentQuestion?.type === 'multiple_choice' && currentQuestion?.options ? (
-                    (() => {
-                      // Try to find the correct answer using multiple matching strategies
-                      let correctIndex = -1;
-                      let correctText = currentQuestion.correctAnswer;
-                      
-                      // Strategy 1: Direct match with full option text
-                      correctIndex = currentQuestion.options.findIndex((option: string) => 
-                        option.trim().toLowerCase() === currentQuestion.correctAnswer.trim().toLowerCase()
-                      );
-                      
-                      // Strategy 2: If correctAnswer is just a letter (A, B, C, D), convert to index
-                      if (correctIndex === -1) {
-                        const answerLetter = currentQuestion.correctAnswer.trim().toUpperCase();
-                        if (answerLetter.match(/^[A-D]$/)) {
-                          correctIndex = answerLetter.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
-                          if (correctIndex >= 0 && correctIndex < currentQuestion.options.length) {
-                            correctText = currentQuestion.options[correctIndex];
-                          }
-                        }
+            <div className="flex-grow flex items-center justify-center">
+              {currentQuestion?.type === 'multiple_choice' && currentQuestion?.options ? (
+                (() => {
+                  // Try to find the correct answer using multiple matching strategies
+                  let correctIndex = -1;
+                  let correctText = currentQuestion.correctAnswer;
+                  
+                  // Strategy 1: Direct match with full option text
+                  correctIndex = currentQuestion.options.findIndex((option: string) => 
+                    option.trim().toLowerCase() === currentQuestion.correctAnswer.trim().toLowerCase()
+                  );
+                  
+                  // Strategy 2: If correctAnswer is just a letter (A, B, C, D), convert to index
+                  if (correctIndex === -1) {
+                    const answerLetter = currentQuestion.correctAnswer.trim().toUpperCase();
+                    if (answerLetter.match(/^[A-D]$/)) {
+                      correctIndex = answerLetter.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
+                      if (correctIndex >= 0 && correctIndex < currentQuestion.options.length) {
+                        correctText = currentQuestion.options[correctIndex];
                       }
-                      
-                      // Strategy 3: If correctAnswer starts with a letter and parenthesis, extract the option
-                      if (correctIndex === -1) {
-                        const letterMatch = currentQuestion.correctAnswer.match(/^([A-D])\)\s*(.+)$/i);
-                        if (letterMatch) {
-                          correctIndex = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
-                          correctText = letterMatch[2];
-                        }
-                      }
-                      
-                      const answerLetter = correctIndex !== -1 ? String.fromCharCode(65 + correctIndex) : '';
-                      
-                      return (
+                    }
+                  }
+                  
+                  // Strategy 3: If correctAnswer starts with a letter and parenthesis, extract the option
+                  if (correctIndex === -1) {
+                    const letterMatch = currentQuestion.correctAnswer.match(/^([A-D])\)\s*(.+)$/i);
+                    if (letterMatch) {
+                      correctIndex = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
+                      correctText = letterMatch[2];
+                    }
+                  }
+                  
+                  const answerLetter = correctIndex !== -1 ? String.fromCharCode(65 + correctIndex) : '';
+                  
+                  return (
                         <div className="text-center max-w-md">
-                          {answerLetter && (
+                      {answerLetter && (
                             <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-bold mx-auto mb-3 shadow-lg ${
                               isCorrect === true 
                                 ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
@@ -820,8 +852,8 @@ export default function LearnQuizPage() {
                                 : 'bg-gradient-to-r from-green-500 to-emerald-600'
                             }`}>
                               {answerLetter}
-                            </div>
-                          )}
+                        </div>
+                      )}
                           <p className="text-base font-semibold text-gray-900 leading-relaxed">
                             {correctText}
                           </p>
@@ -832,10 +864,10 @@ export default function LearnQuizPage() {
                               </p>
                             </div>
                           )}
-                        </div>
-                      );
-                    })()
-                  ) : (
+                    </div>
+                  );
+                })()
+              ) : (
                     <div className="text-center max-w-md">
                       <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white mx-auto mb-3 shadow-lg ${
                         isCorrect === true 
@@ -856,20 +888,21 @@ export default function LearnQuizPage() {
                         {currentQuestion?.correctAnswer}
                       </p>
                     </div>
-                  )}
-                </div>
-                
+              )}
+            </div>
+            
                 {/* Flip Back Instruction */}
-                <div className="text-center mt-4">
-                  <div className={`inline-flex items-center gap-2 text-white px-3 py-1.5 rounded-full text-xs font-medium ${
+                <div className="text-center mt-4 md:mt-4 flex-shrink-0">
+                  <div className={`inline-flex items-center gap-1.5 md:gap-2 text-white px-3 md:px-3 py-1.5 rounded-full text-xs font-medium ${
                     isCorrect === true 
                       ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
                       : isCorrect === false
                       ? 'bg-gradient-to-r from-red-500 to-rose-600'
                       : 'bg-gradient-to-r from-green-500 to-emerald-600'
                   }`}>
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    Click or press Space to see question
+                    <RotateCcw className="h-3 w-3 md:h-3.5 md:w-3.5" />
+                    <span className="hidden sm:inline">Click or press Space to see question</span>
+                    <span className="sm:hidden">Tap to see question</span>
                   </div>
                 </div>
               </div>
@@ -878,90 +911,93 @@ export default function LearnQuizPage() {
         </div>
 
         {/* Navigation Controls */}
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-2 md:gap-4">
           <Button
             variant="outline"
             onClick={handlePrevQuestion}
             disabled={currentQuestionIndex === 0}
-            className="rounded-full px-6 py-3 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+            className="rounded-full px-4 md:px-6 py-2.5 md:py-3 shadow-md hover:shadow-lg transition-all disabled:opacity-50 min-w-0 flex-shrink-0"
           >
-            <ChevronLeft className="h-5 w-5 mr-2" />
-            Previous
+            <ChevronLeft className="h-4 w-4 md:h-5 md:w-5 md:mr-2" />
+            <span className="hidden md:inline">Previous</span>
           </Button>
           
-          <div className="flex items-center gap-2 text-sm text-gray-600 bg-white rounded-full px-4 py-2 shadow-md">
-            <Trophy className="h-4 w-4" />
-            Keep going! You're doing great.
+          <div className="flex items-center gap-1 md:gap-2 text-xs md:text-sm text-gray-600 bg-white rounded-full px-3 md:px-4 py-2 shadow-md flex-1 justify-center min-w-0">
+            <Trophy className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
+            <span className="truncate text-center">
+              <span className="hidden sm:inline">Keep going! You're doing great.</span>
+              <span className="sm:hidden">Keep going!</span>
+            </span>
           </div>
           
           <Button
             onClick={handleNextAfterReview}
-            className="rounded-full px-6 py-3 shadow-md hover:shadow-lg transition-all bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
+            className="rounded-full px-4 md:px-6 py-2.5 md:py-3 shadow-md hover:shadow-lg transition-all bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 min-w-0 flex-shrink-0"
           >
-            Next
-            <ChevronRight className="h-5 w-5 ml-2" />
+            <span className="hidden md:inline">Next</span>
+            <ChevronRight className="h-4 w-4 md:h-5 md:w-5 md:ml-2" />
           </Button>
         </div>
 
         {/* Enhanced Progress Section */}
-        <div className="bg-white rounded-2xl shadow-lg p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
-              <Target className="h-5 w-5 text-white" />
+        <div className="bg-white rounded-2xl shadow-lg p-4 md:p-8">
+          <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
+            <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
+              <Target className="h-4 w-4 md:h-5 md:w-5 text-white" />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900">Your Progress</h2>
-          </div>
-          
+            <h2 className="text-lg md:text-xl font-semibold text-gray-900">Your Progress</h2>
+      </div>
+
           <div className="space-y-6">
-            <div>
+          <div>
               <div className="flex justify-between text-sm mb-2 text-gray-700">
                 <span className="font-medium">Cards Viewed</span>
                 <span className="font-semibold">
                   {Object.values(questionStats).filter(stat => stat.last_studied).length} of {quiz.questions.length}
                 </span>
-              </div>
-              <Progress 
-                value={(Object.values(questionStats).filter(stat => stat.last_studied).length / quiz.questions.length) * 100} 
+            </div>
+            <Progress 
+              value={(Object.values(questionStats).filter(stat => stat.last_studied).length / quiz.questions.length) * 100} 
                 className="h-3 bg-gray-100 rounded-full" 
                 style={{ 
                   "--progress-foreground": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
                 } as React.CSSProperties}
-              />
+            />
+          </div>
+          
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+              <div className="p-4 md:p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                <div className="flex items-center gap-2 md:gap-3 mb-2">
+                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                    <Trophy className="h-3 w-3 md:h-4 md:w-4 text-white" />
+                  </div>
+                  <h3 className="text-xs md:text-sm font-semibold text-blue-900">Completed Sessions</h3>
+                </div>
+                <p className="text-xl md:text-2xl font-bold text-blue-900">{learningProgress?.completed_sessions || 0}</p>
             </div>
             
-            <div className="grid grid-cols-2 gap-6">
-              <div className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
-                    <Trophy className="h-4 w-4 text-white" />
+              <div className="p-4 md:p-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                <div className="flex items-center gap-2 md:gap-3 mb-2">
+                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-green-500 flex items-center justify-center">
+                    <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-white" />
                   </div>
-                  <h3 className="text-sm font-semibold text-blue-900">Completed Sessions</h3>
-                </div>
-                <p className="text-2xl font-bold text-blue-900">{learningProgress?.completed_sessions || 0}</p>
-              </div>
-              
-              <div className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-100">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
-                    <CheckCircle className="h-4 w-4 text-white" />
-                  </div>
-                  <h3 className="text-sm font-semibold text-green-900">Last Studied</h3>
+                  <h3 className="text-xs md:text-sm font-semibold text-green-900">Last Studied</h3>
                 </div>
                 <p className="text-sm font-medium text-green-800">
-                  {learningProgress?.last_studied 
-                    ? new Date(learningProgress.last_studied).toLocaleDateString() 
+                {learningProgress?.last_studied 
+                  ? new Date(learningProgress.last_studied).toLocaleDateString() 
                     : 'Today'}
-                </p>
-              </div>
+              </p>
             </div>
-            
-            <Button 
-              onClick={saveProgress}
-              disabled={savingProgress}
+          </div>
+          
+          <Button 
+            onClick={saveProgress}
+            disabled={savingProgress}
               className="w-full rounded-xl py-4 text-lg font-semibold bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-xl transition-all"
-            >
-              {savingProgress ? (
-                <>
+          >
+            {savingProgress ? (
+              <>
                   <Loader2 className="h-5 w-5 mr-3 animate-spin" />
                   Saving Progress...
                 </>
@@ -971,21 +1007,21 @@ export default function LearnQuizPage() {
                   Save Progress
                 </>
               )}
-            </Button>
-          </div>
+          </Button>
         </div>
+      </div>
 
         {/* Export Section */}
-        <div className="bg-white rounded-2xl shadow-lg p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-600 flex items-center justify-center">
-              <Send className="h-5 w-5 text-white" />
+        <div className="bg-white rounded-2xl shadow-lg p-4 md:p-8">
+          <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
+            <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-600 flex items-center justify-center">
+              <Send className="h-4 w-4 md:h-5 md:w-5 text-white" />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900">Export Quiz</h2>
+            <h2 className="text-lg md:text-xl font-semibold text-gray-900">Export Quiz</h2>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Button
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+          <Button
               size="lg"
               variant="outline"
               onClick={() => {
@@ -993,10 +1029,13 @@ export default function LearnQuizPage() {
                   handleExport(quiz, 'doc');
                 }
               }}
-              className="flex items-center justify-center rounded-xl py-4 border-2 border-blue-200 hover:bg-blue-50 hover:border-blue-300"
+              className="flex items-center justify-center rounded-xl py-3 md:py-4 border-2 border-blue-200 hover:bg-blue-50 hover:border-blue-300 text-sm md:text-base"
             >
-              <FileText className="h-5 w-5 mr-2 text-blue-600" />
-              <span className="font-semibold">Word Document</span>
+              <FileText className="h-4 w-4 md:h-5 md:w-5 mr-1 md:mr-2 text-blue-600" />
+              <span className="font-semibold">
+                <span className="hidden sm:inline">Word Document</span>
+                <span className="sm:hidden">Word</span>
+              </span>
             </Button>
             
             <Button
@@ -1007,45 +1046,51 @@ export default function LearnQuizPage() {
                   handleExport(quiz, 'csv');
                 }
               }}
-              className="flex items-center justify-center rounded-xl py-4 border-2 border-green-200 hover:bg-green-50 hover:border-green-300"
+              className="flex items-center justify-center rounded-xl py-3 md:py-4 border-2 border-green-200 hover:bg-green-50 hover:border-green-300 text-sm md:text-base"
             >
-              <FileText className="h-5 w-5 mr-2 text-green-600" />
-              <span className="font-semibold">CSV File</span>
+              <FileText className="h-4 w-4 md:h-5 md:w-5 mr-1 md:mr-2 text-green-600" />
+              <span className="font-semibold">
+                <span className="hidden sm:inline">CSV File</span>
+                <span className="sm:hidden">CSV</span>
+              </span>
             </Button>
             
             <Button
               size="lg"
-              variant="outline"
-              onClick={() => {
-                if (quiz) {
-                  handleAnkiExport(quiz);
-                }
-              }}
-              className={`flex items-center justify-center rounded-xl py-4 border-2 ${
-                isMobileOrTablet 
+            variant="outline"
+            onClick={() => {
+              if (quiz) {
+                handleAnkiExport(quiz);
+              }
+            }}
+              className={`flex items-center justify-center rounded-xl py-3 md:py-4 border-2 text-sm md:text-base ${
+              isMobileOrTablet 
                   ? 'opacity-60 cursor-help border-gray-200 hover:bg-gray-50' 
                   : 'border-purple-200 hover:bg-purple-50 hover:border-purple-300'
-              }`}
-            >
-              {isMobileOrTablet && (
-                <AlertCircle className="h-5 w-5 mr-2 text-gray-400" />
-              )}
-              {!isMobileOrTablet && (
-                <Send className="h-5 w-5 mr-2 text-purple-600" />
-              )}
-              <span className="font-semibold">Anki Export</span>
-            </Button>
-          </div>
+            }`}
+          >
+            {isMobileOrTablet && (
+                <AlertCircle className="h-4 w-4 md:h-5 md:w-5 mr-1 md:mr-2 text-gray-400" />
+            )}
+            {!isMobileOrTablet && (
+                <Send className="h-4 w-4 md:h-5 md:w-5 mr-1 md:mr-2 text-purple-600" />
+            )}
+              <span className="font-semibold">
+                <span className="hidden sm:inline">Anki Export</span>
+                <span className="sm:hidden">Anki</span>
+              </span>
+          </Button>
         </div>
+      </div>
 
-        {/* Replace the old Anki Dialog with our new AnkiExportDialog component */}
-        {quiz && (
-          <AnkiExportDialog
-            isOpen={isAnkiDialogOpen}
-            onClose={closeAnkiDialog}
-            quizId={quiz.id}
-          />
-        )}
+      {/* Replace the old Anki Dialog with our new AnkiExportDialog component */}
+      {quiz && (
+        <AnkiExportDialog
+          isOpen={isAnkiDialogOpen}
+          onClose={closeAnkiDialog}
+          quizId={quiz.id}
+        />
+      )}
       </div>
     </div>
   );

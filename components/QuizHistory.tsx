@@ -286,6 +286,17 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
   };
 
   const startEditingTitle = (quiz: Quiz) => {
+    // Disable quiz renaming on mobile devices
+    if (isMobileOrTablet) {
+      toast({
+        title: "Desktop Only Feature",
+        description: "Quiz renaming is only available on desktop computers. Please use your computer to rename quizzes.",
+        variant: "default",
+        duration: 4000,
+      });
+      return;
+    }
+    
     setEditingTitleId(quiz.id);
     setEditingTitleValue(quiz.title);
   };
@@ -386,7 +397,22 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
               borderLeftColor: quiz.color,
               backgroundColor: `${quiz.color}20`,
             } : {}}
-            onClick={() => openQuizDetails(quiz)}
+            onClick={() => {
+              if (isMobileOrTablet) {
+                // Mobile: Show download options directly
+                const options = ['Export as DOC', 'Export as CSV', 'Cancel'];
+                const choice = window.prompt(`${quiz.title}\n\n1. Export as DOC\n2. Export as CSV\n3. Cancel\n\nEnter 1, 2, or 3:`);
+                
+                if (choice === '1') {
+                  handleExport(quiz, 'doc');
+                } else if (choice === '2') {
+                  handleExport(quiz, 'csv');
+                }
+              } else {
+                // Desktop: Show full quiz details
+                openQuizDetails(quiz);
+              }
+            }}
           >
             <div className="flex flex-col">
               {quiz.subject && (
@@ -447,22 +473,34 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    <div 
-                      className="inline-flex items-center gap-2 cursor-pointer rounded-md px-2 py-1 hover:bg-blue-50 hover:border-blue-200 border border-transparent transition-all group/edit"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEditingTitle(quiz);
-                      }}
-                      title="Click to edit quiz title"
-                    >
-                      <h3 className="font-semibold text-lg group-hover/edit:text-blue-600 transition-colors">
-                        {quiz.title}
-                      </h3>
-                      <Edit className="h-4 w-4 opacity-0 group-hover/edit:opacity-100 transition-opacity text-blue-500" />
-                    </div>
-                    <p className="text-xs text-gray-500 ml-2 opacity-0 group-hover/edit:opacity-100 transition-opacity">
-                      Click title to edit
-                    </p>
+                    {isMobileOrTablet ? (
+                      // Mobile: Non-clickable title
+                      <div className="px-2 py-1">
+                        <h3 className="font-semibold text-lg">
+                          {quiz.title}
+                        </h3>
+                      </div>
+                    ) : (
+                      // Desktop: Clickable title for editing
+                      <div 
+                        className="inline-flex items-center gap-2 cursor-pointer rounded-md px-2 py-1 hover:bg-blue-50 hover:border-blue-200 border border-transparent transition-all group/edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEditingTitle(quiz);
+                        }}
+                        title="Click to edit quiz title"
+                      >
+                        <h3 className="font-semibold text-lg group-hover/edit:text-blue-600 transition-colors">
+                          {quiz.title}
+                        </h3>
+                        <Edit className="h-4 w-4 opacity-0 group-hover/edit:opacity-100 transition-opacity text-blue-500" />
+                      </div>
+                    )}
+                    {!isMobileOrTablet && (
+                      <p className="text-xs text-gray-500 ml-2 opacity-0 group-hover/edit:opacity-100 transition-opacity">
+                        Click title to edit
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -489,273 +527,270 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
         ))}
       </div>
 
-      {/* Quiz Details Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={closeQuizDetails}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col bg-white">
-          <DialogHeader className="border-b pb-4">
-            <DialogTitle className="space-y-2">
-              {selectedQuiz?.subject && (
-                <div className="mb-2">
-                  <div 
-                    className="inline-flex items-center px-3 py-1 rounded-md text-sm"
-                    style={{ 
-                      backgroundColor: selectedQuiz.color || '#E5E7EB', 
-                      color: selectedQuiz.color ? getContrastColor(selectedQuiz.color) : '#374151' 
-                    }}
-                  >
-                    <Tag className="h-3 w-3 mr-2" />
-                    {selectedQuiz.subject}
-                  </div>
-                </div>
-              )}
-              <div className="space-y-2">
-                {editingTitleId === selectedQuiz?.id ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={editingTitleValue}
-                        onChange={(e) => setEditingTitleValue(e.target.value)}
-                        className="text-xl font-semibold"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            saveTitle(selectedQuiz.id);
-                          } else if (e.key === 'Escape') {
-                            cancelEditingTitle();
-                          }
-                        }}
-                        autoFocus
-                        placeholder="Enter quiz title..."
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => saveTitle(selectedQuiz.id)}
-                        disabled={saving}
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        {saving ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Check className="h-4 w-4 mr-2" />
-                            Save Changes
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={cancelEditingTitle}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
+      {/* Quiz Details - Desktop Dialog */}
+      {!isMobileOrTablet && (
+        <Dialog open={isDialogOpen} onOpenChange={closeQuizDetails}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col bg-white">
+            <DialogHeader className="border-b pb-4">
+              <DialogTitle className="space-y-2">
+                {selectedQuiz?.subject && (
+                  <div className="mb-2">
                     <div 
-                      className="inline-flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2 hover:bg-blue-50 hover:border-blue-200 border-2 border-transparent transition-all group/modal-edit"
-                      onClick={() => selectedQuiz && startEditingTitle(selectedQuiz)}
-                      title="Click to edit quiz title"
+                      className="inline-flex items-center px-3 py-1 rounded-md text-sm"
+                      style={{ 
+                        backgroundColor: selectedQuiz.color || '#E5E7EB', 
+                        color: selectedQuiz.color ? getContrastColor(selectedQuiz.color) : '#374151' 
+                      }}
                     >
-                      <div className="text-xl font-semibold text-gray-900 group-hover/modal-edit:text-blue-600 transition-colors">
-                        {selectedQuiz?.title}
-                      </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover/modal-edit:opacity-100 transition-opacity">
-                        <Edit className="h-5 w-5 text-blue-500" />
-                        <span className="text-sm text-blue-600 font-medium">Edit</span>
-                      </div>
+                      <Tag className="h-3 w-3 mr-2" />
+                      {selectedQuiz.subject}
                     </div>
-                    <p className="text-sm text-gray-500 ml-3 opacity-0 group-hover/modal-edit:opacity-100 transition-opacity">
-                      Click title above to rename this quiz
-                    </p>
                   </div>
                 )}
-              </div>
-            </DialogTitle>
-            <DialogDescription className="flex flex-wrap gap-4 text-gray-500">
-              <span className="flex items-center">
-                <Calendar className="h-3.5 w-3.5 mr-1" />
-                Created: {selectedQuiz && new Date(selectedQuiz.created_at).toLocaleDateString()}
-              </span>
-              <span className="flex items-center">
-                <FileText className="h-3.5 w-3.5 mr-1" />
-                {selectedQuiz?.questions.length} questions
-              </span>
-              <span className="flex items-center">
-                <BarChart3 className="h-3.5 w-3.5 mr-1" />
-                {selectedQuiz?.settings.difficulty} difficulty
-              </span>
-              <span className="flex items-center">
-                <Clock className="h-3.5 w-3.5 mr-1" />
-                {selectedQuiz?.settings.questionType} questions
-              </span>
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex-1 overflow-y-auto py-4">
-            <div className="space-y-4">
-              {selectedQuiz?.questions.map((question, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
-                  <div className="flex items-start mb-3">
-                    <span className="inline-flex items-center justify-center w-6 h-6 text-xs font-semibold text-white bg-blue-600 rounded-full mr-3 mt-0.5 flex-shrink-0">
-                      {index + 1}
-                    </span>
-                    <p className="text-sm font-medium text-gray-900 leading-relaxed">
-                      {question.text}
-                    </p>
-                  </div>
-                  
-                  {question.type === 'multiple_choice' && question.options && (
-                    <div className="ml-9 space-y-2">
-                      {question.options.map((option, optIndex) => {
-                        // Check if this option is the correct answer using multiple strategies
-                        let isCorrect = option === question.correctAnswer;
-                        
-                        if (!isCorrect) {
-                          // Check if correctAnswer is just a letter (A, B, C, D)
-                          const answerLetter = question.correctAnswer.trim().toUpperCase();
-                          if (answerLetter.match(/^[A-D]$/)) {
-                            const letterIndex = answerLetter.charCodeAt(0) - 65;
-                            isCorrect = optIndex === letterIndex;
-                          }
-                        }
-                        
-                        const optionLetter = String.fromCharCode(65 + optIndex);
-                        
-                        return (
-                          <div key={optIndex} className={`flex items-start p-2 rounded-md transition-colors ${
-                            isCorrect 
-                              ? 'bg-green-50 border border-green-200' 
-                              : 'bg-gray-50 hover:bg-gray-100'
-                          }`}>
-                            <span className={`inline-flex items-center justify-center w-5 h-5 text-xs font-medium rounded-full mr-2 mt-0.5 flex-shrink-0 ${
-                              isCorrect 
-                                ? 'bg-green-600 text-white' 
-                                : 'bg-gray-300 text-gray-700'
-                            }`}>
-                              {optionLetter}
-                            </span>
-                            <span className={`text-sm ${
-                              isCorrect 
-                                ? 'text-green-800 font-medium' 
-                                : 'text-gray-700'
-                            }`}>
-                              {option}
-                            </span>
-                            {isCorrect && (
-                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                Correct
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
+                <div className="space-y-2">
+                  {editingTitleId === selectedQuiz?.id ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editingTitleValue}
+                          onChange={(e) => setEditingTitleValue(e.target.value)}
+                          className="text-xl font-semibold"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              saveTitle(selectedQuiz.id);
+                            } else if (e.key === 'Escape') {
+                              cancelEditingTitle();
+                            }
+                          }}
+                          autoFocus
+                          placeholder="Enter quiz title..."
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => saveTitle(selectedQuiz.id)}
+                          disabled={saving}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          {saving ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Check className="h-4 w-4 mr-2" />
+                              Save Changes
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={cancelEditingTitle}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div 
+                        className="inline-flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2 hover:bg-blue-50 hover:border-blue-200 border-2 border-transparent transition-all group/modal-edit"
+                        onClick={() => selectedQuiz && startEditingTitle(selectedQuiz)}
+                        title="Click to edit quiz title"
+                      >
+                        <div className="text-xl font-semibold text-gray-900 group-hover/modal-edit:text-blue-600 transition-colors">
+                          {selectedQuiz?.title}
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover/modal-edit:opacity-100 transition-opacity">
+                          <Edit className="h-5 w-5 text-blue-500" />
+                          <span className="text-sm text-blue-600 font-medium">Edit</span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-500 ml-3 opacity-0 group-hover/modal-edit:opacity-100 transition-opacity">
+                        Click title above to rename this quiz
+                      </p>
                     </div>
                   )}
-                  
-                  {question.type === 'open_ended' && question.correctAnswer && (
-                    <div className="ml-9 mt-3">
-                      <div className="bg-green-50 border border-green-200 rounded-md p-3">
-                        <div className="flex items-start">
-                          <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-green-600 text-white rounded-full mr-2 mt-0.5 flex-shrink-0">
-                            ✓
-                          </span>
-                          <div>
-                            <p className="text-xs font-medium text-green-800 mb-1">Answer:</p>
-                            <p className="text-sm text-green-700 leading-relaxed">
-                              {question.correctAnswer}
-                            </p>
+                </div>
+              </DialogTitle>
+              <DialogDescription className="flex flex-wrap gap-4 text-gray-500">
+                <span className="flex items-center">
+                  <Calendar className="h-3.5 w-3.5 mr-1" />
+                  Created: {selectedQuiz && new Date(selectedQuiz.created_at).toLocaleDateString()}
+                </span>
+                <span className="flex items-center">
+                  <FileText className="h-3.5 w-3.5 mr-1" />
+                  {selectedQuiz?.questions.length} questions
+                </span>
+                <span className="flex items-center">
+                  <BarChart3 className="h-3.5 w-3.5 mr-1" />
+                  {selectedQuiz?.settings.difficulty} difficulty
+                </span>
+                <span className="flex items-center">
+                  <Clock className="h-3.5 w-3.5 mr-1" />
+                  {selectedQuiz?.settings.questionType} questions
+                </span>
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto py-4">
+              <div className="space-y-4">
+                {!selectedQuiz ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">Loading quiz details...</p>
+                  </div>
+                ) : !selectedQuiz.questions || selectedQuiz.questions.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">No questions found in this quiz.</p>
+                  </div>
+                ) : (
+                  selectedQuiz.questions.map((question, index) => (
+                  <div key={index} className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
+                    <div className="flex items-start mb-3">
+                      <span className="inline-flex items-center justify-center w-6 h-6 text-xs font-semibold text-white bg-blue-600 rounded-full mr-3 mt-0.5 flex-shrink-0">
+                        {index + 1}
+                      </span>
+                      <p className="text-sm font-medium text-gray-900 leading-relaxed">
+                        {question.text}
+                      </p>
+                    </div>
+                    
+                    {question.type === 'multiple_choice' && question.options && (
+                      <div className="ml-9 space-y-2">
+                        {question.options.map((option, optIndex) => {
+                          let isCorrect = option === question.correctAnswer;
+                          
+                          if (!isCorrect) {
+                            const answerLetter = question.correctAnswer.trim().toUpperCase();
+                            if (answerLetter.match(/^[A-D]$/)) {
+                              const letterIndex = answerLetter.charCodeAt(0) - 65;
+                              isCorrect = optIndex === letterIndex;
+                            }
+                          }
+                          
+                          const optionLetter = String.fromCharCode(65 + optIndex);
+                          
+                          return (
+                            <div key={optIndex} className={`flex items-start p-2 rounded-md transition-colors ${
+                              isCorrect 
+                                ? 'bg-green-50 border border-green-200' 
+                                : 'bg-gray-50 hover:bg-gray-100'
+                            }`}>
+                              <span className={`inline-flex items-center justify-center w-5 h-5 text-xs font-medium rounded-full mr-2 mt-0.5 flex-shrink-0 ${
+                                isCorrect 
+                                  ? 'bg-green-600 text-white' 
+                                  : 'bg-gray-300 text-gray-700'
+                              }`}>
+                                {optionLetter}
+                              </span>
+                              <span className={`text-sm ${
+                                isCorrect 
+                                  ? 'text-green-800 font-medium' 
+                                  : 'text-gray-700'
+                              }`}>
+                                {option}
+                              </span>
+                              {isCorrect && (
+                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  Correct
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    
+                    {question.type === 'open_ended' && question.correctAnswer && (
+                      <div className="ml-9 mt-3">
+                        <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                          <div className="flex items-start">
+                            <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-green-600 text-white rounded-full mr-2 mt-0.5 flex-shrink-0">
+                              ✓
+                            </span>
+                            <div>
+                              <p className="text-xs font-medium text-green-800 mb-1">Answer:</p>
+                              <p className="text-sm text-green-700 leading-relaxed">
+                                {question.correctAnswer}
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    )}
+                  </div>
+                ))
+                )}
+              </div>
             </div>
-          </div>
 
-          <DialogFooter className="border-t pt-4 bg-gray-50">
-            <div className="flex flex-col space-y-2 w-full sm:flex-row sm:space-y-0 sm:justify-end sm:space-x-2">
-              {/* Export buttons row */}
-              <div className="flex space-x-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (selectedQuiz) {
-                      handleExport(selectedQuiz, 'doc');
-                    }
-                  }}
-                  className="flex items-center flex-1 sm:flex-initial"
-                >
-                  <FileText className="h-3 w-3 mr-1" />
-                  <span className="hidden sm:inline">Export DOC</span>
-                  <span className="sm:hidden">DOC</span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (selectedQuiz) {
-                      handleExport(selectedQuiz, 'csv');
-                    }
-                  }}
-                  className="flex items-center flex-1 sm:flex-initial"
-                >
-                  <FileText className="h-3 w-3 mr-1" />
-                  <span className="hidden sm:inline">Export CSV</span>
-                  <span className="sm:hidden">CSV</span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (selectedQuiz) {
-                      handleAnkiExport(selectedQuiz);
-                    }
-                  }}
-                  className={`flex items-center bg-white text-black border border-gray-200 hover:bg-gray-50 flex-1 sm:flex-initial ${
-                    isMobileOrTablet 
-                      ? 'opacity-60 cursor-help' 
-                      : ''
-                  }`}
-                >
-                  {isMobileOrTablet && (
-                    <AlertCircle className="h-3 w-3 mr-1 text-gray-400" />
-                  )}
-                  {!isMobileOrTablet && (
+            <DialogFooter className="border-t pt-4 bg-gray-50">
+              <div className="flex flex-row justify-end space-x-2 w-full">
+                <div className="flex space-x-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (selectedQuiz) {
+                        handleExport(selectedQuiz, 'doc');
+                      }
+                    }}
+                    className="flex items-center"
+                  >
+                    <FileText className="h-3 w-3 mr-1" />
+                    Export DOC
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (selectedQuiz) {
+                        handleExport(selectedQuiz, 'csv');
+                      }
+                    }}
+                    className="flex items-center"
+                  >
+                    <FileText className="h-3 w-3 mr-1" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (selectedQuiz) {
+                        handleAnkiExport(selectedQuiz);
+                      }
+                    }}
+                    className="flex items-center bg-white text-black border border-gray-200 hover:bg-gray-50"
+                  >
                     <Send className="h-3 w-3 mr-1" />
-                  )}
-                  <span className="hidden sm:inline">Export to Anki</span>
-                  <span className="sm:hidden">Anki</span>
+                    Export to Anki
+                  </Button>
+                </div>
+                
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (selectedQuiz) {
+                      openDeleteConfirmation(selectedQuiz);
+                    }
+                  }}
+                  className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Delete Quiz
                 </Button>
               </div>
-              
-              {/* Delete button */}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  if (selectedQuiz) {
-                    openDeleteConfirmation(selectedQuiz);
-                  }
-                }}
-                className="flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 w-full sm:w-auto"
-              >
-                <Trash2 className="h-3 w-3 mr-1" />
-                <span className="hidden sm:inline">Delete Quiz</span>
-                <span className="sm:hidden">Delete</span>
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

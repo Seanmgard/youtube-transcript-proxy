@@ -366,16 +366,16 @@ export function PerformanceDashboard({ className }: Props) {
   }
 
   return (
-    <div className={`space-y-6 ${className}`}>
+    <div className={`space-y-4 md:space-y-6 ${className}`}>
       {/* Overview Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Target className="h-5 w-5 text-blue-600" />
-              <div>
-                <p className="text-sm font-medium">Total Attempts</p>
-                <p className="text-2xl font-bold">
+          <CardContent className="p-3 md:p-4">
+            <div className="flex flex-col md:flex-row items-center md:space-x-2">
+              <Target className="h-4 w-4 md:h-5 md:w-5 text-blue-600 mb-1 md:mb-0" />
+              <div className="text-center md:text-left">
+                <p className="text-xs md:text-sm font-medium">Total Attempts</p>
+                <p className="text-lg md:text-2xl font-bold">
                   {stats.totalQuizAttempts + stats.totalExamAttempts}
                 </p>
               </div>
@@ -384,12 +384,12 @@ export function PerformanceDashboard({ className }: Props) {
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Award className="h-5 w-5 text-yellow-600" />
-              <div>
-                <p className="text-sm font-medium">Best Score</p>
-                <p className="text-2xl font-bold">
+          <CardContent className="p-3 md:p-4">
+            <div className="flex flex-col md:flex-row items-center md:space-x-2">
+              <Award className="h-4 w-4 md:h-5 md:w-5 text-yellow-600 mb-1 md:mb-0" />
+              <div className="text-center md:text-left">
+                <p className="text-xs md:text-sm font-medium">Best Score</p>
+                <p className="text-lg md:text-2xl font-bold">
                   {Math.max(stats.bestQuizScore, stats.bestExamScore).toFixed(0)}%
                 </p>
               </div>
@@ -398,12 +398,12 @@ export function PerformanceDashboard({ className }: Props) {
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Clock className="h-5 w-5 text-green-600" />
-              <div>
-                <p className="text-sm font-medium">Time Spent</p>
-                <p className="text-2xl font-bold">
+          <CardContent className="p-3 md:p-4">
+            <div className="flex flex-col md:flex-row items-center md:space-x-2">
+              <Clock className="h-4 w-4 md:h-5 md:w-5 text-green-600 mb-1 md:mb-0" />
+              <div className="text-center md:text-left">
+                <p className="text-xs md:text-sm font-medium">Time Spent</p>
+                <p className="text-lg md:text-2xl font-bold">
                   {formatTime(stats.totalTimeSpent)}
                 </p>
               </div>
@@ -412,12 +412,12 @@ export function PerformanceDashboard({ className }: Props) {
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Zap className="h-5 w-5 text-purple-600" />
-              <div>
-                <p className="text-sm font-medium">Streak</p>
-                <p className="text-2xl font-bold">
+          <CardContent className="p-3 md:p-4">
+            <div className="flex flex-col md:flex-row items-center md:space-x-2">
+              <Zap className="h-4 w-4 md:h-5 md:w-5 text-purple-600 mb-1 md:mb-0" />
+              <div className="text-center md:text-left">
+                <p className="text-xs md:text-sm font-medium">Streak</p>
+                <p className="text-lg md:text-2xl font-bold">
                   {stats.streakDays} day{stats.streakDays !== 1 ? 's' : ''}
                 </p>
               </div>
@@ -427,14 +427,20 @@ export function PerformanceDashboard({ className }: Props) {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="progress">Progress</TabsTrigger>
-          <TabsTrigger value="activity">Recent Activity</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3 text-xs md:text-sm">
+          <TabsTrigger value="overview" className="px-2 md:px-4 py-2">
+            <span className="hidden sm:inline">Overview</span>
+            <span className="sm:hidden">Stats</span>
+          </TabsTrigger>
+          <TabsTrigger value="progress" className="px-2 md:px-4 py-2">Progress</TabsTrigger>
+          <TabsTrigger value="activity" className="px-2 md:px-4 py-2">
+            <span className="hidden sm:inline">Recent Activity</span>
+            <span className="sm:hidden">Activity</span>
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <TabsContent value="overview" className="space-y-3 md:space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             {/* Quiz Performance */}
             <Card>
               <CardHeader>

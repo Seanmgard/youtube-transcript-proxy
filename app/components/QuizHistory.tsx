@@ -610,12 +610,12 @@ export default function QuizHistory({ limit }: { limit?: number }) {
         }
       }}
     >
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[95vh] sm:max-h-[80vh] overflow-hidden flex flex-col mx-4 sm:mx-auto">
+        <DialogHeader className="px-4 sm:px-6 pb-4">
           <DialogTitle>
             {categorizingQuiz ? (
               <div className="flex items-center justify-between">
-                <span className="flex-1 mr-4">{categorizingQuiz.title}</span>
+                <span className="flex-1 mr-4 text-lg sm:text-xl">{categorizingQuiz.title}</span>
                 <span className="text-sm text-gray-500">Categorize Quiz</span>
               </div>
             ) : (
@@ -634,7 +634,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                     </div>
                   </div>
                 )}
-                <div className="text-xl font-semibold">{selectedQuiz?.title}</div>
+                <div className="text-lg sm:text-xl font-semibold">{selectedQuiz?.title}</div>
               </>
             )}
           </DialogTitle>
@@ -658,7 +658,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
           </DialogDescription>
         </DialogHeader>
         
-        <div className="overflow-y-auto flex-grow pr-2 mt-4">
+        <div className="overflow-y-auto flex-grow px-4 sm:px-6 pr-2 sm:pr-8 mt-4">
           {categorizingQuiz ? (
             <div className="space-y-4">
               <div className="border rounded-md p-4">
@@ -736,7 +736,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
           )}
         </div>
         
-        <DialogFooter className="mt-4">
+        <DialogFooter className="mt-4 px-4 sm:px-6 pt-4 border-t">
           <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2 w-full">
             {categorizingQuiz ? (
               null
