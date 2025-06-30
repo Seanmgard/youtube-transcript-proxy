@@ -9,7 +9,6 @@ import {
   History, 
   Lightbulb, 
   CreditCard, 
-  LogOut, 
   Upload,
   User,
   BookOpen,
@@ -76,7 +75,7 @@ function UpgradeReminder() {
 export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
   const pathname = usePathname();
   const { toast } = useToast();
-  const { signOut, user } = useAuth();
+  const { user } = useAuth();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(userAvatar || null);
   const [isUploading, setIsUploading] = useState(false);
   const [supabase, setSupabase] = useState<any>(null);
@@ -157,18 +156,7 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
     }
   };
 
-  // Handle sign out
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-    } catch (error: any) {
-      toast({
-        title: 'Error signing out',
-        description: error.message,
-        variant: 'destructive',
-      });
-    }
-  };
+
 
   return (
     <>
@@ -293,21 +281,6 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
               <div className="mt-4 px-0">
                 <UpgradeReminder />
               </div>
-              
-              {/* Sign Out Button */}
-              <div className="mt-6 pt-4 border-t border-gray-200">
-                <Button 
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={() => {
-                    handleSignOut();
-                    setIsMobileMenuOpen(false);
-                  }}
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sign out
-                </Button>
-              </div>
             </div>
           </div>
         </>
@@ -334,12 +307,12 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
               </Link>
             );
           })}
-          
-          {/* Upgrade Reminder positioned after navigation */}
-          <div className="pt-3">
-            <UpgradeReminder />
-          </div>
         </nav>
+
+        {/* Upgrade Reminder positioned above quiz usage */}
+        <div className="p-4">
+          <UpgradeReminder />
+        </div>
 
         {/* Quiz Counter */}
         <QuizCounter />
@@ -385,15 +358,6 @@ export function Sidebar({ userEmail, userName, userAvatar }: SidebarProps) {
               </p>
             </div>
           </div>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="mt-4 w-full justify-start text-gray-700"
-            onClick={handleSignOut}
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            Sign out
-          </Button>
         </div>
       </aside>
     </>
