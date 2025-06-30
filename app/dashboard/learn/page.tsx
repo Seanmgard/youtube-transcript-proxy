@@ -170,7 +170,7 @@ export default function LearnPage() {
             settings: quiz.settings || {
               numberOfQuestions: quiz.questions?.length || 0,
               difficulty: 'medium',
-              questionType: 'mixed'
+              questionType: 'multiple_choice'
             },
             subject: quiz.subject || '',
             color: quiz.color || ''

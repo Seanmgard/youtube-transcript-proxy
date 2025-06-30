@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -10,24 +11,25 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
     }
 
-    const { quizId, title } = await request.json();
+    const body = await request.json();
+    const { quizId, title, questions } = body;
 
-    if (!quizId || !title || title.trim().length === 0) {
-      return NextResponse.json({ error: 'Quiz ID and title are required' }, { status: 400 });
+    if (!quizId) {
+      return NextResponse.json({ error: 'Quiz ID is required' }, { status: 400 });
     }
 
-    // Validate title length
-    if (title.trim().length > 200) {
-      return NextResponse.json({ error: 'Title is too long (max 200 characters)' }, { status: 400 });
-    }
+    // Prepare update data
+    const updateData: any = {};
+    if (title) updateData.title = title;
+    if (questions) updateData.questions = questions;
 
-    // Update the quiz title, but only if the user owns the quiz
-    const { data, error } = await supabase
+    // Update the quiz
+    const { data: quiz, error } = await supabase
       .from('quizzes')
-      .update({ title: title.trim() })
+      .update(updateData)
       .eq('id', quizId)
       .eq('user_id', user.id)
-      .select('id, title')
+      .select()
       .single();
 
     if (error) {
@@ -35,18 +37,9 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Failed to update quiz' }, { status: 500 });
     }
 
-    if (!data) {
-      return NextResponse.json({ error: 'Quiz not found or access denied' }, { status: 404 });
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      quiz: data,
-      message: 'Quiz title updated successfully' 
-    });
-
+    return NextResponse.json({ quiz });
   } catch (error) {
-    console.error('Error in update-quiz route:', error);
+    console.error('Error in PUT /api/update-quiz:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 

@@ -445,7 +445,7 @@ export default function QuizUploader() {
           <Label>Question Type</Label>
           <RadioGroup
             value={settings.questionType}
-            onValueChange={(val: 'multiple_choice' | 'open_ended' | 'mixed') =>
+            onValueChange={(val: 'multiple_choice' | 'open_ended' | 'cloze') =>
               setSettings({ ...settings, questionType: val })
             }
             className="mt-2 space-y-1"
@@ -460,8 +460,8 @@ export default function QuizUploader() {
               <Label htmlFor="open_ended">Open Ended</Label>
             </div>
             <div className="flex items-center space-x-2">
-              <RadioGroupItem value="mixed" id="mixed" disabled={isGenerating} />
-              <Label htmlFor="mixed">Mixed</Label>
+              <RadioGroupItem value="cloze" id="cloze" disabled={isGenerating} />
+              <Label htmlFor="cloze">Cloze Deletion</Label>
             </div>
           </RadioGroup>
         </div>

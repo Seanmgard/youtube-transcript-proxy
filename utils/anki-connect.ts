@@ -10,8 +10,9 @@ interface AnkiNote {
   deckName: string;
   modelName: string;
   fields: {
-    Front: string;
-    Back: string;
+    Front?: string;
+    Back?: string;
+    Text?: string; // For cloze deletion
   };
   options: {
     allowDuplicate: boolean;
@@ -144,28 +145,45 @@ export async function sendQuizToAnki(quiz: any, deckName: string) {
     // Prepare notes for Anki
     console.log('ANKI-CONNECT: Preparing notes from quiz questions...');
     const notes = quiz.questions.map((question: any) => {
-      let front = question.text;
-      
-      // For multiple choice questions, include the options
-      if (question.type === 'multiple_choice' && question.options) {
-        front += '<br><br>' + question.options.map((opt: string, i: number) => 
-          `${String.fromCharCode(97 + i)}) ${opt}`
-        ).join('<br>');
+      if (question.type === 'cloze') {
+        // For cloze deletion questions, use the Cloze model
+        return {
+          deckName: deckName,
+          modelName: "Cloze",
+          fields: {
+            Text: question.clozeText || question.text
+          },
+          options: {
+            allowDuplicate: false,
+            duplicateScope: "deck"
+          },
+          tags: [`quizlab-${quiz.id}`, "quizlab", "cloze"]
+        };
+      } else {
+        // For other question types, use the Basic model
+        let front = question.text;
+        
+        // For multiple choice questions, include the options
+        if (question.type === 'multiple_choice' && question.options) {
+          front += '<br><br>' + question.options.map((opt: string, i: number) => 
+            `${String.fromCharCode(97 + i)}) ${opt}`
+          ).join('<br>');
+        }
+        
+        return {
+          deckName: deckName,
+          modelName: "Basic",
+          fields: {
+            Front: front,
+            Back: question.correctAnswer
+          },
+          options: {
+            allowDuplicate: false,
+            duplicateScope: "deck"
+          },
+          tags: [`quizlab-${quiz.id}`, "quizlab"]
+        };
       }
-      
-      return {
-        deckName: deckName,
-        modelName: "Basic",
-        fields: {
-          Front: front,
-          Back: question.correctAnswer
-        },
-        options: {
-          allowDuplicate: false,
-          duplicateScope: "deck"
-        },
-        tags: [`quizlab-${quiz.id}`, "quizlab"]
-      };
     });
     
     console.log('ANKI-CONNECT: Prepared notes count:', notes.length);

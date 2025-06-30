@@ -28,13 +28,14 @@ import SubjectManager, { Subject } from './SubjectManager'
 import { User, SupabaseClient } from '@supabase/supabase-js'
 import { useAuth } from '@/app/providers/AuthProvider'
 import { useSupabase } from '@/utils/supabase/client'
-import { AnkiExportDialog } from './AnkiExportDialog'
+import { AnkiExportDialog } from '@/app/components/AnkiExportDialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu"
+import ClozeEditor from '@/app/components/ClozeEditor'
 
 // Helper function to determine text color based on background color
 const getContrastColor = (hexColor: string): string => {
@@ -379,9 +380,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
   const addNewQuestion = () => {
     if (selectedQuiz) {
       // Create a new question based on the quiz's question type setting
-      const questionType = selectedQuiz.settings.questionType === 'mixed' 
-        ? 'multiple_choice' // Default to multiple choice for mixed quizzes
-        : selectedQuiz.settings.questionType;
+      const questionType = selectedQuiz.settings.questionType || 'multiple_choice';
       
       const newQuestion: Question = {
         id: `temp-${Date.now()}`, // Temporary ID
@@ -696,8 +695,35 @@ export default function QuizHistory({ limit }: { limit?: number }) {
             selectedQuiz?.questions.map((question, index) => (
               <div key={index} className="mb-6">
                 <p className="font-medium mb-2">
-                  {index + 1}. {question.text}
+                  {index + 1}. {question.type === 'cloze' 
+                    ? (question as any).clozeText?.replace(/\{\{c1::(.*?)\}\}/g, '_______________')
+                    : question.text
+                  }
                 </p>
+                
+                {question.type === 'cloze' && (
+                  <ClozeEditor 
+                    question={question} 
+                    quizId={selectedQuiz.id}
+                    allQuestions={selectedQuiz.questions}
+                    onUpdate={(updatedQuestion: any) => {
+                      const updatedQuestions = [...selectedQuiz.questions];
+                      updatedQuestions[index] = updatedQuestion;
+                      // Update the selectedQuiz
+                      setSelectedQuiz({
+                        ...selectedQuiz,
+                        questions: updatedQuestions
+                      });
+                      // Also update the main quizzes list
+                      setQuizzes(quizzes.map(q => 
+                        q.id === selectedQuiz.id 
+                          ? {...q, questions: updatedQuestions}
+                          : q
+                      ));
+                    }}
+                  />
+                )}
+                
                 {question.type === 'multiple_choice' && question.options && (
                   <ul className="space-y-1 ml-6">
                     {question.options.map((option, optIndex) => {
@@ -723,7 +749,23 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                     })}
                   </ul>
                 )}
-                {question.correctAnswer && question.type !== 'multiple_choice' && (
+                {question.type === 'cloze' && (
+                  <div className="mt-3 ml-6">
+                    <div className="mb-2 p-3 bg-gray-50 dark:bg-gray-800 border rounded-lg">
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Original text:</p>
+                      <p className="text-gray-800 dark:text-gray-200">
+                        {(question as any).originalText || question.text}
+                      </p>
+                    </div>
+                    <div>
+                      <strong>Answer: </strong>
+                      <span className="bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md">
+                        {question.correctAnswer}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {question.correctAnswer && question.type !== 'multiple_choice' && question.type !== 'cloze' && (
                   <div className="mt-2 ml-6">
                     <strong>Answer: </strong>
                     <span className="bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md">

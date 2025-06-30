@@ -23,6 +23,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 
 export default function TakeExamPage() {
   // Use the useParams hook to get route parameters in a client component
@@ -166,7 +167,7 @@ export default function TakeExamPage() {
             settings: quiz.settings || {
               numberOfQuestions: quiz.questions?.length || 0,
               difficulty: 'medium',
-              questionType: 'mixed'
+              questionType: 'multiple_choice'
             },
             subject: quiz.subject || '',
             color: quiz.color || ''
@@ -576,7 +577,12 @@ export default function TakeExamPage() {
             {allQuestions.map((question, index) => (
               <div key={question.id} className="p-4 border rounded-lg">
                 <h3 className="text-lg font-medium mb-2">Question {index + 1}</h3>
-                <p className="mb-4">{question.text}</p>
+                <p className="mb-4">
+                  {question.type === 'cloze' 
+                    ? (question as any).clozeText?.replace(/\{\{c1::(.*?)\}\}/g, '_______________')
+                    : question.text
+                  }
+                </p>
                 
                 {question.type === 'multiple_choice' && question.options && (
                   <RadioGroup 
@@ -603,6 +609,21 @@ export default function TakeExamPage() {
                     className="w-full"
                     rows={3}
                   />
+                )}
+                
+                {question.type === 'cloze' && (
+                  <div>
+                    <Label htmlFor={`cloze-answer-${index}`} className="text-sm font-medium text-gray-700 mb-2 block">
+                      Fill in the blank:
+                    </Label>
+                    <Input
+                      id={`cloze-answer-${index}`}
+                      placeholder="Enter your answer..."
+                      value={userAnswers[question.id] || ''}
+                      onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                      className="text-lg w-full"
+                    />
+                  </div>
                 )}
               </div>
             ))}
