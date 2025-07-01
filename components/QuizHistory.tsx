@@ -903,7 +903,7 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
               <h4 className="font-medium text-gray-900 mb-2">Alternative options:</h4>
               <ul className="text-sm text-gray-700 space-y-1">
-                <li>• Export as CSV (compatible with Quizlet)</li>
+                <li>• Export as CSV (optimized for Quizlet flashcards)</li>
                 <li>• Export as Word document for manual import</li>
                 <li>• Study directly in QuizLab AI's Learn section</li>
               </ul>
@@ -974,7 +974,7 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
               </div>
               <div className="text-left">
                 <p className="font-semibold text-lg">CSV File</p>
-                <p className="text-green-100 text-sm">Import to Quizlet & other tools</p>
+                <p className="text-green-100 text-sm">Optimized for Quizlet flashcards</p>
               </div>
             </Button>
           </div>

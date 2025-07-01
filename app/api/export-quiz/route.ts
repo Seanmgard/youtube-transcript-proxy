@@ -248,21 +248,41 @@ async function generateDocFormat(quiz: any) {
 }
 
 function generateCsvFormat(quiz: any) {
-  // Format for Quizlet: Term,Definition
-  // For multiple choice, we'll include the options in the term
+  // Optimized format for Quizlet: Clean Term,Definition pairs for effective flashcard study
   let content = 'Term,Definition\n';
 
   quiz.questions.forEach((q: any) => {
     // Properly escape for CSV format
     // Double quotes need to be escaped with another double quote
-    let term = q.text.replace(/"/g, '""');
+    let term = '';
     let definition = q.correctAnswer.replace(/"/g, '""');
 
-    if (q.type === 'multiple_choice') {
-      // Include options in the term for multiple choice questions
-      term += '\n' + q.options.map((opt: string, i: number) => 
-        `${String.fromCharCode(97 + i)}) ${opt.replace(/"/g, '""')}`
-      ).join('\n');
+    switch (q.type) {
+      case 'multiple_choice':
+        // For multiple choice: Just use the question text as term, correct answer as definition
+        // This promotes active recall without giving away options
+        term = q.text.replace(/"/g, '""');
+        break;
+        
+      case 'cloze':
+        // For cloze deletion: Show text with blanks as term, missing word(s) as definition
+        if (q.clozeText) {
+          // Convert {{c1::answer}} format to blanks for Quizlet
+          term = q.clozeText.replace(/\{\{c1::(.*?)\}\}/g, '_____').replace(/"/g, '""');
+        } else if (q.originalText) {
+          // If we have original text, create a blank version
+          term = q.originalText.replace(new RegExp(q.correctAnswer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '_____').replace(/"/g, '""');
+        } else {
+          // Fallback: use question text
+          term = q.text.replace(/"/g, '""');
+        }
+        break;
+        
+      case 'open_ended':
+      default:
+        // For open-ended questions: Use question text as-is
+        term = q.text.replace(/"/g, '""');
+        break;
     }
 
     // Wrap in quotes to handle commas and newlines

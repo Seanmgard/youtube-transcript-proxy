@@ -874,7 +874,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Export as CSV (compatible with Quizlet)</p>
+                        <p>Export as CSV (optimized for Quizlet flashcards)</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
