@@ -588,6 +588,22 @@ export async function POST(request: Request) {
     }
 
     const { blobUrl, settings, transcriptText } = await request.json();
+
+    // Check subscription and enforce question limits
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('plan_type')
+      .eq('user_id', user.id)
+      .single();
+    
+    const isPremium = subscription?.plan_type === 'premium';
+    const maxQuestions = isPremium ? 50 : 10;
+    
+    if (settings.numberOfQuestions > maxQuestions) {
+      return NextResponse.json({ 
+        error: `Free users are limited to ${maxQuestions} questions per quiz. Upgrade to Premium for up to 50 questions.` 
+      }, { status: 403 });
+    }
     
     // Handle YouTube transcript or file upload
     if (settings.sourceType === 'youtube' && transcriptText) {

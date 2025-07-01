@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, Upload, Video } from 'lucide-react';
+import { Loader2, Upload, Video, Crown } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
 import { QuizSettings } from '@/lib/types';
+import { useSubscription } from '@/hooks/useSubscription';
 
 interface QuizUploaderProps {
   onQuizGenerated: (quiz: any) => void;
@@ -29,6 +30,11 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
     sourceType: 'file',
   });
   const { toast } = useToast();
+  const { isOnPlan } = useSubscription();
+  
+  // Set question limits based on subscription
+  const isPremium = isOnPlan('premium');
+  const maxQuestions = isPremium ? 50 : 10;
 
   const validateFile = (file: File): { valid: boolean; error?: string } => {
     // Check file size (50MB limit)
@@ -326,16 +332,38 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
           <div>
             <div className="flex justify-between items-center mb-2">
               <Label className="text-sm font-medium">Questions</Label>
-              <span className="text-sm text-gray-500">{settings.numberOfQuestions}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500">{settings.numberOfQuestions}</span>
+                {!isPremium && (
+                  <div className="flex items-center gap-1 text-xs text-amber-600">
+                    <Crown className="h-3 w-3" />
+                    <span>Free: Max {maxQuestions}</span>
+                  </div>
+                )}
+                {isPremium && (
+                                  <div className="flex items-center gap-1 text-xs text-green-600">
+                  <Crown className="h-3 w-3" />
+                  <span>Premium: Max {maxQuestions}</span>
+                </div>
+              )}
             </div>
-            <Slider
-              value={[settings.numberOfQuestions]}
-              min={5}
-              max={50}
-              step={1}
-              onValueChange={(value) => setSettings({ ...settings, numberOfQuestions: value[0] })}
-              disabled={isGenerating}
-            />
+          </div>
+          <Slider
+            value={[settings.numberOfQuestions]}
+            min={5}
+            max={maxQuestions}
+            step={1}
+            onValueChange={(value) => {
+              const newValue = Math.min(value[0], maxQuestions);
+              setSettings({ ...settings, numberOfQuestions: newValue });
+            }}
+            disabled={isGenerating}
+          />
+          {!isPremium && settings.numberOfQuestions >= maxQuestions && (
+            <p className="text-xs text-amber-600 mt-1">
+              Upgrade to Premium for up to 50 questions per quiz
+            </p>
+          )}
           </div>
 
           {/* Difficulty & Question Type in a Row */}

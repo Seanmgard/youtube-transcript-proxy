@@ -15,7 +15,7 @@ const tiers = [
     price: { monthly: '$0', annually: '$0' },
     description: 'Perfect for students just getting started with quiz generation.',
     features: [
-      '10 PDF uploads per month',
+      '5 PDF uploads per month',
       'Up to 10 questions per quiz',
       'Basic analytics',
       'Export to doc',

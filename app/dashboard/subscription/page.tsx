@@ -364,7 +364,7 @@ function SubscriptionPageContent() {
       period: 'forever',
       description: 'Perfect for students just getting started with quiz generation.',
       features: [
-        '10 PDF uploads per month',
+        '5 PDF uploads per month',
         'Up to 10 questions per quiz',
         'Basic analytics',
         'Export to doc',
@@ -386,7 +386,7 @@ function SubscriptionPageContent() {
       description: 'For less than the cost of your daily coffee ☕ - unlock unlimited learning potential for serious students and educators.',
       features: [
         'Unlimited PDF uploads',
-        'Up to 30 questions per quiz',
+        'Up to 50 questions per quiz',
         'Advanced analytics',
         'Export to doc and csv',
         'Priority support',
