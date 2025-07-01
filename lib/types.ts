@@ -19,6 +19,17 @@ export interface Question {
   correctAnswer: string;
   clozeText?: string; // For cloze deletion: text with {{c1::answer}} format
   originalText?: string; // For cloze deletion: original text without cloze markers
+  // Image functionality for flashcards (up to 2 images per side)
+  frontImages?: Array<{
+    url: string;
+    alt?: string;
+    size?: 'small' | 'medium' | 'large';
+  }>;
+  backImages?: Array<{
+    url: string;
+    alt?: string;
+    size?: 'small' | 'medium' | 'large';
+  }>;
 }
 
 export interface QuizSettings {

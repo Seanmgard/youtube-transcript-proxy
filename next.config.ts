@@ -19,6 +19,11 @@ const nextConfig: NextConfig = {
         hostname: 'www.quizlabai.com',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: '8gw01lugjr5wsfvx.public.blob.vercel-storage.com',
+        pathname: '/**',
+      },
     ],
   },
   async headers() {

@@ -130,12 +130,34 @@ async function generateDocFormat(quiz: any) {
     for (let i = 0; i < quiz.questions.length; i++) {
       const question = quiz.questions[i];
       
-      // Add question text
-      questionParagraphs.push(
-        new Paragraph({
-          text: `${i + 1}. ${question.text}`,
-        })
-      );
+              // Add question text
+        questionParagraphs.push(
+          new Paragraph({
+            text: `${i + 1}. ${question.text}`,
+          })
+        );
+        
+        // Add front images note if available
+        if (question.frontImages?.length || question.frontImage) {
+          // Handle new multi-image format
+          if (question.frontImages) {
+            question.frontImages.forEach((image: any, index: number) => {
+              questionParagraphs.push(
+                new Paragraph({
+                  text: `   [Question Image ${index + 1}: ${image.alt || 'Question image'} - ${image.url}]`,
+                })
+              );
+            });
+          }
+          // Handle legacy single image format
+          else if (question.frontImage) {
+            questionParagraphs.push(
+              new Paragraph({
+                text: `   [Question Image: ${question.frontImage.alt || 'Question image'} - ${question.frontImage.url}]`,
+              })
+            );
+          }
+        }
       
       // Add options for multiple choice
       if (question.type === 'multiple_choice' && question.options) {
@@ -192,6 +214,28 @@ async function generateDocFormat(quiz: any) {
           text: `${i + 1}. ${answerText}`,
         })
       );
+      
+      // Add back images note if available
+      if (question.backImages?.length || question.backImage) {
+        // Handle new multi-image format
+        if (question.backImages) {
+          question.backImages.forEach((image: any, index: number) => {
+            answerKeyParagraphs.push(
+              new Paragraph({
+                text: `   [Answer Image ${index + 1}: ${image.alt || 'Answer image'} - ${image.url}]`,
+              })
+            );
+          });
+        }
+        // Handle legacy single image format
+        else if (question.backImage) {
+          answerKeyParagraphs.push(
+            new Paragraph({
+              text: `   [Answer Image: ${question.backImage.alt || 'Answer image'} - ${question.backImage.url}]`,
+            })
+          );
+        }
+      }
     }
     
     // Create a simple document with minimal formatting
@@ -285,8 +329,38 @@ function generateCsvFormat(quiz: any) {
         break;
     }
 
+    // Add image URLs if present
+    let imageInfo = '';
+    const images = [];
+    
+    // Handle new multi-image format
+    if (q.frontImages?.length) {
+      q.frontImages.forEach((image: any, index: number) => {
+        images.push(`Front${q.frontImages.length > 1 ? ` ${index + 1}` : ''}: ${image.url}`);
+      });
+    }
+    // Handle legacy single image format
+    else if (q.frontImage) {
+      images.push(`Front: ${q.frontImage.url}`);
+    }
+    
+    // Handle new multi-image format for back
+    if (q.backImages?.length) {
+      q.backImages.forEach((image: any, index: number) => {
+        images.push(`Back${q.backImages.length > 1 ? ` ${index + 1}` : ''}: ${image.url}`);
+      });
+    }
+    // Handle legacy single image format for back
+    else if (q.backImage) {
+      images.push(`Back: ${q.backImage.url}`);
+    }
+    
+    if (images.length > 0) {
+      imageInfo = ` [Images: ${images.join(', ')}]`;
+    }
+
     // Wrap in quotes to handle commas and newlines
-    content += `"${term}","${definition}"\n`;
+    content += `"${term}${imageInfo}","${definition}"\n`;
   });
 
   return content;
@@ -301,6 +375,16 @@ function generateAnkiFormat(quiz: any) {
       // For cloze deletion, use the cloze text directly
       // Anki will import this as a cloze deletion card
       let clozeText = (q.clozeText || q.text).replace(/;/g, '\\;');
+      
+      // Add image references for Anki
+      if (q.frontImages?.length) {
+        q.frontImages.forEach((image: any) => {
+          clozeText += `<br><br><img src="${image.url}">`;
+        });
+      } else if (q.frontImage) {
+        clozeText += `<br><br><img src="${q.frontImage.url}">`;
+      }
+      
       content += `${clozeText}\n`;
     } else {
       // For other question types, use standard question;answer format
@@ -311,6 +395,23 @@ function generateAnkiFormat(quiz: any) {
         question += '\n' + q.options.map((opt: string, i: number) => 
           `${String.fromCharCode(97 + i)}) ${opt.replace(/;/g, '\\;')}`
         ).join('\n');
+      }
+
+      // Add images to question and answer sides for Anki
+      if (q.frontImages?.length) {
+        q.frontImages.forEach((image: any) => {
+          question += `<br><br><img src="${image.url}">`;
+        });
+      } else if (q.frontImage) {
+        question += `<br><br><img src="${q.frontImage.url}">`;
+      }
+      
+      if (q.backImages?.length) {
+        q.backImages.forEach((image: any) => {
+          answer += `<br><br><img src="${image.url}">`;
+        });
+      } else if (q.backImage) {
+        answer += `<br><br><img src="${q.backImage.url}">`;
       }
 
       content += `${question};${answer}\n`;

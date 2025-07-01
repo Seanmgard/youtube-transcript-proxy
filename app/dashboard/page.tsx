@@ -6,10 +6,10 @@ import { useAuth } from '@/app/providers/AuthProvider';
 import { useSupabase } from '@/utils/supabase/client';
 import QuizUploader from '@/app/components/QuizUploader';
 import QuizHistory from '@/components/QuizHistory';
-import { Loader2, FileDown, FileText, Send, Download, Check, Upload, Eye, Clock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Loader2, FileDown, FileText, Send, Download, Check, Upload, Eye, Clock, Edit, ZoomIn } from 'lucide-react';
+import { Button } from '@/app/components/ui/button';
 import Link from 'next/link';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/app/components/ui/use-toast';
 import { useSubscription } from '@/hooks/useSubscription';
 import {
   DropdownMenu,
@@ -25,15 +25,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/app/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/app/components/ui/input';
+import { Label } from '@/app/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { generateQuiz } from '@/utils/api-client';
-import { QuizSettings } from '@/lib/types';
+import { QuizSettings, Question } from '@/lib/types';
 import { AnkiExportDialog } from '@/app/components/AnkiExportDialog';
 import ClozeEditor from '@/app/components/ClozeEditor';
+import { QuestionEditor } from '@/app/components/QuestionEditor';
+import { ImageZoomModal } from '@/app/components/ImageZoomModal';
 
 export default function Dashboard() {
   const [currentQuiz, setCurrentQuiz] = useState<any>(null);
@@ -53,6 +54,13 @@ export default function Dashboard() {
   const [ankiDeckName, setAnkiDeckName] = useState('');
   const [sendingToAnki, setSendingToAnki] = useState(false);
   const [selectedQuizId, setSelectedQuizId] = useState<string | null>(null);
+  const [isQuestionEditorOpen, setIsQuestionEditorOpen] = useState(false);
+  const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<{
+    url: string;
+    alt: string;
+    title: string;
+  } | null>(null);
 
   // Load quiz from localStorage on component mount
   useEffect(() => {
@@ -478,6 +486,66 @@ export default function Dashboard() {
     setIsAnkiDialogOpen(false);
   };
 
+  // Question Editor functions
+  const openQuestionEditor = (questionIndex: number) => {
+    setEditingQuestionIndex(questionIndex);
+    setIsQuestionEditorOpen(true);
+  };
+
+  const closeQuestionEditor = () => {
+    setIsQuestionEditorOpen(false);
+    setEditingQuestionIndex(null);
+  };
+
+  const handleQuestionSave = async (updatedQuestion: Question) => {
+    if (!currentQuiz || editingQuestionIndex === null) return;
+
+    try {
+      // Update the question in the current quiz
+      const updatedQuestions = [...currentQuiz.questions];
+      updatedQuestions[editingQuestionIndex] = updatedQuestion;
+      
+      const updatedQuiz = {
+        ...currentQuiz,
+        questions: updatedQuestions
+      };
+
+      // If the quiz is saved (has an ID), update it in the database
+      if (currentQuiz.id) {
+        const response = await fetch('/api/update-quiz', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: currentQuiz.id,
+            questionIndex: editingQuestionIndex,
+            updatedQuestion
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to save question to database');
+        }
+      }
+
+      setCurrentQuiz(updatedQuiz);
+      closeQuestionEditor();
+      
+      toast({
+        title: "Question updated",
+        description: "Your question has been successfully updated!",
+      });
+    } catch (error) {
+      console.error('Error saving question:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save question. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Function to render the quiz content
   const renderQuizContent = () => {
     console.log('🎨 Dashboard: renderQuizContent called - currentQuiz:', currentQuiz, 'isStreaming:', isStreaming);
@@ -576,12 +644,80 @@ export default function Dashboard() {
         <div className="space-y-4">
           {questions.map((question: any, index: number) => (
             <div key={index} className="border-b border-gray-100 pb-4 last:border-b-0">
-              <p className="text-base font-medium text-gray-900 mb-2">
-                {index + 1}. {question.type === 'cloze' 
-                  ? (question.clozeText?.replace(/\{\{c1::(.*?)\}\}/g, '_______________') || question.text)
-                  : question.text
-                }
-              </p>
+              <div className="flex justify-between items-start mb-2">
+                <p className="text-base font-medium text-gray-900 flex-1">
+                  {index + 1}. {question.type === 'cloze' 
+                    ? (question.clozeText?.replace(/\{\{c1::(.*?)\}\}/g, '_______________') || question.text)
+                    : question.text
+                  }
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openQuestionEditor(index)}
+                  className="ml-2 flex items-center gap-1 text-xs h-8 px-2"
+                >
+                  <Edit className="h-3 w-3" />
+                  Edit
+                </Button>
+              </div>
+              
+              {/* Display front images if available */}
+              {(question.frontImages?.length || question.frontImage) && (
+                <div className="mb-3 ml-4 flex gap-2 flex-wrap">
+                  {/* Handle new multi-image format */}
+                  {question.frontImages?.map((image: any, imgIndex: number) => (
+                    <div key={imgIndex} className="relative inline-block p-2 bg-gray-50 rounded-lg border group cursor-pointer hover:shadow-md transition-all duration-200">
+                      <img
+                        src={image.url}
+                        alt={image.alt || `Question image ${imgIndex + 1}`}
+                        className={`rounded object-contain transition-all duration-200 ${
+                          image.size === 'small' ? 'max-h-20' :
+                          image.size === 'large' ? 'max-h-40' :
+                          'max-h-32'
+                        }`}
+                        onClick={() => setZoomedImage({
+                          url: image.url,
+                          alt: image.alt || `Question image ${imgIndex + 1}`,
+                          title: `Question Image ${question.frontImages?.length > 1 ? imgIndex + 1 : ''}`
+                        })}
+                      />
+                      {/* Zoom icon */}
+                      <div className="absolute top-1 right-1 bg-white/80 backdrop-blur-sm rounded-full p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <ZoomIn className="h-3 w-3 text-gray-600" />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Question Image {question.frontImages?.length > 1 ? imgIndex + 1 : ''}
+                      </p>
+                    </div>
+                  ))}
+                  
+                  {/* Handle legacy single image format */}
+                  {question.frontImage && !question.frontImages && (
+                    <div className="relative inline-block p-2 bg-gray-50 rounded-lg border group cursor-pointer hover:shadow-md transition-all duration-200">
+                      <img
+                        src={question.frontImage.url}
+                        alt={question.frontImage.alt || 'Question image'}
+                        className={`rounded object-contain transition-all duration-200 ${
+                          question.frontImage.size === 'small' ? 'max-h-20' :
+                          question.frontImage.size === 'large' ? 'max-h-40' :
+                          'max-h-32'
+                        }`}
+                        onClick={() => setZoomedImage({
+                          url: question.frontImage.url,
+                          alt: question.frontImage.alt || 'Question image',
+                          title: 'Question Image'
+                        })}
+                      />
+                      {/* Zoom icon */}
+                      <div className="absolute top-1 right-1 bg-white/80 backdrop-blur-sm rounded-full p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <ZoomIn className="h-3 w-3 text-gray-600" />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Question Image</p>
+                    </div>
+                  )}
+                </div>
+              )}
               
               {question.type === 'cloze' && (
                 <ClozeEditor 
@@ -604,6 +740,63 @@ export default function Dashboard() {
                       {String.fromCharCode(97 + optIndex)}) {option}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Display back images if available */}
+              {(question.backImages?.length || question.backImage) && (
+                <div className="mb-3 ml-4 flex gap-2 flex-wrap">
+                  {/* Handle new multi-image format */}
+                  {question.backImages?.map((image: any, imgIndex: number) => (
+                    <div key={imgIndex} className="relative inline-block p-2 bg-gray-50 rounded-lg border group cursor-pointer hover:shadow-md transition-all duration-200">
+                      <img
+                        src={image.url}
+                        alt={image.alt || `Answer image ${imgIndex + 1}`}
+                        className={`rounded object-contain transition-all duration-200 ${
+                          image.size === 'small' ? 'max-h-20' :
+                          image.size === 'large' ? 'max-h-40' :
+                          'max-h-32'
+                        }`}
+                        onClick={() => setZoomedImage({
+                          url: image.url,
+                          alt: image.alt || `Answer image ${imgIndex + 1}`,
+                          title: `Answer Image ${question.backImages?.length > 1 ? imgIndex + 1 : ''}`
+                        })}
+                      />
+                      {/* Zoom icon */}
+                      <div className="absolute top-1 right-1 bg-white/80 backdrop-blur-sm rounded-full p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <ZoomIn className="h-3 w-3 text-gray-600" />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Answer Image {question.backImages?.length > 1 ? imgIndex + 1 : ''}
+                      </p>
+                    </div>
+                  ))}
+                  
+                  {/* Handle legacy single image format */}
+                  {question.backImage && !question.backImages && (
+                    <div className="relative inline-block p-2 bg-gray-50 rounded-lg border group cursor-pointer hover:shadow-md transition-all duration-200">
+                      <img
+                        src={question.backImage.url}
+                        alt={question.backImage.alt || 'Answer image'}
+                        className={`rounded object-contain transition-all duration-200 ${
+                          question.backImage.size === 'small' ? 'max-h-20' :
+                          question.backImage.size === 'large' ? 'max-h-40' :
+                          'max-h-32'
+                        }`}
+                        onClick={() => setZoomedImage({
+                          url: question.backImage.url,
+                          alt: question.backImage.alt || 'Answer image',
+                          title: 'Answer Image'
+                        })}
+                      />
+                      {/* Zoom icon */}
+                      <div className="absolute top-1 right-1 bg-white/80 backdrop-blur-sm rounded-full p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <ZoomIn className="h-3 w-3 text-gray-600" />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Answer Image</p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -826,6 +1019,27 @@ export default function Dashboard() {
           isOpen={isAnkiDialogOpen}
           onClose={closeAnkiDialog}
           quizId={selectedQuizId}
+        />
+      )}
+
+      {/* Question Editor Dialog */}
+      {editingQuestionIndex !== null && currentQuiz?.questions[editingQuestionIndex] && (
+        <QuestionEditor
+          question={currentQuiz.questions[editingQuestionIndex]}
+          isOpen={isQuestionEditorOpen}
+          onClose={closeQuestionEditor}
+          onSave={handleQuestionSave}
+        />
+      )}
+
+      {/* Image Zoom Modal */}
+      {zoomedImage && (
+        <ImageZoomModal
+          isOpen={!!zoomedImage}
+          onClose={() => setZoomedImage(null)}
+          imageUrl={zoomedImage.url}
+          imageAlt={zoomedImage.alt}
+          imageTitle={zoomedImage.title}
         />
       )}
     </div>

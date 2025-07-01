@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback, KeyboardEvent } from 'react';
-import { Loader2, ArrowLeft, ThumbsUp, ThumbsDown, RotateCcw, ChevronLeft, ChevronRight, Check, X, CheckCircle, XCircle, AlertCircle, FileText, Send, Eye, EyeOff, Settings, Lightbulb, Brain, Zap, Trophy, Target, Edit } from 'lucide-react';
+import { Loader2, ArrowLeft, ThumbsUp, ThumbsDown, RotateCcw, ChevronLeft, ChevronRight, Check, X, CheckCircle, XCircle, AlertCircle, FileText, Send, Eye, EyeOff, Settings, Lightbulb, Brain, Zap, Trophy, Target, Edit, ZoomIn } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Quiz, Question, LearningProgress, QuestionStat } from '@/lib/types';
 import { useToast } from '@/app/components/ui/use-toast';
 import { Progress } from "@/app/components/ui/progress";
@@ -23,6 +24,8 @@ import { Input } from '@/app/components/ui/input'
 import { Label } from '@/app/components/ui/label'
 import { AnkiExportDialog } from '@/app/components/AnkiExportDialog'
 import ClozeEditor from '@/app/components/ClozeEditor';
+import { QuestionEditor } from '@/app/components/QuestionEditor';
+import { ImageZoomModal } from '@/app/components/ImageZoomModal';
 
 export default function LearnQuizPage() {
   // Use the useParams hook to get route parameters in a client component
@@ -50,6 +53,13 @@ export default function LearnQuizPage() {
   const [isAnkiDialogOpen, setIsAnkiDialogOpen] = useState(false);
   const [sendingToAnki, setSendingToAnki] = useState(false);
   const [editingCloze, setEditingCloze] = useState(false);
+  const [isQuestionEditorOpen, setIsQuestionEditorOpen] = useState(false);
+  const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<{
+    url: string;
+    alt: string;
+    title: string;
+  } | null>(null);
   
   // Combine loading states
   const isLoading = contentLoading || supabaseLoading;
@@ -541,6 +551,65 @@ export default function LearnQuizPage() {
     setIsAnkiDialogOpen(false);
   };
 
+  // Question Editor functions
+  const openQuestionEditor = () => {
+    setEditingQuestionIndex(currentQuestionIndex);
+    setIsQuestionEditorOpen(true);
+  };
+
+  const closeQuestionEditor = () => {
+    setIsQuestionEditorOpen(false);
+    setEditingQuestionIndex(null);
+  };
+
+  const handleQuestionSave = async (updatedQuestion: Question) => {
+    if (!quiz || editingQuestionIndex === null) return;
+
+    try {
+      // Update the question in the current quiz
+      const updatedQuestions = [...quiz.questions];
+      updatedQuestions[editingQuestionIndex] = updatedQuestion;
+      
+      const updatedQuiz = {
+        ...quiz,
+        questions: updatedQuestions
+      };
+
+      // Update it in the database
+      const response = await fetch('/api/update-quiz', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: quiz.id,
+          questionIndex: editingQuestionIndex,
+          updatedQuestion
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save question to database');
+      }
+
+      setQuiz(updatedQuiz);
+      closeQuestionEditor();
+      
+      toast({
+        title: "Question updated",
+        description: "Your flashcard has been successfully updated with images!",
+        className: "border-green-200 bg-green-50 text-green-900",
+      });
+    } catch (error) {
+      console.error('Error saving question:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save question. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleClozeUpdate = async (updatedQuestion: any) => {
     if (!quiz || !supabase) return;
     
@@ -756,6 +825,18 @@ export default function LearnQuizPage() {
                       {currentQuestion?.type === 'multiple_choice' ? 'Multiple Choice' : 
                        currentQuestion?.type === 'cloze' ? 'Cloze Deletion' : 'Open Ended'}
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openQuestionEditor();
+                      }}
+                      className="text-xs h-6 px-2"
+                    >
+                      <Edit className="h-3 w-3 mr-1" />
+                      Edit
+                    </Button>
                     {currentQuestion?.type === 'cloze' && !editingCloze && (
                       <Button
                         variant="outline"
@@ -767,7 +848,7 @@ export default function LearnQuizPage() {
                         className="text-xs h-6 px-2"
                       >
                         <Edit className="h-3 w-3 mr-1" />
-                        Edit
+                        Cloze
                       </Button>
                     )}
                   </div>
@@ -800,6 +881,76 @@ export default function LearnQuizPage() {
                         : currentQuestion?.text
                       }
                     </h2>
+                    
+                    {/* Front Images */}
+                    {((currentQuestion?.frontImages && currentQuestion.frontImages.length > 0) || 
+                      (currentQuestion as any)?.frontImage) && (
+                      <div className="mb-6 flex justify-center">
+                        <div className="flex flex-wrap gap-4 justify-center max-w-4xl w-full">
+                          {/* Handle new multi-image format */}
+                          {currentQuestion?.frontImages?.map((image, index) => (
+                            <div key={index} className="relative group">
+                              <Image
+                                src={image.url}
+                                alt={image.alt || `Question image ${index + 1}`}
+                                width={currentQuestion.frontImages?.length === 1 ? 500 : 350}
+                                height={currentQuestion.frontImages?.length === 1 ? 350 : 250}
+                                className={`rounded-lg shadow-md object-contain transition-all duration-200 hover:shadow-lg ${
+                                  image.size === 'small' ? 'max-h-48' :
+                                  image.size === 'large' ? 'max-h-96' :
+                                  currentQuestion.frontImages?.length === 1 ? 'max-h-80' : 'max-h-64'
+                                }`}
+                              />
+                              {/* Top right zoom icon */}
+                              <div 
+                                className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-full p-1.5 shadow-md md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-opacity duration-200 cursor-pointer hover:bg-white z-10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setZoomedImage({
+                                    url: image.url,
+                                    alt: image.alt || `Question image ${index + 1}`,
+                                    title: `Question Image ${currentQuestion.frontImages && currentQuestion.frontImages.length > 1 ? index + 1 : ''}`
+                                  });
+                                }}
+                              >
+                                <ZoomIn className="h-3 w-3 text-gray-600" />
+                              </div>
+                            </div>
+                          ))}
+                          
+                                                                                {/* Handle legacy single image format */}
+                          {(currentQuestion as any)?.frontImage && !currentQuestion?.frontImages && (
+                            <div className="relative group">
+                              <Image
+                                src={(currentQuestion as any).frontImage.url}
+                                alt={(currentQuestion as any).frontImage.alt || 'Question image'}
+                                width={500}
+                                height={350}
+                                className={`rounded-lg shadow-md object-contain transition-all duration-200 hover:shadow-lg ${
+                                  (currentQuestion as any).frontImage.size === 'small' ? 'max-h-48' :
+                                  (currentQuestion as any).frontImage.size === 'large' ? 'max-h-96' :
+                                  'max-h-80'
+                                }`}
+                              />
+                              {/* Top right zoom icon */}
+                              <div 
+                                className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-full p-1.5 shadow-md md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-opacity duration-200 cursor-pointer hover:bg-white z-10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setZoomedImage({
+                                    url: (currentQuestion as any).frontImage.url,
+                                    alt: (currentQuestion as any).frontImage.alt || 'Question image',
+                                    title: 'Question Image'
+                                  });
+                                }}
+                              >
+                                <ZoomIn className="h-3 w-3 text-gray-600" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Multiple Choice Options (if enabled) */}
                     {showOptions && currentQuestion?.type === 'multiple_choice' && currentQuestion?.options && (
@@ -906,19 +1057,31 @@ export default function LearnQuizPage() {
                       {isCorrect === true ? 'Correct!' : isCorrect === false ? 'Incorrect' : 'Answer'}
                     </span>
                   </div>
-                  <div className={`text-xs font-medium px-2 md:px-2.5 py-1 rounded-full ${
-                    isCorrect === true 
-                      ? 'text-green-700 bg-green-100' 
-                      : isCorrect === false
-                      ? 'text-red-700 bg-red-100'
-                      : 'text-green-700 bg-green-100'
-                  }`}>
-                    {isCorrect === true ? 'Great!' : isCorrect === false ? 'Try Again' : 'Solution'}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={openQuestionEditor}
+                      className="flex items-center gap-1 text-xs h-7 px-2 bg-white/80 hover:bg-white border-gray-200 hover:border-gray-300"
+                    >
+                      <Edit className="h-3 w-3" />
+                      <span className="hidden sm:inline">Edit</span>
+                    </Button>
+                    <div className={`text-xs font-medium px-2 md:px-2.5 py-1 rounded-full ${
+                      isCorrect === true 
+                        ? 'text-green-700 bg-green-100' 
+                        : isCorrect === false
+                        ? 'text-red-700 bg-red-100'
+                        : 'text-green-700 bg-green-100'
+                    }`}>
+                      {isCorrect === true ? 'Great!' : isCorrect === false ? 'Try Again' : 'Solution'}
+                    </div>
                   </div>
                 </div>
                 
                 {/* Answer Content */}
-            <div className="flex-grow flex items-center justify-center">
+            <div className="flex-grow flex flex-col items-center justify-center">
+              
               {currentQuestion?.type === 'multiple_choice' && currentQuestion?.options ? (
                 (() => {
                   // Try to find the correct answer using multiple matching strategies
@@ -1052,6 +1215,76 @@ export default function LearnQuizPage() {
                       </p>
                     </>
                   )}
+                </div>
+              )}
+
+              {/* Back Images - displayed after the answer */}
+              {((currentQuestion?.backImages && currentQuestion.backImages.length > 0) || 
+                (currentQuestion as any)?.backImage) && (
+                <div className="mt-6 flex justify-center">
+                  <div className="flex flex-wrap gap-4 justify-center max-w-4xl w-full">
+                    {/* Handle new multi-image format */}
+                    {currentQuestion?.backImages?.map((image, index) => (
+                                             <div key={index} className="relative group">
+                                                 <Image
+                           src={image.url}
+                           alt={image.alt || `Answer image ${index + 1}`}
+                           width={currentQuestion.backImages?.length === 1 ? 500 : 350}
+                           height={currentQuestion.backImages?.length === 1 ? 350 : 250}
+                           className={`rounded-lg shadow-md object-contain transition-all duration-200 hover:shadow-lg ${
+                             image.size === 'small' ? 'max-h-48' :
+                             image.size === 'large' ? 'max-h-96' :
+                             currentQuestion.backImages?.length === 1 ? 'max-h-80' : 'max-h-64'
+                           }`}
+                         />
+                        {/* Top right zoom icon */}
+                        <div 
+                          className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-full p-1.5 shadow-md md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-opacity duration-200 cursor-pointer hover:bg-white z-10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setZoomedImage({
+                              url: image.url,
+                              alt: image.alt || `Answer image ${index + 1}`,
+                              title: `Answer Image ${currentQuestion.backImages && currentQuestion.backImages.length > 1 ? index + 1 : ''}`
+                            });
+                          }}
+                        >
+                          <ZoomIn className="h-3 w-3 text-gray-600" />
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {/* Handle legacy single image format */}
+                    {(currentQuestion as any)?.backImage && !currentQuestion?.backImages && (
+                      <div className="relative group">
+                                                 <Image
+                           src={(currentQuestion as any).backImage.url}
+                           alt={(currentQuestion as any).backImage.alt || 'Answer image'}
+                           width={500}
+                           height={350}
+                           className={`rounded-lg shadow-md object-contain transition-all duration-200 hover:shadow-lg ${
+                             (currentQuestion as any).backImage.size === 'small' ? 'max-h-48' :
+                             (currentQuestion as any).backImage.size === 'large' ? 'max-h-96' :
+                             'max-h-80'
+                           }`}
+                         />
+                        {/* Top right zoom icon */}
+                        <div 
+                          className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-full p-1.5 shadow-md md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-opacity duration-200 cursor-pointer hover:bg-white z-10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setZoomedImage({
+                              url: (currentQuestion as any).backImage.url,
+                              alt: (currentQuestion as any).backImage.alt || 'Answer image',
+                              title: 'Answer Image'
+                            });
+                          }}
+                        >
+                          <ZoomIn className="h-3 w-3 text-gray-600" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -1254,6 +1487,27 @@ export default function LearnQuizPage() {
           isOpen={isAnkiDialogOpen}
           onClose={closeAnkiDialog}
           quizId={quiz.id}
+        />
+      )}
+
+      {/* Question Editor Dialog */}
+      {editingQuestionIndex !== null && quiz?.questions[editingQuestionIndex] && (
+        <QuestionEditor
+          question={quiz.questions[editingQuestionIndex]}
+          isOpen={isQuestionEditorOpen}
+          onClose={closeQuestionEditor}
+          onSave={handleQuestionSave}
+        />
+      )}
+
+      {/* Image Zoom Modal */}
+      {zoomedImage && (
+        <ImageZoomModal
+          isOpen={!!zoomedImage}
+          onClose={() => setZoomedImage(null)}
+          imageUrl={zoomedImage.url}
+          imageAlt={zoomedImage.alt}
+          imageTitle={zoomedImage.title}
         />
       )}
       </div>
