@@ -216,7 +216,7 @@ export default function CreateExamPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+        <div className="p-6 bg-white rounded-lg shadow-md">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">Exam Details</h2>
             <div className="flex gap-2">
@@ -264,13 +264,13 @@ export default function CreateExamPage() {
           </div>
         </div>
         
-        <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+        <div className="p-6 bg-white rounded-lg shadow-md">
           <h2 className="text-xl font-semibold mb-4">Select Quizzes</h2>
           
           {quizzes.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500 dark:text-gray-400">No quizzes available.</p>
-              <p className="text-gray-500 dark:text-gray-400 mt-2">Create quizzes first to include them in your exam.</p>
+              <p className="text-gray-500">No quizzes available.</p>
+              <p className="text-gray-500 mt-2">Create quizzes first to include them in your exam.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -284,8 +284,8 @@ export default function CreateExamPage() {
                     key={quiz.id} 
                     className={`p-4 rounded-lg border ${
                       selectedQuizIds.includes(quiz.id) 
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
-                        : 'border-gray-200 dark:border-gray-700'
+                        ? 'border-blue-500 bg-blue-50' 
+                        : 'border-gray-200'
                     }`}
                   >
                     <div className="flex items-start">

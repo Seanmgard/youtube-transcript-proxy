@@ -832,8 +832,6 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
         </Dialog>
       )}
 
-
-
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>

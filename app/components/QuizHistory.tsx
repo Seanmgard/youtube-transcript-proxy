@@ -442,7 +442,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
   if (quizzes.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-gray-500 dark:text-gray-400">No quizzes generated yet. Upload a PDF to get started!</p>
+        <p className="text-gray-500">No quizzes generated yet. Upload a PDF to get started!</p>
       </div>
     )
   }
@@ -453,10 +453,10 @@ export default function QuizHistory({ limit }: { limit?: number }) {
       {quizzes.map((quiz) => (
         <div
           key={quiz.id}
-          className={`p-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${
+          className={`p-4 rounded-lg hover:bg-gray-100 transition-colors ${
             quiz.subject && quiz.color 
               ? 'border-l-4' 
-              : 'bg-gray-50 dark:bg-gray-700'
+              : 'bg-gray-50'
           }`}
           style={quiz.subject && quiz.color ? {
             borderLeftColor: quiz.color,
@@ -479,25 +479,25 @@ export default function QuizHistory({ limit }: { limit?: number }) {
               </div>
             ) : null}
             
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="font-semibold">{quiz.title}</h3>
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <h3 className="font-medium text-gray-900 mb-1">{quiz.title}</h3>
                 <div className="flex flex-wrap gap-x-4 mt-1">
-                  <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
+                  <p className="text-sm text-gray-500 flex items-center">
                     <Calendar className="h-3.5 w-3.5 mr-1" />
                     {new Date(quiz.created_at).toLocaleDateString()}
                   </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
-                    <FileText className="h-3.5 w-3.5 mr-1" />
-                    {quiz.questions.length} questions
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
-                    <BarChart3 className="h-3.5 w-3.5 mr-1" />
-                    {quiz.settings.difficulty} difficulty
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
+                  <p className="text-sm text-gray-500 flex items-center">
                     <Clock className="h-3.5 w-3.5 mr-1" />
-                    {quiz.settings.questionType} questions
+                    {quiz.questions?.length || 0} questions
+                  </p>
+                  <p className="text-sm text-gray-500 flex items-center">
+                    <BarChart3 className="h-3.5 w-3.5 mr-1" />
+                    {quiz.settings?.difficulty || 'Medium'}
+                  </p>
+                  <p className="text-sm text-gray-500 flex items-center">
+                    <FileText className="h-3.5 w-3.5 mr-1" />
+                    {quiz.settings?.questionType || 'Multiple Choice'}
                   </p>
                 </div>
               </div>
@@ -741,7 +741,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                       
                       return (
                         <li key={optIndex} className="flex items-start">
-                          <span className={`${isCorrect ? 'bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md' : ''}`}>
+                          <span className={`${isCorrect ? 'bg-green-100 px-2 py-1 rounded-md' : ''}`}>
                             • {option}
                           </span>
                         </li>
@@ -751,15 +751,15 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                 )}
                 {question.type === 'cloze' && (
                   <div className="mt-3 ml-6">
-                    <div className="mb-2 p-3 bg-gray-50 dark:bg-gray-800 border rounded-lg">
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Original text:</p>
-                      <p className="text-gray-800 dark:text-gray-200">
+                    <div className="mb-2 p-3 bg-gray-50 border rounded-lg">
+                      <p className="text-sm text-gray-600 mb-1">Original text:</p>
+                      <p className="text-gray-800">
                         {(question as any).originalText || question.text}
                       </p>
                     </div>
                     <div>
                       <strong>Answer: </strong>
-                      <span className="bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md">
+                      <span className="bg-green-100 px-2 py-1 rounded-md">
                         {question.correctAnswer}
                       </span>
                     </div>
@@ -768,7 +768,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                 {question.correctAnswer && question.type !== 'multiple_choice' && question.type !== 'cloze' && (
                   <div className="mt-2 ml-6">
                     <strong>Answer: </strong>
-                    <span className="bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md">
+                    <span className="bg-green-100 px-2 py-1 rounded-md">
                       {question.correctAnswer}
                     </span>
                   </div>

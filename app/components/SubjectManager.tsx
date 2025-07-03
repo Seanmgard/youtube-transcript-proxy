@@ -235,43 +235,54 @@ export default function SubjectManager({ onSelectSubject, selectedSubjectId }: S
         </div>
       ) : (
         <div className="space-y-2">
-          <div 
-            className={`flex justify-between items-center p-2 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 ${!selectedSubjectId ? 'bg-gray-100 dark:bg-gray-800' : ''}`}
-            onClick={() => handleSelectSubject(null)}
-          >
-            <span>No Subject</span>
-            {!selectedSubjectId && <Check className="h-4 w-4 text-primary" />}
-          </div>
-          
-          {subjects.map(subject => (
+          {!selectedSubjectId && (
             <div 
-              key={subject.id} 
-              className={`flex justify-between items-center p-2 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 ${selectedSubjectId === subject.id ? 'bg-gray-100 dark:bg-gray-800' : ''}`}
-              onClick={() => handleSelectSubject(subject)}
+              className={`flex justify-between items-center p-2 rounded-md cursor-pointer hover:bg-gray-100 ${!selectedSubjectId ? 'bg-gray-100' : ''}`}
+              onClick={() => handleSelectSubject(null)}
             >
               <div className="flex items-center">
-                <div 
-                  className="h-4 w-4 rounded-full mr-2" 
-                  style={{ backgroundColor: subject.color }}
-                ></div>
-                <span>{subject.name}</span>
+                <div className="h-4 w-4 rounded-full mr-2 bg-gray-300"></div>
+                <span>All Subjects</span>
               </div>
               <div className="flex items-center">
-                {selectedSubjectId === subject.id && <Check className="h-4 w-4 text-primary mr-2" />}
-                <Button 
-                  size="icon" 
-                  variant="ghost" 
-                  className="h-6 w-6"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    deleteSubject(subject.id)
-                  }}
-                >
-                  <X className="h-4 w-4 text-gray-500 hover:text-red-500" />
-                </Button>
+                <Check className="h-4 w-4 text-primary mr-2" />
               </div>
             </div>
-          ))}
+          )}
+          
+          {subjects.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {subjects.map(subject => (
+                <div 
+                  key={subject.id} 
+                  className={`flex justify-between items-center p-2 rounded-md cursor-pointer hover:bg-gray-100 ${selectedSubjectId === subject.id ? 'bg-gray-100' : ''}`}
+                  onClick={() => handleSelectSubject(subject)}
+                >
+                  <div className="flex items-center">
+                    <div 
+                      className="h-4 w-4 rounded-full mr-2" 
+                      style={{ backgroundColor: subject.color }}
+                    ></div>
+                    <span>{subject.name}</span>
+                  </div>
+                  <div className="flex items-center">
+                    {selectedSubjectId === subject.id && <Check className="h-4 w-4 text-primary mr-2" />}
+                    <Button 
+                      size="icon" 
+                      variant="ghost" 
+                      className="h-6 w-6"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteSubject(subject.id)
+                      }}
+                    >
+                      <X className="h-4 w-4 text-gray-500 hover:text-red-500" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

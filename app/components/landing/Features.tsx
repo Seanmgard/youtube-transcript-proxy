@@ -65,16 +65,16 @@ const item = {
 
 export function Features() {
   return (
-    <div id="features" className="bg-white dark:bg-gray-900 py-12 sm:py-16">
+    <div id="features" className="bg-white py-12 sm:py-16">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-base font-semibold leading-7 text-indigo-600 dark:text-indigo-400">
+          <h2 className="text-base font-semibold leading-7 text-indigo-600">
             Powerful Features
           </h2>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
+          <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
             Everything you need to enhance your learning
           </p>
-          <p className="mt-4 text-lg leading-8 text-gray-600 dark:text-gray-300">
+          <p className="mt-4 text-lg leading-8 text-gray-600">
             Our platform offers a comprehensive set of tools designed to make studying more efficient and effective.
           </p>
         </div>
@@ -92,13 +92,13 @@ export function Features() {
                 className="relative pl-16"
                 variants={item}
               >
-                <dt className="text-base font-semibold leading-7 text-gray-900 dark:text-white">
+                <dt className="text-base font-semibold leading-7 text-gray-900">
                   <div className={`absolute left-0 top-0 flex h-10 w-10 items-center justify-center rounded-lg ${feature.color}`}>
                     <feature.icon className={`h-6 w-6 ${feature.textColor}`} aria-hidden="true" />
                   </div>
                   {feature.name}
                 </dt>
-                <dd className="mt-2 text-base leading-7 text-gray-600 dark:text-gray-300">
+                <dd className="mt-2 text-base leading-7 text-gray-600">
                   {feature.description}
                 </dd>
               </motion.div>

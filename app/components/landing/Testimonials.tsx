@@ -35,37 +35,31 @@ export function Testimonials() {
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             viewport={{ once: true, amount: 0.2 }}
-            className="flex flex-col md:flex-row gap-8 items-center rounded-2xl bg-white p-8 shadow-lg ring-1 ring-gray-200 dark:bg-gray-900 dark:ring-gray-700"
+            className="flex flex-col md:flex-row gap-8 items-center rounded-2xl bg-white p-8 shadow-lg ring-1 ring-gray-200"
           >
-            <div className="w-full md:w-1/3 flex flex-col items-center">
-              <div className="relative w-48 h-48 rounded-full overflow-hidden mb-4">
-                <Image
-                  src={testimonial.avatar}
-                  alt={testimonial.author}
-                  fill
-                  className="object-cover"
-                  priority
-                />
-              </div>
-              <div className="text-center">
-                <p className="text-xl font-semibold text-gray-900 dark:text-white">
-                  {testimonial.author}
-                </p>
-                <p className="text-md text-indigo-600 dark:text-indigo-400">
-                  {testimonial.role}
-                </p>
-                <div className="flex justify-center items-center space-x-1 text-yellow-400 mt-2">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-5 w-5 fill-current" />
-                  ))}
-                </div>
-              </div>
+            <div className="flex-shrink-0">
+              <Image
+                src={testimonial.avatar}
+                alt={testimonial.author}
+                width={96}
+                height={96}
+                className="h-24 w-24 rounded-full object-cover"
+              />
             </div>
-            
-            <div className="w-full md:w-2/3">
-              <p className="text-lg leading-relaxed text-gray-700 dark:text-gray-300 italic">
-                "{testimonial.content}"
-              </p>
+            <div className="text-center md:text-left">
+              <blockquote>
+                <p className="text-xl font-semibold text-gray-900">
+                  "{testimonial.content}"
+                </p>
+                <footer className="mt-4">
+                  <p className="text-md text-indigo-600">
+                    {testimonial.author}
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {testimonial.role}
+                  </p>
+                </footer>
+              </blockquote>
             </div>
           </motion.div>
         </div>

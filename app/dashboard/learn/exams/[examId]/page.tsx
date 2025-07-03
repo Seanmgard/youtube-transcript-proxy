@@ -378,7 +378,7 @@ export default function TakeExamPage() {
           <h1 className="text-2xl font-bold">{exam.title} - Results</h1>
         </div>
 
-        <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+        <div className="p-6 bg-white rounded-lg shadow-md">
           <div className="text-center mb-6">
             <h2 className="text-2xl font-bold mb-2">Exam Completed!</h2>
             <p className="text-gray-500">
@@ -530,7 +530,7 @@ export default function TakeExamPage() {
           <h1 className="text-2xl font-bold">{exam.title}</h1>
         </div>
 
-        <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800 text-center">
+        <div className="p-6 bg-white rounded-lg shadow-md text-center">
           <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
           <h2 className="text-xl font-semibold mb-2">No questions available</h2>
           <p className="text-gray-500 mb-4">This exam doesn't contain any questions. Please edit the exam to include quizzes with questions.</p>
@@ -554,18 +554,22 @@ export default function TakeExamPage() {
         <h1 className="text-2xl font-bold">{exam.title}</h1>
       </div>
 
-      <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+      <div className="p-6 bg-white rounded-lg shadow-md">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">{exam.title}</h2>
+        </div>
+
         <div className="mb-6">
           <h2 className="text-xl font-semibold mb-2">Exam Instructions</h2>
-          <p className="text-gray-600 dark:text-gray-300">
+          <p className="text-gray-600">
             This exam contains {allQuestions.length} questions from {quizzes.length} {quizzes.length === 1 ? 'quiz' : 'quizzes'}.
             Answer all questions and click "Submit Exam" at the bottom when you're finished.
             You will see your results after submission.
           </p>
           {exam.description && (
-            <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-md">
+            <div className="mt-4 p-4 bg-gray-50 rounded-md">
               <h3 className="text-sm font-medium mb-1">Exam Description:</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">{exam.description}</p>
+              <p className="text-sm text-gray-600">{exam.description}</p>
             </div>
           )}
         </div>
@@ -649,6 +653,8 @@ export default function TakeExamPage() {
           </div>
         </form>
       </div>
+
+
     </div>
   );
 } 

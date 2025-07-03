@@ -139,7 +139,7 @@ export default function QuizUploader() {
                   
                   return (
                     <li key={idx} className="flex items-center">
-                      <span className={`${isCorrect ? 'bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md' : ''}`}>
+                      <span className={`${isCorrect ? 'bg-green-100 px-2 py-1 rounded-md' : ''}`}>
                         • {opt}
                       </span>
                     </li>
@@ -150,7 +150,7 @@ export default function QuizUploader() {
             {q.correctAnswer && q.type !== 'multiple_choice' && (
               <div className="mt-2 text-sm">
                 <strong>Answer: </strong>
-                <span className="bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-md">
+                <span className="bg-green-100 px-2 py-1 rounded-md">
                   {q.correctAnswer}
                 </span>
               </div>
@@ -484,7 +484,7 @@ export default function QuizUploader() {
       </form>
 
       {/* Quiz Preview */}
-      <div className="mt-8 bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+      <div className="mt-8 bg-gray-50 rounded-lg p-6">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Quiz Preview</h3>
           {isGenerating && streamingResponse && (
@@ -502,7 +502,7 @@ export default function QuizUploader() {
         {!isGenerating && !streamingResponse ? (
           <div className="text-center py-8">
             <h4 className="text-xl font-semibold mb-2">Awaiting Instructions</h4>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-gray-600">
               We are ready to produce your practice questions
             </p>
           </div>
@@ -533,11 +533,35 @@ export default function QuizUploader() {
         ) : (
           <div className="text-center py-8">
             <div className="animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-gray-600">
               Generating quiz...
             </p>
           </div>
         )}
+      </div>
+
+      <div className="mt-8 bg-gray-50 rounded-lg p-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">How to Use</h3>
+        <div className="space-y-4">
+          <div>
+            <h4 className="font-medium text-gray-900">Step 1: Upload Your Study Material</h4>
+            <p className="text-gray-600">
+              Upload PDF files, images, or documents containing the content you want to study.
+            </p>
+          </div>
+          <div>
+            <h4 className="font-medium text-gray-900">Step 2: Choose Your Settings</h4>
+            <p className="text-gray-600">
+              Select the difficulty level and question type that best fits your learning needs.
+            </p>
+          </div>
+          <div>
+            <h4 className="font-medium text-gray-900">Step 3: Generate & Study</h4>
+            <p className="text-gray-600">
+              Our AI will create personalized quiz questions based on your material. Study and track your progress!
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
