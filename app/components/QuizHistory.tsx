@@ -483,116 +483,119 @@ export default function QuizHistory({ limit }: { limit?: number }) {
               <div className="flex-1">
                 <h3 className="font-medium text-gray-900 mb-1">{quiz.title}</h3>
                 <div className="flex flex-wrap gap-x-4 mt-1">
-                  <p className="text-sm text-gray-500 flex items-center">
+                  <p className="text-sm text-gray-600 flex items-center">
                     <Calendar className="h-3.5 w-3.5 mr-1" />
                     {new Date(quiz.created_at).toLocaleDateString()}
                   </p>
-                  <p className="text-sm text-gray-500 flex items-center">
+                  <p className="text-sm text-gray-600 flex items-center">
                     <Clock className="h-3.5 w-3.5 mr-1" />
                     {quiz.questions?.length || 0} questions
                   </p>
-                  <p className="text-sm text-gray-500 flex items-center">
+                  <p className="text-sm text-gray-600 flex items-center">
                     <BarChart3 className="h-3.5 w-3.5 mr-1" />
                     {quiz.settings?.difficulty || 'Medium'}
                   </p>
-                  <p className="text-sm text-gray-500 flex items-center">
+                  <p className="text-sm text-gray-600 flex items-center">
                     <FileText className="h-3.5 w-3.5 mr-1" />
                     {quiz.settings?.questionType || 'Multiple Choice'}
                   </p>
                 </div>
               </div>
-            </div>
-            
-            {/* Action Buttons - Touch scrollable on mobile */}
-            <div className="mt-4 -mb-1 overflow-x-auto scrollbar-none md:overflow-x-visible">
-              <div className="flex space-x-2 min-w-max md:min-w-0 touch-pan-x">
-                {!quiz.subject ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs text-gray-500 hover:text-primary whitespace-nowrap"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startCategorizing(quiz);
-                    }}
-                  >
-                    <BookmarkPlus className="h-3 w-3 mr-1" />
-                    Add Subject
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="whitespace-nowrap"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startCategorizing(quiz);
-                    }}
-                  >
-                    <Tag className="mr-2 h-3 w-3" />
-                    Edit Subject
-                  </Button>
-                )}
 
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openDeleteConfirmation(quiz);
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Delete quiz</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <FileText className="mr-2 h-3 w-3" />
-                      Export
+              {/* Action Buttons - Touch scrollable on mobile */}
+              <div className="mt-4 -mb-1 overflow-x-auto scrollbar-none md:overflow-x-visible">
+                <div className="flex space-x-2 min-w-max md:min-w-0 touch-pan-x">
+                  {!quiz.subject ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs text-gray-600 hover:text-gray-900 whitespace-nowrap"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startCategorizing(quiz);
+                      }}
+                    >
+                      <BookmarkPlus className="h-3 w-3 mr-1" />
+                      Add Subject
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem 
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-gray-700 border-gray-300 hover:bg-gray-50 whitespace-nowrap"
                       onClick={(e) => {
-                        e.preventDefault();
                         e.stopPropagation();
-                        handleExport(quiz, 'doc');
+                        startCategorizing(quiz);
                       }}
                     >
-                      Export as DOCX
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleExport(quiz, 'csv');
-                      }}
-                    >
-                      Export as CSV
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleAnkiExport(quiz);
-                      }}
-                      className="flex items-center"
-                    >
-                      <Send className="mr-2 h-4 w-4" />
-                      Export to Anki
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      <Tag className="mr-2 h-3 w-3" />
+                      Edit Subject
+                    </Button>
+                  )}
+
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 border-red-300 hover:bg-red-50"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDeleteConfirmation(quiz);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Delete quiz</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="text-gray-700 border-gray-300 hover:bg-gray-50">
+                        <FileText className="mr-2 h-3 w-3" />
+                        Export
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleExport(quiz, 'doc');
+                        }}
+                        className="text-gray-900 hover:bg-gray-100"
+                      >
+                        Export as DOCX
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleExport(quiz, 'csv');
+                        }}
+                        className="text-gray-900 hover:bg-gray-100"
+                      >
+                        Export as CSV
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleAnkiExport(quiz);
+                        }}
+                        className="flex items-center text-gray-900 hover:bg-gray-100"
+                      >
+                        <Send className="mr-2 h-4 w-4" />
+                        Export to Anki
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </div>
           </div>
@@ -694,7 +697,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
             // View mode
             selectedQuiz?.questions.map((question, index) => (
               <div key={index} className="mb-6">
-                <p className="font-medium mb-2">
+                <p className="font-medium mb-2 text-gray-900">
                   {index + 1}. {question.type === 'cloze' 
                     ? (question as any).clozeText?.replace(/\{\{c1::(.*?)\}\}/g, '_______________')
                     : question.text
@@ -741,7 +744,7 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                       
                       return (
                         <li key={optIndex} className="flex items-start">
-                          <span className={`${isCorrect ? 'bg-green-100 px-2 py-1 rounded-md' : ''}`}>
+                          <span className={`text-gray-800 ${isCorrect ? 'bg-green-100 px-2 py-1 rounded-md font-medium' : ''}`}>
                             • {option}
                           </span>
                         </li>
@@ -752,14 +755,14 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                 {question.type === 'cloze' && (
                   <div className="mt-3 ml-6">
                     <div className="mb-2 p-3 bg-gray-50 border rounded-lg">
-                      <p className="text-sm text-gray-600 mb-1">Original text:</p>
-                      <p className="text-gray-800">
+                      <p className="text-sm text-gray-700 mb-1 font-medium">Original text:</p>
+                      <p className="text-gray-900">
                         {(question as any).originalText || question.text}
                       </p>
                     </div>
                     <div>
-                      <strong>Answer: </strong>
-                      <span className="bg-green-100 px-2 py-1 rounded-md">
+                      <strong className="text-gray-800">Answer: </strong>
+                      <span className="bg-green-100 px-2 py-1 rounded-md text-gray-900 font-medium">
                         {question.correctAnswer}
                       </span>
                     </div>
@@ -767,8 +770,8 @@ export default function QuizHistory({ limit }: { limit?: number }) {
                 )}
                 {question.correctAnswer && question.type !== 'multiple_choice' && question.type !== 'cloze' && (
                   <div className="mt-2 ml-6">
-                    <strong>Answer: </strong>
-                    <span className="bg-green-100 px-2 py-1 rounded-md">
+                    <strong className="text-gray-800">Answer: </strong>
+                    <span className="bg-green-100 px-2 py-1 rounded-md text-gray-900 font-medium">
                       {question.correctAnswer}
                     </span>
                   </div>

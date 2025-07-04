@@ -242,7 +242,7 @@ export default function SubjectManager({ onSelectSubject, selectedSubjectId }: S
             >
               <div className="flex items-center">
                 <div className="h-4 w-4 rounded-full mr-2 bg-gray-300"></div>
-                <span>All Subjects</span>
+                <span className="text-gray-800">All Subjects</span>
               </div>
               <div className="flex items-center">
                 <Check className="h-4 w-4 text-primary mr-2" />
@@ -263,7 +263,7 @@ export default function SubjectManager({ onSelectSubject, selectedSubjectId }: S
                       className="h-4 w-4 rounded-full mr-2" 
                       style={{ backgroundColor: subject.color }}
                     ></div>
-                    <span>{subject.name}</span>
+                    <span className="text-gray-800">{subject.name}</span>
                   </div>
                   <div className="flex items-center">
                     {selectedSubjectId === subject.id && <Check className="h-4 w-4 text-primary mr-2" />}

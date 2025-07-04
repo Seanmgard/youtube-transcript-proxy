@@ -56,17 +56,17 @@ export default function EnsureSubscriptionsPage() {
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       <div>
-        <h1 className="text-3xl font-bold mb-2">Ensure Subscriptions</h1>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
+        <h1 className="text-3xl font-bold mb-2 text-gray-900">Ensure Subscriptions</h1>
+        <p className="text-gray-700 mb-6">
           This tool will ensure all users have a subscription record by creating free subscriptions for any users who don't have one.
         </p>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md dark:bg-gray-800 p-6">
+      <div className="bg-white rounded-lg shadow-md p-6">
         <div className="space-y-4">
           <div className="flex flex-col space-y-2">
-            <h2 className="text-xl font-semibold">Ensure User Subscriptions</h2>
-            <p className="text-gray-600 dark:text-gray-400">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">Ensure User Subscriptions</h2>
+            <p className="text-gray-700">
               Click the button below to create free subscription records for all existing users who don't have one.
               This is useful for ensuring all users have a valid subscription record.
             </p>
@@ -75,8 +75,8 @@ export default function EnsureSubscriptionsPage() {
           {result && (
             <div className={`p-4 rounded-lg border ${
               result.success 
-                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
-                : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                ? 'bg-green-50 border-green-200' 
+                : 'bg-red-50 border-red-200'
             }`}>
               <div className="flex">
                 {result.success ? (
@@ -87,8 +87,8 @@ export default function EnsureSubscriptionsPage() {
                 <div>
                   <p className={`text-sm ${
                     result.success 
-                      ? 'text-green-800 dark:text-green-200' 
-                      : 'text-red-800 dark:text-red-200'
+                      ? 'text-green-800'
+                      : 'text-red-800'
                   }`}>
                     {result.message}
                   </p>
@@ -99,8 +99,8 @@ export default function EnsureSubscriptionsPage() {
 
           {result && result.success && result.details && result.details.length > 0 && (
             <div className="mt-4">
-              <h3 className="text-lg font-medium mb-2">Created Subscriptions</h3>
-              <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-700 max-h-60 overflow-y-auto">
+              <h3 className="text-lg font-medium mb-2 text-gray-900">Created Subscriptions</h3>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 max-h-60 overflow-y-auto">
                 <ul className="space-y-2">
                   {result.details.map((item: any, index: number) => (
                     <li key={index} className="text-sm">

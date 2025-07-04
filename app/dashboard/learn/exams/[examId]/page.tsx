@@ -560,16 +560,16 @@ export default function TakeExamPage() {
         </div>
 
         <div className="mb-6">
-          <h2 className="text-xl font-semibold mb-2">Exam Instructions</h2>
-          <p className="text-gray-600">
+          <h2 className="text-xl font-semibold mb-2 text-gray-900">Exam Instructions</h2>
+          <p className="text-gray-700">
             This exam contains {allQuestions.length} questions from {quizzes.length} {quizzes.length === 1 ? 'quiz' : 'quizzes'}.
             Answer all questions and click "Submit Exam" at the bottom when you're finished.
             You will see your results after submission.
           </p>
           {exam.description && (
             <div className="mt-4 p-4 bg-gray-50 rounded-md">
-              <h3 className="text-sm font-medium mb-1">Exam Description:</h3>
-              <p className="text-sm text-gray-600">{exam.description}</p>
+              <h3 className="text-sm font-medium mb-1 text-gray-800">Exam Description:</h3>
+              <p className="text-sm text-gray-700">{exam.description}</p>
             </div>
           )}
         </div>
@@ -580,8 +580,8 @@ export default function TakeExamPage() {
           <div className="space-y-8">
             {allQuestions.map((question, index) => (
               <div key={question.id} className="p-4 border rounded-lg">
-                <h3 className="text-lg font-medium mb-2">Question {index + 1}</h3>
-                <p className="mb-4">
+                <h3 className="text-lg font-medium mb-2 text-gray-900">Question {index + 1}</h3>
+                <p className="mb-4 text-gray-800">
                   {question.type === 'cloze' 
                     ? (question as any).clozeText?.replace(/\{\{c1::(.*?)\}\}/g, '_______________')
                     : question.text
@@ -597,7 +597,7 @@ export default function TakeExamPage() {
                     {question.options.map((option, optionIndex) => (
                       <div key={optionIndex} className="flex items-center space-x-2">
                         <RadioGroupItem value={option} id={`q${index}-option-${optionIndex}`} />
-                        <Label htmlFor={`q${index}-option-${optionIndex}`} className="cursor-pointer">
+                        <Label htmlFor={`q${index}-option-${optionIndex}`} className="cursor-pointer text-gray-800">
                           {option}
                         </Label>
                       </div>
@@ -610,7 +610,7 @@ export default function TakeExamPage() {
                     placeholder="Enter your answer here..."
                     value={userAnswers[question.id] || ''}
                     onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                    className="w-full"
+                    className="w-full text-gray-900"
                     rows={3}
                   />
                 )}
@@ -625,7 +625,7 @@ export default function TakeExamPage() {
                       placeholder="Enter your answer..."
                       value={userAnswers[question.id] || ''}
                       onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                      className="text-lg w-full"
+                      className="text-lg w-full text-gray-900"
                     />
                   </div>
                 )}

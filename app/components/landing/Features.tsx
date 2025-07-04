@@ -74,7 +74,7 @@ export function Features() {
           <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
             Everything you need to enhance your learning
           </p>
-          <p className="mt-4 text-lg leading-8 text-gray-600">
+          <p className="mt-4 text-lg leading-8 text-gray-700">
             Our platform offers a comprehensive set of tools designed to make studying more efficient and effective.
           </p>
         </div>
@@ -98,7 +98,7 @@ export function Features() {
                   </div>
                   {feature.name}
                 </dt>
-                <dd className="mt-2 text-base leading-7 text-gray-600">
+                <dd className="mt-2 text-base leading-7 text-gray-700">
                   {feature.description}
                 </dd>
               </motion.div>
