@@ -10,7 +10,7 @@
       "maxDuration": 300
     },
     "api/youtube_transcript.py": {
-      "runtime": "python3.11",
+      "runtime": "python3.9",
       "memory": 512,
       "maxDuration": 10
     }
