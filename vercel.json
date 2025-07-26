@@ -8,6 +8,11 @@
   "functions": {
     "app/api/generate-quiz/route.ts": {
       "maxDuration": 300
+    },
+    "api/youtube_transcript.py": {
+      "runtime": "python3.11",
+      "memory": 512,
+      "maxDuration": 10
     }
   },
   "headers": [
