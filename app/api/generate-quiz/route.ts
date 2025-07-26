@@ -727,10 +727,14 @@ TRANSCRIPT ANALYSIS INSTRUCTIONS:
 - Extract key concepts, definitions, formulas, theories, and important facts
 - Focus on learning objectives and educational takeaways
 - Look for explanations of processes, problem-solving methods, and conceptual understanding
+- ONLY use information that is explicitly stated or directly explained in the video transcript
+- DO NOT include external knowledge, outside references, or information not covered in the video
 
 QUESTION REQUIREMENTS:
 - Generate exactly ${settings.numberOfQuestions} questions (difficulty: ${settings.difficulty}, type: ${settings.questionType})
 - Each question must test understanding of SPECIFIC ACADEMIC FACTS, CONCEPTS, OR FORMULAS
+- CRITICAL: Each question must be UNIQUE - do not repeat the same question with different wording
+- CRITICAL: Do not ask about the same concept/fact multiple times in different ways
 - Questions should be about content that would appear in a textbook or academic curriculum
 - Focus ONLY on subject-specific knowledge (definitions, formulas, theorems, facts, processes)
 - NEVER ask about teaching methods, study strategies, or classroom procedures
@@ -739,6 +743,13 @@ QUESTION REQUIREMENTS:
 - NEVER ask about the instructor's opinions, preferences, or teaching approach
 - Each question must be a complete, well-formed question ending with "?"
 - Questions should test memorization and understanding of academic content, not study skills or pedagogical methods
+- Ensure variety in topics covered from different parts of the video transcript
+
+CONTENT RESTRICTION REQUIREMENTS:
+- Questions must ONLY test knowledge that can be answered using information in the video transcript
+- DO NOT ask questions that require external knowledge beyond what's explained in the video
+- DO NOT reference outside sources, textbooks, or general knowledge not mentioned in the video
+- If the video doesn't provide enough context for a concept, do not create questions about it
 
 EXAMPLES OF GOOD QUESTIONS (if this were a statistics video):
 - "What is the definition of probability as explained in the lecture?"
@@ -880,14 +891,25 @@ DOCUMENT ANALYSIS INSTRUCTIONS:
 - Read through the ENTIRE document carefully, including all sections
 - For large documents, ensure questions cover different parts/sections
 - Extract specific facts, concepts, and details from the document content
+- ONLY use information that is explicitly stated or directly derivable from the uploaded document
+- DO NOT include external knowledge, outside references, or information not contained in the document
 
 QUESTION REQUIREMENTS:
 - Generate exactly ${settings.numberOfQuestions} questions (difficulty: ${settings.difficulty}, type: ${settings.questionType})
 - Each question must be a complete, well-formed question ending with "?"
 - Base every question on specific information found in the document
+- CRITICAL: Each question must be UNIQUE - do not repeat the same question with different wording
+- CRITICAL: Do not ask about the same concept/fact multiple times in different ways
 - Avoid generic phrases like "based on that information", "unique questions", or "please review"
 - Questions should be substantial (at least 15 characters)
 - Test understanding of different document sections/topics
+- Ensure variety in topics covered - don't focus too heavily on one section
+
+CONTENT RESTRICTION REQUIREMENTS:
+- Questions must ONLY test knowledge that can be answered using information in the uploaded document
+- DO NOT ask questions that require external knowledge beyond what's in the document
+- DO NOT reference outside sources, general knowledge, or industry standards not mentioned in the document
+- If the document doesn't provide enough context for a concept, do not create questions about it
 
 JSON FORMAT (REQUIRED):
 {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { upload } from '@vercel/blob/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,23 +11,33 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
 import { QuizSettings } from '@/lib/types';
 import { useSubscription } from '@/hooks/useSubscription';
+import { SummarySettings } from './SummarySettings';
+import GenerationLoadingStatus from './GenerationLoadingStatus';
 
 interface QuizUploaderProps {
   onQuizGenerated: (quiz: any) => void;
+  onSummaryGenerated?: (summary: string) => void;
   onStreamingUpdate: (text: string) => void;
+  onSettingsChange?: (settings: QuizSettings) => void;
 }
 
-export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: QuizUploaderProps) {
+export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onStreamingUpdate, onSettingsChange }: QuizUploaderProps) {
   const inputFileRef = useRef<HTMLInputElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [fileName, setFileName] = useState('');
+  const [quizCompleted, setQuizCompleted] = useState(false);
+  const [summaryCompleted, setSummaryCompleted] = useState(false);
+  const [currentStep, setCurrentStep] = useState('');
   const [settings, setSettings] = useState<QuizSettings>({
     numberOfQuestions: 10,
     difficulty: 'medium',
     questionType: 'multiple_choice',
     sourceType: 'file',
+    summary: {
+      enabled: true
+    }
   });
   const { toast } = useToast();
   const { isOnPlan } = useSubscription();
@@ -35,6 +45,11 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
   // Set question limits based on subscription
   const isPremium = isOnPlan('premium');
   const maxQuestions = isPremium ? 50 : 10;
+
+  // Notify parent component when settings change
+  useEffect(() => {
+    onSettingsChange?.(settings);
+  }, [settings, onSettingsChange]);
 
   const validateFile = (file: File): { valid: boolean; error?: string } => {
     // Check file size (50MB limit)
@@ -152,11 +167,15 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
     }
 
     setIsGenerating(true);
+    setQuizCompleted(false);
+    setSummaryCompleted(false);
+    setCurrentStep('Preparing to upload document...');
     onQuizGenerated({ loading: true });
 
     try {
       // File upload path
       setIsUploading(true);
+      setCurrentStep(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
       onStreamingUpdate(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
       
       const newBlob = await upload(file.name, file, {
@@ -171,9 +190,12 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
 
       setIsUploading(false);
       const blobUrl = newBlob.url;
+      
+      // Start quiz generation
+      setCurrentStep('File uploaded successfully. Starting quiz generation...');
       onStreamingUpdate('File uploaded successfully. Starting quiz generation...');
 
-      const response = await fetch('/api/generate-quiz', {
+      const quizResponse = await fetch('/api/generate-quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -182,22 +204,23 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      if (!quizResponse.ok) {
+        const errorData = await quizResponse.json();
         throw new Error(errorData.error || 'Failed to generate quiz');
       }
 
-      if (!response.body) {
+      // Handle quiz generation stream
+      if (!quizResponse.body) {
         throw new Error('The response body is empty.');
       }
       
-      const reader = response.body.getReader();
+      const quizReader = quizResponse.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
       let fullResponse = '';
 
       while (!done) {
-        const { value, done: readerDone } = await reader.read();
+        const { value, done: readerDone } = await quizReader.read();
         done = readerDone;
         if (value) {
           const chunk = decoder.decode(value, { stream: true });
@@ -208,42 +231,87 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
           
           for (const line of lines) {
             if (line.startsWith('data: ')) {
-                const dataContent = line.substring(6);
-                if (dataContent === '[DONE]') {
-                    break;
+              const dataContent = line.substring(6);
+              if (dataContent === '[DONE]') {
+                break;
+              }
+              try {
+                const parsed = JSON.parse(dataContent);
+                if (parsed.type === 'info' || parsed.type === 'warning' || parsed.type === 'progress' || parsed.type === 'success') {
+                  onStreamingUpdate(parsed.message);
+                } else if (parsed.type === 'final') {
+                  console.log('🎯 QuizUploader: Received final quiz data:', parsed.quiz);
+                  onQuizGenerated(parsed.quiz);
+                  setQuizCompleted(true);
+                  setCurrentStep('Quiz generation completed!');
+                  onStreamingUpdate('Quiz generation completed!');
+                } else if (parsed.type === 'error') {
+                  throw new Error(parsed.message);
+                } else if (parsed.type === 'complete') {
+                  console.log('✅ QuizUploader: Received complete signal');
+                  onStreamingUpdate(parsed.message);
+                  done = true;
+                  break;
+                } else {
+                  console.log('🔄 QuizUploader: Received fallback quiz data:', parsed);
+                  onQuizGenerated(parsed);
                 }
-                try {
-                    const parsed = JSON.parse(dataContent);
-                    if (parsed.type === 'info' || parsed.type === 'warning' || parsed.type === 'progress' || parsed.type === 'success') {
-                        onStreamingUpdate(parsed.message);
-                    } else if (parsed.type === 'final') {
-                        console.log('🎯 QuizUploader: Received final quiz data:', parsed.quiz);
-                        onQuizGenerated(parsed.quiz);
-                        onStreamingUpdate('Quiz generation completed!');
-                    } else if (parsed.type === 'error') {
-                        throw new Error(parsed.message);
-                    } else if (parsed.type === 'complete') {
-                        console.log('✅ QuizUploader: Received complete signal');
-                        onStreamingUpdate(parsed.message);
-                        done = true;
-                        break;
-                    } else {
-                        console.log('🔄 QuizUploader: Received fallback quiz data:', parsed);
-                        onQuizGenerated(parsed);
-                    }
-                } catch (e) {
-                    console.error('Error parsing stream data chunk:', dataContent, e);
-                }
+              } catch (e) {
+                console.error('Error parsing stream data chunk:', dataContent, e);
+              }
             }
           }
         }
       }
 
+      // If summary is enabled and we're on premium, generate summary
+      if (settings.summary?.enabled && isPremium) {
+        setCurrentStep('Starting comprehensive study guide generation...');
+        onStreamingUpdate('Starting summary generation...');
+        
+        const summaryResponse = await fetch('/api/generate-summary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileUrl: blobUrl, fileName: file.name }),
+        });
+
+        if (!summaryResponse.ok) {
+          const errorData = await summaryResponse.json();
+          throw new Error(errorData.error || 'Failed to generate summary');
+        }
+
+        if (!summaryResponse.body) {
+          throw new Error('The summary response body is empty.');
+        }
+
+        // Handle summary generation stream
+        const summaryReader = summaryResponse.body.getReader();
+        let summaryText = '';
+
+        while (true) {
+          const { value, done: summaryDone } = await summaryReader.read();
+          if (summaryDone) break;
+          
+          const chunk = decoder.decode(value);
+          summaryText += chunk;
+          if (onSummaryGenerated) {
+            onSummaryGenerated(summaryText);
+          }
+        }
+
+        setSummaryCompleted(true);
+        setCurrentStep('Study guide generation completed!');
+        onStreamingUpdate('Summary generation completed!');
+      } else {
+        // If summary is not enabled, mark it as completed
+        setSummaryCompleted(true);
+      }
+
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-      console.error('Quiz generation error:', error);
+      console.error('Generation error:', error);
       toast({
-        title: 'Error Generating Quiz',
+        title: 'Error',
         description: errorMessage,
         variant: 'destructive',
       });
@@ -261,7 +329,17 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col h-full">
+    <>
+      <GenerationLoadingStatus
+        isGenerating={isGenerating}
+        isUploading={isUploading}
+        uploadProgress={uploadProgress}
+        quizCompleted={quizCompleted}
+        summaryCompleted={summaryCompleted}
+        summaryEnabled={!!(settings.summary?.enabled && isPremium)}
+        currentStep={currentStep}
+      />
+      <form onSubmit={handleSubmit} className="flex flex-col h-full">
       <div className="space-y-4 flex-1">
         {/* Content Source Selection with Integrated Actions */}
         <div>
@@ -326,100 +404,88 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
           className="hidden"
         />
 
-        {/* Quiz Settings */}
-        <div className="space-y-4">
+        {/* Generation Settings */}
+        <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+          {/* Content Generation Options */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Question Type */}
+            <div className="bg-white rounded-md p-3 border border-gray-200 h-full flex flex-col">
+              <Label className="block mb-2 text-sm font-medium text-gray-900">Question Type</Label>
+              <RadioGroup
+                value={settings.questionType}
+                onValueChange={(value) => setSettings({ ...settings, questionType: value as 'multiple_choice' | 'open_ended' | 'cloze' })}
+                className="space-y-1 flex-1"
+                disabled={isGenerating}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="multiple_choice" id="multiple_choice" disabled={isGenerating} />
+                  <Label htmlFor="multiple_choice" className="text-xs text-gray-700">Multiple Choice</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="open_ended" id="open_ended" disabled={isGenerating} />
+                  <Label htmlFor="open_ended" className="text-xs text-gray-700">Open Ended</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="cloze" id="cloze" disabled={isGenerating} />
+                  <Label htmlFor="cloze" className="text-xs text-gray-700">Cloze Deletion</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Summary Settings */}
+            <div className="bg-white rounded-md p-3 border border-gray-200 h-full flex flex-col">
+              <SummarySettings
+                settings={settings.summary || { enabled: false }}
+                onSettingsChange={(summarySettings) => {
+                  setSettings({ ...settings, summary: summarySettings });
+                }}
+                isPremium={isPremium}
+                disabled={isGenerating}
+              />
+            </div>
+          </div>
+
           {/* Number of Questions */}
-          <div>
+          <div className="bg-white rounded-md p-3 border border-gray-200">
             <div className="flex justify-between items-center mb-2">
-              <Label className="text-sm font-medium">Questions</Label>
+              <Label className="text-sm font-medium text-gray-900">Questions</Label>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500">{settings.numberOfQuestions}</span>
+                <span className="text-sm font-medium text-gray-700">{settings.numberOfQuestions}</span>
                 {!isPremium && (
-                  <div className="flex items-center gap-1 text-xs text-amber-600">
+                  <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
                     <Crown className="h-3 w-3" />
                     <span>Free: Max {maxQuestions}</span>
                   </div>
                 )}
                 {isPremium && (
-                                  <div className="flex items-center gap-1 text-xs text-green-600">
-                  <Crown className="h-3 w-3" />
-                  <span>Premium: Max {maxQuestions}</span>
-                </div>
-              )}
+                  <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                    <Crown className="h-3 w-3" />
+                    <span>Premium: Max {maxQuestions}</span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-          <Slider
-            value={[settings.numberOfQuestions]}
-            min={5}
-            max={maxQuestions}
-            step={1}
-            onValueChange={(value) => {
-              const newValue = Math.min(value[0], maxQuestions);
-              setSettings({ ...settings, numberOfQuestions: newValue });
-            }}
-            disabled={isGenerating}
-          />
-          {!isPremium && settings.numberOfQuestions >= maxQuestions && (
-            <p className="text-xs text-amber-600 mt-1">
-              Upgrade to Premium for up to 50 questions per quiz
-            </p>
-          )}
-          </div>
-
-          {/* Difficulty & Question Type in a Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Difficulty Level */}
-            <div>
-              <Label className="block mb-2 text-sm font-medium">Difficulty</Label>
-              <RadioGroup
-                value={settings.difficulty}
-                onValueChange={(value) => setSettings({ ...settings, difficulty: value as 'easy' | 'medium' | 'hard' })}
-                className="space-y-1"
-                disabled={isGenerating}
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="easy" id="easy" disabled={isGenerating} />
-                  <Label htmlFor="easy" className="text-sm">Easy</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="medium" id="medium" disabled={isGenerating} />
-                  <Label htmlFor="medium" className="text-sm">Medium</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="hard" id="hard" disabled={isGenerating} />
-                  <Label htmlFor="hard" className="text-sm">Hard</Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            {/* Question Type */}
-            <div>
-              <Label className="block mb-2 text-sm font-medium">Question Type</Label>
-              <RadioGroup
-                value={settings.questionType}
-                onValueChange={(value) => setSettings({ ...settings, questionType: value as 'multiple_choice' | 'open_ended' | 'cloze' })}
-                className="space-y-1"
-                disabled={isGenerating}
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="multiple_choice" id="multiple_choice" disabled={isGenerating} />
-                  <Label htmlFor="multiple_choice" className="text-sm">Multiple Choice</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="open_ended" id="open_ended" disabled={isGenerating} />
-                  <Label htmlFor="open_ended" className="text-sm">Open Ended</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="cloze" id="cloze" disabled={isGenerating} />
-                  <Label htmlFor="cloze" className="text-sm">Cloze Deletion</Label>
-                </div>
-              </RadioGroup>
-            </div>
+            <Slider
+              value={[settings.numberOfQuestions]}
+              min={5}
+              max={maxQuestions}
+              step={1}
+              onValueChange={(value) => {
+                const newValue = Math.min(value[0], maxQuestions);
+                setSettings({ ...settings, numberOfQuestions: newValue });
+              }}
+              disabled={isGenerating}
+            />
+            {!isPremium && settings.numberOfQuestions >= maxQuestions && (
+              <p className="text-xs text-amber-600 mt-2 bg-amber-50 p-2 rounded border border-amber-200">
+                Upgrade to Premium for up to 50 questions per quiz
+              </p>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Generate Quiz Button */}
+      {/* Generate Button */}
       <div className="mt-4 pt-4 border-t">
         <Button 
           type="submit" 
@@ -429,11 +495,12 @@ export default function QuizUploader({ onQuizGenerated, onStreamingUpdate }: Qui
           {isGenerating ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {isUploading ? `Uploading... ${uploadProgress}%` : 'Generating Quiz...'}
+              {isUploading ? `Uploading... ${uploadProgress}%` : 'Generating...'}
             </>
-          ) : 'Generate Quiz'}
+          ) : 'Generate Quiz' + (settings.summary?.enabled ? ' & Summary' : '')}
         </Button>
       </div>
     </form>
+    </>
   );
 }

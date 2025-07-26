@@ -32,6 +32,7 @@ export default function QuizUploader() {
     numberOfQuestions: 5,
     difficulty: 'medium',
     questionType: 'multiple_choice',
+    sourceType: 'file',
   });
 
   useEffect(() => {

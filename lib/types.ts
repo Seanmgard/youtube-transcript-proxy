@@ -36,12 +36,18 @@ export interface QuizSettings {
   numberOfQuestions: number;
   difficulty: 'easy' | 'medium' | 'hard';
   questionType: 'multiple_choice' | 'open_ended' | 'cloze';
-  sourceType?: 'file' | 'youtube';
+  sourceType: 'file' | 'youtube';
+  summary?: SummarySettings;  // Optional summary settings
   youtubeUrl?: string;
   isLanguageLearning?: boolean;
   sourceLanguage?: string;
   targetLanguage?: string;
   extractionType?: 'words' | 'sentences';
+}
+
+export interface SummarySettings {
+  enabled: boolean;
+  wordCount?: number;  // Optional target word count, will be scaled based on document size
 }
 
 export interface UserProfile {
