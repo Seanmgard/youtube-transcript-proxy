@@ -48,7 +48,7 @@
     "sonner": "^2.0.1",
     "stripe": "^17.7.0",
     "uuid": "^11.1.0",
-    "youtube-transcript": "^1.2.1"
+    "youtube-transcript-api": "^3.0.6"
   },
   "devDependencies": {
     "@types/katex": "^0.16.7",

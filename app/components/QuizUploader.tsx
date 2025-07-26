@@ -13,6 +13,7 @@ import { QuizSettings } from '@/lib/types';
 import { useSubscription } from '@/hooks/useSubscription';
 import { SummarySettings } from './SummarySettings';
 import GenerationLoadingStatus from './GenerationLoadingStatus';
+import YouTubeUrlModal from './YouTubeUrlModal';
 
 interface QuizUploaderProps {
   onQuizGenerated: (quiz: any) => void;
@@ -41,6 +42,10 @@ export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onSt
   });
   const { toast } = useToast();
   const { isOnPlan } = useSubscription();
+  
+  // YouTube related state
+  const [showYouTubeModal, setShowYouTubeModal] = useState(false);
+  const [youtubeData, setYoutubeData] = useState<any>(null);
   
   // Set question limits based on subscription
   const isPremium = isOnPlan('premium');
@@ -117,6 +122,9 @@ export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onSt
         setFileName('');
         return;
       }
+      
+      // Clear YouTube data when file is selected
+      setYoutubeData(null);
       setFileName(file.name);
     } else {
       setFileName('');
@@ -124,46 +132,70 @@ export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onSt
   };
 
   const handleYouTubeClick = () => {
-    // TODO: Show modal for YouTube URL input when feature is enabled
+    setShowYouTubeModal(true);
+  };
+
+  const handleYouTubeSuccess = (transcriptData: any) => {
+    setYoutubeData(transcriptData);
+    setFileName(`${transcriptData.videoTitle} (YouTube)`);
+    
+    // Clear file input when YouTube is selected
+    if (inputFileRef.current) {
+      inputFileRef.current.value = '';
+    }
+    
     toast({
-      title: 'Coming Soon',
-      description: 'YouTube video support will be available soon!',
+      title: 'Transcript extracted!',
+      description: `Ready to generate content from "${transcriptData.videoTitle}"`,
     });
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     
-    // Validate file upload
+    // Validate input - either file upload or YouTube transcript
     if (!fileName) {
       toast({
-        title: 'No file selected',
-        description: 'Please choose a file to upload.',
+        title: 'No content selected',
+        description: 'Please choose a file to upload or add a YouTube video.',
         variant: 'destructive',
       });
       return;
     }
 
-    if (!inputFileRef.current?.files?.[0]) {
-      toast({
-        title: 'File error',
-        description: 'Please select a file again.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    let file: File | null = null;
 
-    const file = inputFileRef.current.files[0];
-    
-    // Re-validate file before upload
-    const validation = validateFile(file);
-    if (!validation.valid) {
-      toast({
-        title: 'Invalid file',
-        description: validation.error,
-        variant: 'destructive',
-      });
-      return;
+    // Handle YouTube transcript workflow
+    if (youtubeData) {
+      // YouTube transcript path - update settings
+      const updatedSettings = { 
+        ...settings, 
+        sourceType: 'youtube' as const
+      };
+      setSettings(updatedSettings);
+    } else {
+      // File upload path - validate file
+      if (!inputFileRef.current?.files?.[0]) {
+        toast({
+          title: 'File error',
+          description: 'Please select a file again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      file = inputFileRef.current.files[0];
+      
+      // Re-validate file before upload
+      const validation = validateFile(file);
+      if (!validation.valid) {
+        toast({
+          title: 'Invalid file',
+          description: validation.error,
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     setIsGenerating(true);
@@ -173,36 +205,58 @@ export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onSt
     onQuizGenerated({ loading: true });
 
     try {
-      // File upload path
-      setIsUploading(true);
-      setCurrentStep(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
-      onStreamingUpdate(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
-      
-      const newBlob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-        onUploadProgress: (progressEvent) => {
-          const percentage = Math.round(progressEvent.percentage);
-          setUploadProgress(percentage);
-          onStreamingUpdate(`Upload progress: ${percentage}%`);
-        },
-      });
+      let quizResponse: Response;
+      let blobUrl = '';
 
-      setIsUploading(false);
-      const blobUrl = newBlob.url;
-      
-      // Start quiz generation
-      setCurrentStep('File uploaded successfully. Starting quiz generation...');
-      onStreamingUpdate('File uploaded successfully. Starting quiz generation...');
+      if (youtubeData) {
+        // YouTube transcript path
+        setCurrentStep('Starting quiz generation from YouTube transcript...');
+        onStreamingUpdate('Starting quiz generation from YouTube transcript...');
 
-      const quizResponse = await fetch('/api/generate-quiz', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          blobUrl,
-          settings: { ...settings, sourceType: 'file' },
-        }),
-      });
+        quizResponse = await fetch('/api/generate-quiz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            transcriptText: youtubeData.transcriptText,
+            settings: { ...settings, sourceType: 'youtube' },
+          }),
+        });
+      } else {
+        // File upload path
+        if (!file) {
+          throw new Error('No file selected');
+        }
+
+        setIsUploading(true);
+        setCurrentStep(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
+        onStreamingUpdate(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
+        
+        const newBlob = await upload(file.name, file, {
+          access: 'public',
+          handleUploadUrl: '/api/upload',
+          onUploadProgress: (progressEvent) => {
+            const percentage = Math.round(progressEvent.percentage);
+            setUploadProgress(percentage);
+            onStreamingUpdate(`Upload progress: ${percentage}%`);
+          },
+        });
+
+        setIsUploading(false);
+        blobUrl = newBlob.url;
+        
+        // Start quiz generation
+        setCurrentStep('File uploaded successfully. Starting quiz generation...');
+        onStreamingUpdate('File uploaded successfully. Starting quiz generation...');
+
+        quizResponse = await fetch('/api/generate-quiz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            blobUrl,
+            settings: { ...settings, sourceType: 'file' },
+          }),
+        });
+      }
 
       if (!quizResponse.ok) {
         const errorData = await quizResponse.json();
@@ -269,11 +323,31 @@ export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onSt
         setCurrentStep('Starting comprehensive study guide generation...');
         onStreamingUpdate('Starting summary generation...');
         
-        const summaryResponse = await fetch('/api/generate-summary', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileUrl: blobUrl, fileName: file.name }),
-        });
+        let summaryResponse: Response;
+        
+        if (youtubeData) {
+          // YouTube summary generation
+          summaryResponse = await fetch('/api/generate-summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              transcriptText: youtubeData.transcriptText,
+              videoTitle: youtubeData.videoTitle,
+              sourceType: 'youtube'
+            }),
+          });
+        } else {
+          // File summary generation
+          if (!file) {
+            throw new Error('No file available for summary');
+          }
+          
+          summaryResponse = await fetch('/api/generate-summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileUrl: blobUrl, fileName: file.name }),
+          });
+        }
 
         if (!summaryResponse.ok) {
           const errorData = await summaryResponse.json();
@@ -363,23 +437,21 @@ export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onSt
             </button>
 
             {/* YouTube Option */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={handleYouTubeClick}
-                disabled={true}
-                className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50 cursor-not-allowed opacity-60 w-full"
-              >
-                <Video className="h-8 w-8 text-gray-400 mb-2" />
-                <span className="text-sm font-medium text-gray-500">YouTube Video</span>
-                <span className="text-xs text-gray-400 mt-1">Paste video URL</span>
-              </button>
-              <div className="absolute -top-2 -right-2">
-                <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded-full">
-                  Coming Soon
+            <button
+              type="button"
+              onClick={handleYouTubeClick}
+              disabled={isGenerating}
+              className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Video className="h-8 w-8 text-gray-400 mb-2" />
+              <span className="text-sm font-medium text-gray-700">YouTube Video</span>
+              <span className="text-xs text-gray-500 mt-1">Paste video URL</span>
+              {youtubeData && (
+                <span className="text-xs text-green-600 mt-2 font-medium max-w-full truncate">
+                  ✓ {youtubeData.videoTitle}
                 </span>
-              </div>
-            </div>
+              )}
+            </button>
           </div>
 
           {/* File Info */}
@@ -501,6 +573,13 @@ export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onSt
         </Button>
       </div>
     </form>
+
+    {/* YouTube URL Modal */}
+    <YouTubeUrlModal
+      isOpen={showYouTubeModal}
+      onClose={() => setShowYouTubeModal(false)}
+      onSuccess={handleYouTubeSuccess}
+    />
     </>
   );
 }

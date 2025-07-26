@@ -145,10 +145,17 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    const { fileUrl, fileName } = await request.json();
+    const { fileUrl, fileName, transcriptText, videoTitle, sourceType } = await request.json();
     
-    if (!fileUrl) {
-      return NextResponse.json({ error: 'File URL is required' }, { status: 400 });
+    // Validate input based on source type
+    if (sourceType === 'youtube') {
+      if (!transcriptText) {
+        return NextResponse.json({ error: 'Transcript text is required for YouTube videos' }, { status: 400 });
+      }
+    } else {
+      if (!fileUrl) {
+        return NextResponse.json({ error: 'File URL is required' }, { status: 400 });
+      }
     }
 
     const encoder = new TextEncoder();
@@ -160,58 +167,103 @@ export async function POST(request: NextRequest) {
         };
 
         try {
-          console.log('📄 Generate Summary - Processing file:', fileName);
-
-          // Get file information to determine generation approach
-          const fileResponse = await fetch(fileUrl);
-          const fileSize = parseInt(fileResponse.headers.get('content-length') || '0');
-          const fileSizeKB = Math.round(fileSize / 1024);
-          
-          console.log(`📊 File size: ${fileSizeKB}KB`);
-          
-          // Determine document category and approach
           let documentCategory: 'small' | 'medium' | 'large';
           let targetWordCount: number;
           let maxContinuations: number;
           let promptType: string;
-          
-          if (fileSizeKB < 200) {
-            // Small documents (< 200KB) - likely short presentations, brief docs
-            documentCategory = 'small';
-            targetWordCount = 2000;
-            maxContinuations = 3;
-            promptType = 'concise';
-          } else if (fileSizeKB < 2000) {
-            // Medium documents (200KB - 2MB) - moderate documents, longer presentations
-            documentCategory = 'medium';
-            targetWordCount = 8000;
-            maxContinuations = 8;
-            promptType = 'balanced';
+          let fileUpload: any = null;
+          let thread: any;
+
+          if (sourceType === 'youtube') {
+            console.log('📺 Generate Summary - Processing YouTube transcript:', videoTitle);
+            
+            // Determine approach based on transcript length
+            const transcriptWordCount = transcriptText.split(/\s+/).length;
+            console.log(`📊 Transcript word count: ${transcriptWordCount} words`);
+            
+            if (transcriptWordCount < 1000) {
+              documentCategory = 'small';
+              // Aim for roughly 40% of transcript length but at least 300 words
+              targetWordCount = Math.max(Math.round(transcriptWordCount * 0.4), 300);
+              maxContinuations = 1;
+              promptType = 'concise';
+            } else if (transcriptWordCount < 5000) {
+              documentCategory = 'medium';
+              targetWordCount = Math.round(transcriptWordCount * 0.4); // ~40 % of transcript words
+              maxContinuations = 4;
+              promptType = 'balanced';
+            } else {
+              documentCategory = 'large';
+              targetWordCount = Math.round(transcriptWordCount * 0.35); // slightly smaller ratio for very long
+              maxContinuations = 10;
+              promptType = 'comprehensive';
+            }
+
+            // Hard caps
+            targetWordCount = Math.min(targetWordCount, 12000);
+
+            
+            sendText(`📺 Processing ${documentCategory} YouTube video (${transcriptWordCount} words)...\n\n`);
+
+            // Create thread with transcript text directly
+            const fidelityRules = `STRICT FIDELITY RULES:\n- ONLY use information present in the transcript.\n- DO NOT add outside knowledge, historical background, or speculative context.\n- If a detail is not explicitly in the transcript, OMIT it.\n- Maintain the conversational tone where appropriate.`;
+
+            const youtubePrompt = `${getPromptForDocumentType(documentCategory, promptType, targetWordCount)}\n\n${fidelityRules}\n\nVIDEO TRANSCRIPT:\n"""\n${transcriptText}\n"""\n\nGenerate the study guide now.`;
+
+            thread = await openai.beta.threads.create({
+              messages: [{
+                role: 'user',
+                content: youtubePrompt
+              }]
+            });
           } else {
-            // Large documents (> 2MB) - extensive documents, books, large reports
-            documentCategory = 'large';
-            targetWordCount = 20000;
-            maxContinuations = 25;
-            promptType = 'comprehensive';
+            console.log('📄 Generate Summary - Processing file:', fileName);
+
+            // Get file information to determine generation approach
+            const fileResponse = await fetch(fileUrl);
+            const fileSize = parseInt(fileResponse.headers.get('content-length') || '0');
+            const fileSizeKB = Math.round(fileSize / 1024);
+            
+            console.log(`📊 File size: ${fileSizeKB}KB`);
+            
+            if (fileSizeKB < 200) {
+              // Small documents (< 200KB) - likely short presentations, brief docs
+              documentCategory = 'small';
+              targetWordCount = 2000;
+              maxContinuations = 3;
+              promptType = 'concise';
+            } else if (fileSizeKB < 2000) {
+              // Medium documents (200KB - 2MB) - moderate documents, longer presentations
+              documentCategory = 'medium';
+              targetWordCount = 8000;
+              maxContinuations = 8;
+              promptType = 'balanced';
+            } else {
+              // Large documents (> 2MB) - extensive documents, books, large reports
+              documentCategory = 'large';
+              targetWordCount = 20000;
+              maxContinuations = 25;
+              promptType = 'comprehensive';
+            }
+            
+            console.log(`📋 Document category: ${documentCategory}, Target words: ${targetWordCount}, Max continuations: ${maxContinuations}`);
+
+            sendText(`📄 Processing ${documentCategory} document (${fileSizeKB}KB)...\n\n`);
+
+            // Upload file to OpenAI
+            const fileBuffer = Buffer.from(await fileResponse.arrayBuffer());
+            fileUpload = await createFileWithExtension(fileBuffer, fileName, fileUrl);
+            console.log(`📋 File uploaded: ${fileUpload.id}`);
+
+            // Create thread with appropriate message based on document size
+            thread = await openai.beta.threads.create({
+              messages: [{
+                role: 'user',
+                content: getPromptForDocumentType(documentCategory, promptType, targetWordCount),
+                attachments: [{ file_id: fileUpload.id, tools: [{ type: 'file_search' }] }]
+              }]
+            });
           }
-          
-          console.log(`📋 Document category: ${documentCategory}, Target words: ${targetWordCount}, Max continuations: ${maxContinuations}`);
-
-          sendText(`📄 Processing ${documentCategory} document (${fileSizeKB}KB)...\n\n`);
-
-                  // Upload file to OpenAI
-        const fileBuffer = Buffer.from(await fileResponse.arrayBuffer());
-        const fileUpload = await createFileWithExtension(fileBuffer, fileName, fileUrl);
-        console.log(`📋 File uploaded: ${fileUpload.id}`);
-
-          // Create thread with appropriate message based on document size
-          const thread = await openai.beta.threads.create({
-            messages: [{
-              role: 'user',
-              content: getPromptForDocumentType(documentCategory, promptType, targetWordCount),
-              attachments: [{ file_id: fileUpload.id, tools: [{ type: 'file_search' }] }]
-            }]
-          });
 
           // Generation loop with adaptive thresholds
           let runningWordCount = 0;
@@ -227,10 +279,36 @@ export async function POST(request: NextRequest) {
                   max_completion_tokens: 16000 // Maximum tokens for very detailed content
                 });
             } else {
-              // Continuation runs - re-attach document and give continuation instructions
-              await openai.beta.threads.messages.create(thread.id, {
-                role: 'user',
-                content: `Continue with the NEXT major section in appropriate detail for this document length.
+              // Continuation runs - different approach for YouTube vs files
+              if (sourceType === 'youtube') {
+                await openai.beta.threads.messages.create(thread.id, {
+                  role: 'user',
+                  content: `Continue with the NEXT major section from the YouTube video transcript in appropriate detail.
+
+CRITICAL FORMAT REMINDER:
+- PURE MARKDOWN ONLY - NO JSON STRUCTURES
+- NO SOURCES, CITATIONS, OR REFERENCES OF ANY KIND
+- DO NOT include any source attributions, footnotes, or citations
+- Continue with content appropriate to video length (don't over-elaborate for short videos)
+- Use clear section titles as ## or ### headings
+- AVOID repeating information already covered
+- Extract key concepts, examples, and details from the next part of the transcript
+- Use focused explanations suitable for video scope
+
+LATEX FORMATTING REQUIREMENTS:
+- SIMPLE EQUATIONS: $$Forward Price = Spot Price + Repo Costs - Income$$
+- CLEAN VARIABLES: $SAP$ not \(SAP\) for variable names
+- NO NESTED TEXT: Never use \text{\text{...}}
+- BASIC OPERATORS: Use simple + - = operators
+- Put ALL mathematical expressions inside $$...$$ blocks
+
+Continue analyzing the next section of the video transcript now, maintaining appropriate detail level for the video length.`
+                });
+              } else {
+                // File-based continuation - re-attach document and give continuation instructions
+                await openai.beta.threads.messages.create(thread.id, {
+                  role: 'user',
+                  content: `Continue with the NEXT major section in appropriate detail for this document length.
 
 CRITICAL FORMAT REMINDER:
 - PURE MARKDOWN ONLY - NO JSON STRUCTURES
@@ -253,8 +331,9 @@ LATEX FORMATTING REQUIREMENTS:
 DOCUMENT ACCESS: The document remains attached - use it as your ONLY source.
 
 Resume with the next major section now, using its EXACT title from the document and maintaining appropriate detail level for the document size.`,
-                attachments: [{ file_id: fileUpload.id, tools: [{ type: 'file_search' }] }]
-              });
+                  attachments: [{ file_id: fileUpload.id, tools: [{ type: 'file_search' }] }]
+                });
+              }
 
                               run = openai.beta.threads.runs.stream(thread.id, {
                   assistant_id: process.env.OPENAI_ASSISTANT_ID!,
@@ -308,12 +387,14 @@ Resume with the next major section now, using its EXACT title from the document 
             }
           }
 
-          // Clean up
-          try {
-            await openai.files.del(fileUpload.id);
-            console.log(`🗑️ Cleaned up file: ${fileUpload.id}`);
-          } catch (cleanupError) {
-            console.error('Failed to cleanup file:', cleanupError);
+          // Clean up (only if we uploaded a file)
+          if (fileUpload) {
+            try {
+              await openai.files.del(fileUpload.id);
+              console.log(`🗑️ Cleaned up file: ${fileUpload.id}`);
+            } catch (cleanupError) {
+              console.error('Failed to cleanup file:', cleanupError);
+            }
           }
 
           controller.close();

@@ -18,6 +18,12 @@ from youtube_transcript_api._errors import (
 import socket
 socket.setdefaulttimeout(30)
 
+# Force UTF-8 for stdout/stderr to handle emoji on Windows pipes
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='ignore')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='ignore')
+
 def extract_video_id(url):
     """Extract video ID from various YouTube URL formats"""
     patterns = [
@@ -234,3 +240,13 @@ def handler(request):
             },
             'body': json.dumps({'error': f'Internal server error: {str(e)}'})
         } 
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Fetch YouTube transcript and return JSON")
+    parser.add_argument("youtube_url", help="Full YouTube video URL or 11-char video ID")
+    args = parser.parse_args()
+
+    result = get_transcript(args.youtube_url)
+    import json, sys
+    sys.stdout.write(json.dumps(result)) 
