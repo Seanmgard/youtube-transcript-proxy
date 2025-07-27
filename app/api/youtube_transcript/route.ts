@@ -45,58 +45,21 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // If we have an external transcript endpoint configured, use that
-    const externalEndpoint = process.env.TRANSCRIPT_SERVICE_URL;
-    if (externalEndpoint) {
-      console.log('🔗 Forwarding to external transcript service:', externalEndpoint);
-      
-      const response = await fetch(externalEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ youtubeUrl }),
-      });
+    // Use external Python transcript service
+    const externalEndpoint = process.env.NEXT_PUBLIC_TRANSCRIPT_ENDPOINT || 'https://rvice-pfuk-f2trhoo27.vercel.app/api/youtube_transcript';
+    
+    console.log('🔗 Forwarding to external transcript service:', externalEndpoint);
+    
+    const response = await fetch(externalEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ youtubeUrl }),
+    });
 
-      const result = await response.json();
-      return NextResponse.json(result, { status: response.status });
-    }
-
-    // Fallback: Try to use youtube-transcript if available
-    try {
-      const { YoutubeTranscript } = await import('youtube-transcript');
-      
-      console.log('📺 Extracting transcript for video ID:', videoId);
-      
-      const transcript = await YoutubeTranscript.fetchTranscript(youtubeUrl);
-      
-      if (!transcript || transcript.length === 0) {
-        throw new Error('No transcript available for this video');
-      }
-
-      // Format transcript
-      const transcriptText = transcript.map(item => item.text).join(' ');
-      
-      console.log('📄 Transcript extracted:', transcriptText.length, 'characters');
-      
-      return NextResponse.json({
-        success: true,
-        transcript: transcriptText,
-        videoTitle: `YouTube Video ${videoId}`,
-        videoId: videoId,
-        language: 'en',
-        wordCount: transcriptText.split(/\s+/).length
-      });
-
-    } catch (transcriptError) {
-      console.error('❌ Transcript extraction failed:', transcriptError);
-      
-      return NextResponse.json({
-        success: false,
-        error: transcriptError instanceof Error ? transcriptError.message : 'Failed to extract transcript',
-        videoId: videoId
-      }, { status: 400 });
-    }
+    const result = await response.json();
+    return NextResponse.json(result, { status: response.status });
 
   } catch (error) {
     console.error('❌ API error:', error);
