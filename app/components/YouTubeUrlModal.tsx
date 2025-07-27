@@ -70,7 +70,7 @@ export default function YouTubeUrlModal({ isOpen, onClose, onSuccess }: YouTubeU
 
     try {
       // Extract transcript using our API
-      const response = await fetch('/api/youtube_transcript', {
+      const response = await fetch('/api/youtube_transcript.py', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
