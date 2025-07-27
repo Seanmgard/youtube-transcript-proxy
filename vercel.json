@@ -5,16 +5,6 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "regions": ["iad1"],
-  "functions": {
-    "app/api/generate-quiz/route.ts": {
-      "maxDuration": 300
-    },
-    "api/youtube_transcript.py": {
-      "runtime": "@vercel/python@4.8.0",
-      "memory": 512,
-      "maxDuration": 10
-    }
-  },
   "headers": [
     {
       "source": "/(.*)",
