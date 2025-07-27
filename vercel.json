@@ -36,5 +36,11 @@
   ],
   "env": {
     "NEXT_PUBLIC_SITE_URL": "https://quizlabai.com"
-  }
+  },
+  "routes": [
+    {
+      "src": "/api/youtube_transcript",
+      "dest": "/api/youtube_transcript.py"
+    }
+  ]
 } 
