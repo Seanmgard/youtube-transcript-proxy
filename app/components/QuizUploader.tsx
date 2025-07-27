@@ -175,26 +175,26 @@ export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onSt
       setSettings(updatedSettings);
     } else {
       // File upload path - validate file
-      if (!inputFileRef.current?.files?.[0]) {
-        toast({
-          title: 'File error',
-          description: 'Please select a file again.',
-          variant: 'destructive',
-        });
-        return;
-      }
+    if (!inputFileRef.current?.files?.[0]) {
+      toast({
+        title: 'File error',
+        description: 'Please select a file again.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
       file = inputFileRef.current.files[0];
-      
-      // Re-validate file before upload
-      const validation = validateFile(file);
-      if (!validation.valid) {
-        toast({
-          title: 'Invalid file',
-          description: validation.error,
-          variant: 'destructive',
-        });
-        return;
+    
+    // Re-validate file before upload
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      toast({
+        title: 'Invalid file',
+        description: validation.error,
+        variant: 'destructive',
+      });
+      return;
       }
     }
 
@@ -222,40 +222,40 @@ export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onSt
           }),
         });
       } else {
-        // File upload path
+      // File upload path
         if (!file) {
           throw new Error('No file selected');
         }
 
-        setIsUploading(true);
-        setCurrentStep(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
-        onStreamingUpdate(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
-        
-        const newBlob = await upload(file.name, file, {
-          access: 'public',
-          handleUploadUrl: '/api/upload',
-          onUploadProgress: (progressEvent) => {
-            const percentage = Math.round(progressEvent.percentage);
-            setUploadProgress(percentage);
-            onStreamingUpdate(`Upload progress: ${percentage}%`);
-          },
-        });
+      setIsUploading(true);
+      setCurrentStep(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
+      onStreamingUpdate(`Uploading ${file.name} (${Math.round(file.size / 1024)}KB)...`);
+      
+      const newBlob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+        onUploadProgress: (progressEvent) => {
+          const percentage = Math.round(progressEvent.percentage);
+          setUploadProgress(percentage);
+          onStreamingUpdate(`Upload progress: ${percentage}%`);
+        },
+      });
 
-        setIsUploading(false);
+      setIsUploading(false);
         blobUrl = newBlob.url;
-        
-        // Start quiz generation
-        setCurrentStep('File uploaded successfully. Starting quiz generation...');
-        onStreamingUpdate('File uploaded successfully. Starting quiz generation...');
+      
+      // Start quiz generation
+      setCurrentStep('File uploaded successfully. Starting quiz generation...');
+      onStreamingUpdate('File uploaded successfully. Starting quiz generation...');
 
         quizResponse = await fetch('/api/generate-quiz', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            blobUrl,
-            settings: { ...settings, sourceType: 'file' },
-          }),
-        });
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blobUrl,
+          settings: { ...settings, sourceType: 'file' },
+        }),
+      });
       }
 
       if (!quizResponse.ok) {
@@ -343,10 +343,10 @@ export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onSt
           }
           
           summaryResponse = await fetch('/api/generate-summary', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fileUrl: blobUrl, fileName: file.name }),
-          });
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileUrl: blobUrl, fileName: file.name }),
+        });
         }
 
         if (!summaryResponse.ok) {
@@ -437,13 +437,13 @@ export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onSt
             </button>
 
             {/* YouTube Option */}
-            <button
-              type="button"
-              onClick={handleYouTubeClick}
+              <button
+                type="button"
+                onClick={handleYouTubeClick}
               disabled={isGenerating}
               className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Video className="h-8 w-8 text-gray-400 mb-2" />
+              >
+                <Video className="h-8 w-8 text-gray-400 mb-2" />
               <span className="text-sm font-medium text-gray-700">YouTube Video</span>
               <span className="text-xs text-gray-500 mt-1">Paste video URL</span>
               {youtubeData && (

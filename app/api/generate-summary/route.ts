@@ -153,8 +153,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Transcript text is required for YouTube videos' }, { status: 400 });
       }
     } else {
-      if (!fileUrl) {
-        return NextResponse.json({ error: 'File URL is required' }, { status: 400 });
+    if (!fileUrl) {
+      return NextResponse.json({ error: 'File URL is required' }, { status: 400 });
       }
     }
 
@@ -217,52 +217,52 @@ export async function POST(request: NextRequest) {
               }]
             });
           } else {
-            console.log('📄 Generate Summary - Processing file:', fileName);
+          console.log('📄 Generate Summary - Processing file:', fileName);
 
-            // Get file information to determine generation approach
-            const fileResponse = await fetch(fileUrl);
-            const fileSize = parseInt(fileResponse.headers.get('content-length') || '0');
-            const fileSizeKB = Math.round(fileSize / 1024);
-            
-            console.log(`📊 File size: ${fileSizeKB}KB`);
-            
-            if (fileSizeKB < 200) {
-              // Small documents (< 200KB) - likely short presentations, brief docs
-              documentCategory = 'small';
-              targetWordCount = 2000;
-              maxContinuations = 3;
-              promptType = 'concise';
-            } else if (fileSizeKB < 2000) {
-              // Medium documents (200KB - 2MB) - moderate documents, longer presentations
-              documentCategory = 'medium';
-              targetWordCount = 8000;
-              maxContinuations = 8;
-              promptType = 'balanced';
-            } else {
-              // Large documents (> 2MB) - extensive documents, books, large reports
-              documentCategory = 'large';
-              targetWordCount = 20000;
-              maxContinuations = 25;
-              promptType = 'comprehensive';
-            }
-            
-            console.log(`📋 Document category: ${documentCategory}, Target words: ${targetWordCount}, Max continuations: ${maxContinuations}`);
+          // Get file information to determine generation approach
+          const fileResponse = await fetch(fileUrl);
+          const fileSize = parseInt(fileResponse.headers.get('content-length') || '0');
+          const fileSizeKB = Math.round(fileSize / 1024);
+          
+          console.log(`📊 File size: ${fileSizeKB}KB`);
+          
+          if (fileSizeKB < 200) {
+            // Small documents (< 200KB) - likely short presentations, brief docs
+            documentCategory = 'small';
+            targetWordCount = 2000;
+            maxContinuations = 3;
+            promptType = 'concise';
+          } else if (fileSizeKB < 2000) {
+            // Medium documents (200KB - 2MB) - moderate documents, longer presentations
+            documentCategory = 'medium';
+            targetWordCount = 8000;
+            maxContinuations = 8;
+            promptType = 'balanced';
+          } else {
+            // Large documents (> 2MB) - extensive documents, books, large reports
+            documentCategory = 'large';
+            targetWordCount = 20000;
+            maxContinuations = 25;
+            promptType = 'comprehensive';
+          }
+          
+          console.log(`📋 Document category: ${documentCategory}, Target words: ${targetWordCount}, Max continuations: ${maxContinuations}`);
 
-            sendText(`📄 Processing ${documentCategory} document (${fileSizeKB}KB)...\n\n`);
+          sendText(`📄 Processing ${documentCategory} document (${fileSizeKB}KB)...\n\n`);
 
-            // Upload file to OpenAI
-            const fileBuffer = Buffer.from(await fileResponse.arrayBuffer());
+                  // Upload file to OpenAI
+        const fileBuffer = Buffer.from(await fileResponse.arrayBuffer());
             fileUpload = await createFileWithExtension(fileBuffer, fileName, fileUrl);
-            console.log(`📋 File uploaded: ${fileUpload.id}`);
+        console.log(`📋 File uploaded: ${fileUpload.id}`);
 
-            // Create thread with appropriate message based on document size
+          // Create thread with appropriate message based on document size
             thread = await openai.beta.threads.create({
-              messages: [{
-                role: 'user',
-                content: getPromptForDocumentType(documentCategory, promptType, targetWordCount),
-                attachments: [{ file_id: fileUpload.id, tools: [{ type: 'file_search' }] }]
-              }]
-            });
+            messages: [{
+              role: 'user',
+              content: getPromptForDocumentType(documentCategory, promptType, targetWordCount),
+              attachments: [{ file_id: fileUpload.id, tools: [{ type: 'file_search' }] }]
+            }]
+          });
           }
 
           // Generation loop with adaptive thresholds
@@ -306,9 +306,9 @@ Continue analyzing the next section of the video transcript now, maintaining app
                 });
               } else {
                 // File-based continuation - re-attach document and give continuation instructions
-                await openai.beta.threads.messages.create(thread.id, {
-                  role: 'user',
-                  content: `Continue with the NEXT major section in appropriate detail for this document length.
+              await openai.beta.threads.messages.create(thread.id, {
+                role: 'user',
+                content: `Continue with the NEXT major section in appropriate detail for this document length.
 
 CRITICAL FORMAT REMINDER:
 - PURE MARKDOWN ONLY - NO JSON STRUCTURES
@@ -331,8 +331,8 @@ LATEX FORMATTING REQUIREMENTS:
 DOCUMENT ACCESS: The document remains attached - use it as your ONLY source.
 
 Resume with the next major section now, using its EXACT title from the document and maintaining appropriate detail level for the document size.`,
-                  attachments: [{ file_id: fileUpload.id, tools: [{ type: 'file_search' }] }]
-                });
+                attachments: [{ file_id: fileUpload.id, tools: [{ type: 'file_search' }] }]
+              });
               }
 
                               run = openai.beta.threads.runs.stream(thread.id, {
@@ -389,11 +389,11 @@ Resume with the next major section now, using its EXACT title from the document 
 
           // Clean up (only if we uploaded a file)
           if (fileUpload) {
-            try {
-              await openai.files.del(fileUpload.id);
-              console.log(`🗑️ Cleaned up file: ${fileUpload.id}`);
-            } catch (cleanupError) {
-              console.error('Failed to cleanup file:', cleanupError);
+          try {
+            await openai.files.del(fileUpload.id);
+            console.log(`🗑️ Cleaned up file: ${fileUpload.id}`);
+          } catch (cleanupError) {
+            console.error('Failed to cleanup file:', cleanupError);
             }
           }
 
