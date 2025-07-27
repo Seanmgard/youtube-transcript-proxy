@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/app/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/app/components/ui/dialog';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
@@ -70,7 +70,8 @@ export default function YouTubeUrlModal({ isOpen, onClose, onSuccess }: YouTubeU
 
     try {
       // Extract transcript using our external API
-      const response = await fetch(process.env.NEXT_PUBLIC_TRANSCRIPT_ENDPOINT || 'https://yt-proxy.vercel.app/api/youtube_transcript', {
+      const transcriptEndpoint = process.env.NEXT_PUBLIC_TRANSCRIPT_ENDPOINT || '/api/youtube_transcript';
+      const response = await fetch(transcriptEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -146,6 +147,9 @@ export default function YouTubeUrlModal({ isOpen, onClose, onSuccess }: YouTubeU
             <Video className="h-5 w-5" />
             <span>Add YouTube Video</span>
           </DialogTitle>
+          <DialogDescription>
+            Enter a YouTube URL or video ID to extract the transcript and generate quizzes or summaries.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
