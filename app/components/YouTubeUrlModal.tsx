@@ -69,8 +69,8 @@ export default function YouTubeUrlModal({ isOpen, onClose, onSuccess }: YouTubeU
     setIsProcessing(true);
 
     try {
-      // Extract transcript using our API
-      const response = await fetch('/api/youtube_transcript', {
+      // Extract transcript using our external API
+      const response = await fetch(process.env.NEXT_PUBLIC_TRANSCRIPT_ENDPOINT || 'https://yt-proxy.vercel.app/api/youtube_transcript', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -95,12 +95,11 @@ export default function YouTubeUrlModal({ isOpen, onClose, onSuccess }: YouTubeU
 
       // Pass the transcript data to parent component
       onSuccess({
-        transcriptText: result.transcriptText,
+        transcriptText: result.transcript,
         videoTitle: result.videoTitle,
         videoId: result.videoId,
         wordCount: result.wordCount,
-        duration: result.duration,
-        segmentCount: result.segmentCount,
+        language: result.language,
         sourceType: 'youtube'
       });
 
