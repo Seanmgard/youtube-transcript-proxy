@@ -16,16 +16,29 @@ function sseJson(obj: any) {
 }
 
 function validateAndCompleteQuestions(questions: any[], targetCount: number): any[] {
-  const validQuestions = questions.filter(q =>
-    q && typeof q.text === 'string' && q.text.trim().length > 0 &&
-    q.type && q.correctAnswer && typeof q.correctAnswer === 'string' &&
-    q.correctAnswer.trim().length > 0 &&
-    !q.text.toLowerCase().includes('please review the document') &&
-    !q.text.toLowerCase().includes('based on that information') &&
-    !q.text.toLowerCase().includes('unique questions') &&
-    q.text.includes('?') && // Must be a proper question
-    q.text.length > 15 // Must be substantial
-  );
+  const validQuestions = questions.filter(q => {
+    // Basic validation for all question types
+    const basicValid = q && typeof q.text === 'string' && q.text.trim().length > 0 &&
+      q.type && q.correctAnswer && typeof q.correctAnswer === 'string' &&
+      q.correctAnswer.trim().length > 0 &&
+      !q.text.toLowerCase().includes('please review the document') &&
+      !q.text.toLowerCase().includes('based on that information') &&
+      !q.text.toLowerCase().includes('unique questions') &&
+      q.text.length > 15; // Must be substantial
+
+    if (!basicValid) return false;
+
+    // Type-specific validation
+    if (q.type === 'cloze') {
+      // For cloze deletion, validate clozeText and originalText
+      return q.clozeText && typeof q.clozeText === 'string' &&
+             q.clozeText.includes('{{c1::') &&
+             q.originalText && typeof q.originalText === 'string';
+    } else {
+      // For other question types, must be a proper question
+      return q.text.includes('?');
+    }
+  });
 
   // Only return valid questions, don't pad with generic ones
   return validQuestions.slice(0, targetCount);
@@ -201,7 +214,7 @@ function generateFallbackQuestions(count: number): any[] {
   return fallbackQuestions;
 }
 
-async function generateQuestionsWithRetry(openai: OpenAI, threadId: string, assistantId: string, sendJson: Function, targetCount: number): Promise<string> {
+async function generateQuestionsWithRetry(openai: OpenAI, threadId: string, assistant: any, sendJson: Function, targetCount: number, settings: any): Promise<string> {
   let allQuestions: any[] = [];
   let aiGeneratedTitle: string | null = null; // Track the AI-generated title
   let attempts = 0;
@@ -210,7 +223,9 @@ async function generateQuestionsWithRetry(openai: OpenAI, threadId: string, assi
   // Send initial progress
   sendJson({ 
     type: 'progress', 
-    message: `🔬 Starting quiz generation - analyzing content for educational value...` 
+    message: settings.questionType === 'cloze'
+      ? `🔬 Starting cloze deletion generation - analyzing content for key terms and definitions...`
+      : `🔬 Starting quiz generation - analyzing content for educational value...` 
   });
   
   while (allQuestions.length < targetCount && attempts < maxAttempts) {
@@ -220,12 +235,21 @@ async function generateQuestionsWithRetry(openai: OpenAI, threadId: string, assi
     try {
       sendJson({ 
         type: 'progress', 
-        message: `📝 Creating ${remaining} high-quality educational questions...` 
+        message: settings.questionType === 'cloze' 
+          ? `📝 Creating ${remaining} high-quality cloze deletion cards...` 
+          : `📝 Creating ${remaining} high-quality educational questions...` 
       });
       
       // Simulate progress updates for better UX
       let simulatedProgress = allQuestions.length;
-      const progressMessages = [
+      const progressMessages = settings.questionType === 'cloze' ? [
+        '🔍 Analyzing content for key terms and definitions...',
+        '📚 Identifying important phrases and concepts for cloze deletion...',
+        '🧩 Creating fill-in-the-blank sentences from document text...',
+        '✏️ Marking key terms with {{c1::}} deletion format...',
+        '🎯 Ensuring cloze deletions focus on core subject matter...',
+        '📝 Finalizing high-quality cloze deletion cards...'
+      ] : [
         '🔍 Analyzing content for key concepts and learning objectives...',
         '📚 Identifying important definitions and formulas...',
         '🧩 Crafting questions to test understanding...',
@@ -242,7 +266,9 @@ async function generateQuestionsWithRetry(openai: OpenAI, threadId: string, assi
             simulatedProgress++;
             sendJson({ 
               type: 'progress', 
-              message: `📊 Progress: ${simulatedProgress}/${targetCount} questions crafted (${Math.round((simulatedProgress/targetCount)*100)}%)` 
+              message: settings.questionType === 'cloze'
+                ? `📊 Progress: ${simulatedProgress}/${targetCount} cloze cards crafted (${Math.round((simulatedProgress/targetCount)*100)}%)`
+                : `📊 Progress: ${simulatedProgress}/${targetCount} questions crafted (${Math.round((simulatedProgress/targetCount)*100)}%)` 
             });
           } else {
             const msgIdx = Math.floor(messageIndex / 2) % progressMessages.length;
@@ -258,7 +284,41 @@ async function generateQuestionsWithRetry(openai: OpenAI, threadId: string, assi
       // Add a message to the thread for this batch
       await openai.beta.threads.messages.create(threadId, {
         role: 'user',
-        content: `Generate exactly ${remaining} high-quality questions based on the document content. I need exactly ${remaining} questions to reach my target of ${targetCount} total questions.
+        content: settings.questionType === 'cloze' 
+          ? `I need exactly ${remaining} more cloze deletion cards. Extract ${remaining} additional sentences from the content and convert to cloze format.
+
+CLOZE DELETION GUIDELINES:
+- Make deletions VARIABLE in length - mix single words, phrases, and longer segments
+- Prioritize meaningful chunks like: full concepts, technical terms, numerical values, key phrases, definitions
+- VARY DELETION POSITIONS - place deletions at the beginning, middle, and end of sentences
+- For mathematical formulas, use LaTeX formatting (e.g., $E = mc^2$, $\\frac{a}{b}$, $\\sqrt{x}$)
+- CRITICAL: Make questions SELF-CONTAINED - do NOT reference "Equation (3)", "Exhibit 2", "Table 1", "Figure 4", etc.
+- If mentioning a formula/equation, include the FULL equation in the question text
+- Replace references like "Equation (4)" with the actual equation or descriptive text
+- Examples of good deletions (showing various positions):
+  * Beginning: "{{c1::Mitochondria}} are the powerhouse organelles of the cell"
+  * Middle: "The cell uses {{c1::ATP}} as its primary energy currency"
+  * End: "DNA replication occurs during {{c1::the S phase}}"
+  * Mid-sentence process: "Photosynthesis {{c1::converts carbon dioxide and water into glucose}} using sunlight"
+  * Mathematical: "The area formula {{c1::A = πr²}} calculates the area of a circle"
+  * Mid-sentence concept: "When calculating {{c1::compound interest}}, the principal amount grows exponentially"
+
+FORMAT REQUIRED:
+{
+  "title": "${aiGeneratedTitle || '[Subject Topic]'}",
+  "questions": [
+    {
+      "text": "Brief description",
+      "type": "cloze",
+      "clozeText": "Sentence with {{c1::meaningful deletion}} marked",
+      "originalText": "Sentence with meaningful deletion unmarked",
+      "correctAnswer": "meaningful deletion"
+    }
+  ]
+}
+
+IMPORTANT: Only create "type": "cloze" - no multiple choice questions!`
+          : `Generate exactly ${remaining} high-quality questions based on the document content. I need exactly ${remaining} questions to reach my target of ${targetCount} total questions.
 
 CRITICAL REQUIREMENTS:
 - Each question must be a complete, well-formed question ending with "?"
@@ -273,15 +333,15 @@ Return in JSON format:
   "questions": [
     {
       "text": "What specific concept does the document explain about [topic]?",
-      "type": "multiple_choice",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "type": "${settings.questionType}",
+      ${settings.questionType === 'multiple_choice' ? '"options": ["Option A", "Option B", "Option C", "Option D"],' : ''}
       "correctAnswer": "Option A"
     }
   ]
 }`
       });
       
-      const stream = openai.beta.threads.runs.stream(threadId, { assistant_id: assistantId });
+      const stream = openai.beta.threads.runs.stream(threadId, { assistant_id: assistant.id });
       
       let bufferAll = '';
       for await (const event of stream) {
@@ -305,30 +365,25 @@ Return in JSON format:
       }
       
       if (batchResult.questions.length > 0) {
-        // Add valid questions
-        const validQuestions = batchResult.questions.filter(q =>
-          q && typeof q.text === 'string' && q.text.trim().length > 0 &&
-          q.type && q.correctAnswer && typeof q.correctAnswer === 'string' &&
-          q.correctAnswer.trim().length > 0 &&
-          !q.text.toLowerCase().includes('please review the document') &&
-          !q.text.toLowerCase().includes('based on that information') &&
-          !q.text.toLowerCase().includes('unique questions') &&
-          q.text.includes('?') && // Must be a proper question
-          q.text.length > 15 // Must be substantial
-        );
+        // Add valid questions using the same validation logic
+        const validQuestions = validateAndCompleteQuestions(batchResult.questions, batchResult.questions.length);
         
         allQuestions = [...allQuestions, ...validQuestions];
         const currentTotal = allQuestions.length;
         
         sendJson({ 
           type: 'progress', 
-          message: `✅ Created ${validQuestions.length} educational questions (${currentTotal}/${targetCount} total)` 
+          message: settings.questionType === 'cloze'
+            ? `✅ Created ${validQuestions.length} cloze deletion cards (${currentTotal}/${targetCount} total)`
+            : `✅ Created ${validQuestions.length} educational questions (${currentTotal}/${targetCount} total)` 
         });
         
         if (currentTotal >= targetCount) {
           sendJson({ 
             type: 'success', 
-            message: `🎉 Excellent! Successfully generated all ${targetCount} educational questions focused on the core subject matter!` 
+            message: settings.questionType === 'cloze'
+              ? `🎉 Excellent! Successfully generated all ${targetCount} cloze deletion cards focused on the core subject matter!`
+              : `🎉 Excellent! Successfully generated all ${targetCount} educational questions focused on the core subject matter!` 
           });
           break; // Exit the loop when we have enough questions
         }
@@ -366,10 +421,20 @@ Return in JSON format:
         const remaining = targetCount - allQuestions.length;
         await openai.beta.threads.messages.create(threadId, {
           role: 'user',
-          content: `I need exactly ${remaining} more questions to reach ${targetCount} total. Generate ${remaining} additional questions based on different parts of the document.`
+          content: settings.questionType === 'cloze'
+            ? `Extract exactly ${remaining} more sentences and convert to cloze format with VARIABLE deletion lengths (mix single words, phrases, and longer segments). 
+
+IMPORTANT: 
+- VARY DELETION POSITIONS - place deletions at beginning, middle, and end of sentences
+- For math formulas, use LaTeX formatting (e.g., $E = mc^2$, $\\frac{a}{b}$)
+- Make questions SELF-CONTAINED - do NOT reference "Equation (3)", "Exhibit 2", "Table 1", etc. 
+- Include FULL equations/formulas in the text if referenced
+
+Return JSON with title: "${aiGeneratedTitle || '[Subject Topic]'}", and questions array with "type": "cloze", clozeText with {{c1::meaningful deletion}}, originalText, and correctAnswer fields.`
+            : `I need exactly ${remaining} more questions to reach ${targetCount} total. Generate ${remaining} additional questions based on different parts of the document.`
         });
         
-        const stream = openai.beta.threads.runs.stream(threadId, { assistant_id: assistantId });
+        const stream = openai.beta.threads.runs.stream(threadId, { assistant_id: assistant.id });
         let bufferAll = '';
         for await (const event of stream) {
           if (event.event === 'thread.message.delta') {
@@ -381,15 +446,7 @@ Return in JSON format:
         }
         
         const additionalResult = parseQuestionsFromResponse(bufferAll);
-        const validAdditional = additionalResult.questions.filter(q =>
-          q && typeof q.text === 'string' && q.text.trim().length > 0 &&
-          q.type && q.correctAnswer && typeof q.correctAnswer === 'string' &&
-          q.correctAnswer.trim().length > 0 &&
-          !q.text.toLowerCase().includes('please review the document') &&
-          !q.text.toLowerCase().includes('based on that information') &&
-          !q.text.toLowerCase().includes('unique questions') &&
-          q.text.includes('?') && q.text.length > 15
-        );
+        const validAdditional = validateAndCompleteQuestions(additionalResult.questions, additionalResult.questions.length);
         
         allQuestions = [...allQuestions, ...validAdditional];
       } catch (retryError) {
@@ -490,7 +547,6 @@ export async function POST(request: Request) {
     // Check for required environment variables
     const requiredEnvVars = {
       'OPENAI_API_KEY': process.env.OPENAI_API_KEY,
-      'OPENAI_ASSISTANT_ID': process.env.OPENAI_ASSISTANT_ID,
       'BLOB_READ_WRITE_TOKEN': process.env.BLOB_READ_WRITE_TOKEN
     };
 
@@ -502,17 +558,6 @@ export async function POST(request: Request) {
       console.error('Missing environment variables:', missingVars);
       return NextResponse.json({ 
         error: `Missing required environment variables: ${missingVars.join(', ')}. Please configure them in your deployment settings.` 
-      }, { status: 500 });
-    }
-
-    // Validate that the assistant exists
-    try {
-      await openai.beta.assistants.retrieve(process.env.OPENAI_ASSISTANT_ID!);
-      console.log('✅ OpenAI Assistant validated successfully');
-    } catch (assistantError) {
-      console.error('❌ OpenAI Assistant validation failed:', assistantError);
-      return NextResponse.json({ 
-        error: `OpenAI Assistant not found. Please check your OPENAI_ASSISTANT_ID environment variable.` 
       }, { status: 500 });
     }
 
@@ -531,6 +576,22 @@ export async function POST(request: Request) {
     }
 
     const { blobUrl, settings, transcriptText } = await request.json();
+
+    // Check subscription and enforce question limits
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('plan_type')
+      .eq('user_id', user.id)
+      .single();
+    
+    const isPremium = subscription?.plan_type === 'premium';
+    const maxQuestions = isPremium ? 50 : 10;
+    
+    if (settings.numberOfQuestions > maxQuestions) {
+      return NextResponse.json({ 
+        error: `Free users are limited to ${maxQuestions} questions per quiz. Upgrade to Premium for up to 50 questions.` 
+      }, { status: 403 });
+    }
     
     // Handle YouTube transcript or file upload
     if (settings.sourceType === 'youtube' && transcriptText) {
@@ -564,6 +625,7 @@ export async function POST(request: Request) {
         try {
           let thread;
           let fileUpload = null;
+          let assistant: any = null;
           
           if (settings.sourceType === 'youtube' && transcriptText) {
             // Handle YouTube transcript
@@ -574,7 +636,63 @@ export async function POST(request: Request) {
             thread = await openai.beta.threads.create({
               messages: [{
                 role: 'user',
-                content: `Analyze the following YouTube video transcript thoroughly and generate exactly ${settings.numberOfQuestions} high-quality educational quiz questions.
+                content: settings.questionType === 'cloze' 
+                  ? `Extract exactly ${settings.numberOfQuestions} sentences from this YouTube transcript and convert them to cloze deletion format for Anki flashcards.
+
+VIDEO TRANSCRIPT:
+${transcriptText}
+
+CLOZE DELETION STRATEGY:
+1. Find ${settings.numberOfQuestions} important sentences from the content that contain key facts, definitions, formulas, or concepts
+2. Use sentences EXACTLY as they appear in the source material, with minimal modifications
+3. Each cloze card must have EXACTLY ONE deletion marked with {{c1::text}}
+4. NEVER create multiple deletions in the same sentence (no scattered blanks)
+5. Focus deletion on the most educational part: key terms, definitions, processes, formulas, numerical values
+6. Ensure the sentence makes sense as a standalone statement without document context
+7. For mathematical formulas, use LaTeX formatting (e.g., $E = mc^2$, $\\frac{a}{b}$, $\\sqrt{x}$)
+8. CRITICAL: Make questions SELF-CONTAINED - do NOT reference "Equation (3)", "Exhibit 2", "Table 1", "Figure 4", etc.
+9. If mentioning a formula/equation, include the FULL equation in the question text
+10. Replace references like "Equation (4)" with the actual equation or descriptive text
+
+SINGLE DELETION EXAMPLES (ONE per sentence):
+- Single word: "The {{c1::mitochondria}} produces energy for the cell"
+- Short phrase: "Water boils at {{c1::100 degrees Celsius}}"  
+- Medium phrase: "Photosynthesis converts {{c1::carbon dioxide and water into glucose}}"
+- Key concept: "The investment horizon should match your {{c1::risk tolerance}}"
+- Definition: "{{c1::Compound interest}} allows your money to grow exponentially over time"
+- Mathematical: "The area of a circle is calculated using {{c1::A = πr²}}"
+
+SELF-CONTAINED EXAMPLES:
+- BAD: "Equation (4) is the standard formula for determining the {{c1::after-tax standard deviation}}"
+- GOOD: "The formula σ_AT = σ_BT × (1-T) is used to determine the {{c1::after-tax standard deviation}}"
+- BAD: "The total return in Exhibit 2 is the {{c1::pre-tax geometric total return}}"
+- GOOD: "When calculating investment performance, the total return is the {{c1::pre-tax geometric total return}}"
+
+REQUIRED FORMAT - Return this exact JSON structure:
+{
+  "title": "[Subject Topic]",
+  "questions": [
+    {
+      "text": "Brief description of concept",
+      "type": "cloze",
+      "clozeText": "The {{c1::meaningful deletion segment}} creates educational value.",
+      "originalText": "The meaningful deletion segment creates educational value.",
+      "correctAnswer": "meaningful deletion segment"
+    }
+  ]
+}
+
+EXAMPLES FROM YOUR GUIDELINES:
+- If transcript says: "Photosynthesis converts carbon dioxide and water into glucose using sunlight"
+- Create: "clozeText": "Photosynthesis converts {{c1::carbon dioxide and water into glucose}} using sunlight"
+- correctAnswer: "carbon dioxide and water into glucose"
+
+- If transcript says: "The formula for the area of a circle is pi times radius squared"  
+- Create: "clozeText": "{{c1::The formula for the area of a circle}} is pi times radius squared"
+- correctAnswer: "The formula for the area of a circle"
+
+IMPORTANT: Only use "type": "cloze" - do NOT create multiple choice questions!`
+                  : `Analyze the following YouTube video transcript thoroughly and generate exactly ${settings.numberOfQuestions} high-quality educational quiz questions.
 
 VIDEO TRANSCRIPT:
 ${transcriptText}
@@ -598,10 +716,14 @@ TRANSCRIPT ANALYSIS INSTRUCTIONS:
 - Extract key concepts, definitions, formulas, theories, and important facts
 - Focus on learning objectives and educational takeaways
 - Look for explanations of processes, problem-solving methods, and conceptual understanding
+- ONLY use information that is explicitly stated or directly explained in the video transcript
+- DO NOT include external knowledge, outside references, or information not covered in the video
 
 QUESTION REQUIREMENTS:
 - Generate exactly ${settings.numberOfQuestions} questions (difficulty: ${settings.difficulty}, type: ${settings.questionType})
 - Each question must test understanding of SPECIFIC ACADEMIC FACTS, CONCEPTS, OR FORMULAS
+- CRITICAL: Each question must be UNIQUE - do not repeat the same question with different wording
+- CRITICAL: Do not ask about the same concept/fact multiple times in different ways
 - Questions should be about content that would appear in a textbook or academic curriculum
 - Focus ONLY on subject-specific knowledge (definitions, formulas, theorems, facts, processes)
 - NEVER ask about teaching methods, study strategies, or classroom procedures
@@ -610,6 +732,13 @@ QUESTION REQUIREMENTS:
 - NEVER ask about the instructor's opinions, preferences, or teaching approach
 - Each question must be a complete, well-formed question ending with "?"
 - Questions should test memorization and understanding of academic content, not study skills or pedagogical methods
+- Ensure variety in topics covered from different parts of the video transcript
+
+CONTENT RESTRICTION REQUIREMENTS:
+- Questions must ONLY test knowledge that can be answered using information in the video transcript
+- DO NOT ask questions that require external knowledge beyond what's explained in the video
+- DO NOT reference outside sources, textbooks, or general knowledge not mentioned in the video
+- If the video doesn't provide enough context for a concept, do not create questions about it
 
 EXAMPLES OF GOOD QUESTIONS (if this were a statistics video):
 - "What is the definition of probability as explained in the lecture?"
@@ -636,8 +765,8 @@ JSON FORMAT (REQUIRED):
   "questions": [
     {
       "text": "What [academic concept/definition/formula] was explained in the video?",
-      "type": "${settings.questionType === 'mixed' ? 'multiple_choice' : settings.questionType}",
-      "options": ["Academic option A", "Academic option B", "Academic option C", "Academic option D"],
+      "type": "${settings.questionType}",
+      ${settings.questionType === 'multiple_choice' ? '"options": ["Academic option A", "Academic option B", "Academic option C", "Academic option D"],' : ''}
       "correctAnswer": "Academic option A"
     }
   ]
@@ -692,20 +821,84 @@ Generate exactly ${settings.numberOfQuestions} questions focused ONLY on objecti
             thread = await openai.beta.threads.create({
               messages: [{
                   role: 'user',
-                content: `Analyze the attached document thoroughly and generate exactly ${settings.numberOfQuestions} high-quality quiz questions.
+                content: settings.questionType === 'cloze'
+                  ? `Extract exactly ${settings.numberOfQuestions} sentences from the attached document and convert them to cloze deletion format for Anki flashcards.
+
+CLOZE DELETION STRATEGY:
+1. Read the attached document carefully
+2. Find ${settings.numberOfQuestions} important sentences from the content that contain key facts, definitions, formulas, or concepts
+3. Use sentences EXACTLY as they appear in the source material, with minimal modifications
+4. Each cloze card must have EXACTLY ONE deletion marked with {{c1::text}}
+5. NEVER create multiple deletions in the same sentence (no scattered blanks)
+6. Focus deletion on the most educational part: key terms, definitions, processes, formulas, numerical values
+7. Ensure the sentence makes sense as a standalone statement without document context
+8. For mathematical formulas, use LaTeX formatting (e.g., $E = mc^2$, $\\frac{a}{b}$, $\\sqrt{x}$)
+9. CRITICAL: Make questions SELF-CONTAINED - do NOT reference "Equation (3)", "Exhibit 2", "Table 1", "Figure 4", etc.
+10. If mentioning a formula/equation, include the FULL equation in the question text
+11. Replace references like "Equation (4)" with the actual equation or descriptive text
+
+SINGLE DELETION EXAMPLES (ONE per sentence):
+- Single word: "The {{c1::mitochondria}} produces energy for the cell"
+- Short phrase: "Water boils at {{c1::100 degrees Celsius}}"  
+- Medium phrase: "Photosynthesis converts {{c1::carbon dioxide and water into glucose}}"
+- Key concept: "The investment horizon should match your {{c1::risk tolerance}}"
+- Definition: "{{c1::Compound interest}} allows your money to grow exponentially over time"
+- Mathematical: "The area of a circle is calculated using {{c1::A = πr²}}"
+
+SELF-CONTAINED EXAMPLES:
+- BAD: "Equation (4) is the standard formula for determining the {{c1::after-tax standard deviation}}"
+- GOOD: "The formula σ_AT = σ_BT × (1-T) is used to determine the {{c1::after-tax standard deviation}}"
+- BAD: "The total return in Exhibit 2 is the {{c1::pre-tax geometric total return}}"
+- GOOD: "When calculating investment performance, the total return is the {{c1::pre-tax geometric total return}}"
+
+REQUIRED FORMAT - Return this exact JSON structure:
+{
+  "title": "[Subject Topic]",
+  "questions": [
+    {
+      "text": "Brief description of concept",
+      "type": "cloze",
+      "clozeText": "The {{c1::variable length meaningful deletion}} enhances learning.",
+      "originalText": "The variable length meaningful deletion enhances learning.",
+      "correctAnswer": "variable length meaningful deletion"
+    }
+  ]
+}
+
+CORRECT FORMAT EXAMPLES:
+- BAD (multiple deletions): "Her horizon is {{c1::shorter}}, only {{c2::three years}}, and she wants growth"
+- GOOD (single deletion): "Her horizon for the education account is shorter, only {{c1::three years}}"
+- BAD (external reference): "Equation (4) shows the {{c1::after-tax return calculation}}"
+- GOOD (self-contained): "The after-tax return is calculated using {{c1::σ_AT = σ_BT × (1-T)}}"
+- BAD (too modified): "Investment accounts require {{c1::proper planning}}"  
+- GOOD (faithful to source): "The education account has a shorter time horizon of {{c1::three years}}"
+
+IMPORTANT: Only use "type": "cloze" - do NOT create multiple choice questions!`
+                  : `Analyze the attached document thoroughly and generate exactly ${settings.numberOfQuestions} high-quality quiz questions.
 
 DOCUMENT ANALYSIS INSTRUCTIONS:
 - Read through the ENTIRE document carefully, including all sections
 - For large documents, ensure questions cover different parts/sections
 - Extract specific facts, concepts, and details from the document content
+- ONLY use information that is explicitly stated or directly derivable from the uploaded document
+- DO NOT include external knowledge, outside references, or information not contained in the document
 
 QUESTION REQUIREMENTS:
 - Generate exactly ${settings.numberOfQuestions} questions (difficulty: ${settings.difficulty}, type: ${settings.questionType})
 - Each question must be a complete, well-formed question ending with "?"
 - Base every question on specific information found in the document
+- CRITICAL: Each question must be UNIQUE - do not repeat the same question with different wording
+- CRITICAL: Do not ask about the same concept/fact multiple times in different ways
 - Avoid generic phrases like "based on that information", "unique questions", or "please review"
 - Questions should be substantial (at least 15 characters)
 - Test understanding of different document sections/topics
+- Ensure variety in topics covered - don't focus too heavily on one section
+
+CONTENT RESTRICTION REQUIREMENTS:
+- Questions must ONLY test knowledge that can be answered using information in the uploaded document
+- DO NOT ask questions that require external knowledge beyond what's in the document
+- DO NOT reference outside sources, general knowledge, or industry standards not mentioned in the document
+- If the document doesn't provide enough context for a concept, do not create questions about it
 
 JSON FORMAT (REQUIRED):
 {
@@ -713,8 +906,8 @@ JSON FORMAT (REQUIRED):
   "questions": [
     {
       "text": "What specific [concept/fact] does the document explain about [topic]?",
-      "type": "${settings.questionType === 'mixed' ? 'multiple_choice' : settings.questionType}",
-      "options": ["Specific option A", "Specific option B", "Specific option C", "Specific option D"],
+      "type": "${settings.questionType}",
+      ${settings.questionType === 'multiple_choice' ? '"options": ["Specific option A", "Specific option B", "Specific option C", "Specific option D"],' : ''}
       "correctAnswer": "Specific option A"
     }
   ]
@@ -732,7 +925,15 @@ Generate exactly ${settings.numberOfQuestions} questions now based on the docume
             });
           }
 
-          const responseText = await generateQuestionsWithRetry(openai, thread.id, process.env.OPENAI_ASSISTANT_ID!, sendJson, settings.numberOfQuestions);
+          // Create temporary assistant with gpt-4.1 for better document processing
+          assistant = await openai.beta.assistants.create({
+            name: "Quiz Generator",
+            instructions: `You are a quiz generator that creates high-quality educational questions from documents. Always use the attached document as your ONLY source of information. Generate questions that test understanding of the specific content provided.`,
+            model: "gpt-4-1106-preview", // This is gpt-4.1
+            tools: [{ type: "file_search" }]
+          });
+
+          const responseText = await generateQuestionsWithRetry(openai, thread.id, assistant, sendJson, settings.numberOfQuestions, settings);
           // Extract filename for meaningful title generation
           const originalFileName = settings.sourceType === 'youtube' ? 'YouTube Video' : 
                                   (blobUrl ? new URL(blobUrl).pathname.split('/').pop() || 'uploaded_file' : 'uploaded_file');
@@ -757,14 +958,22 @@ Generate exactly ${settings.numberOfQuestions} questions now based on the docume
 
           sendJson({ type: 'final', quiz: parsed });
 
-          // Clean up the uploaded file from OpenAI (only if it was uploaded)
+          // Clean up the uploaded file and assistant from OpenAI
           if (fileUpload) {
             try {
               await openai.files.del(fileUpload.id);
-              sendJson({ type: 'info', message: '🧹 Cleanup completed.' });
+              sendJson({ type: 'info', message: '🧹 File cleanup completed.' });
             } catch (cleanupError) {
-              console.error("Cleanup error:", cleanupError);
+              console.error("File cleanup error:", cleanupError);
             }
+          }
+          
+          // Clean up the temporary assistant
+          try {
+            await openai.beta.assistants.del(assistant.id);
+            console.log(`🗑️ Cleaned up assistant: ${assistant.id}`);
+          } catch (cleanupError) {
+            console.error('Failed to cleanup assistant:', cleanupError);
           }
 
           // Send completion signal

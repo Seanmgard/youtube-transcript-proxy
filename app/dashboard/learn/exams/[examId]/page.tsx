@@ -23,6 +23,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 
 export default function TakeExamPage() {
   // Use the useParams hook to get route parameters in a client component
@@ -166,7 +167,7 @@ export default function TakeExamPage() {
             settings: quiz.settings || {
               numberOfQuestions: quiz.questions?.length || 0,
               difficulty: 'medium',
-              questionType: 'mixed'
+              questionType: 'multiple_choice'
             },
             subject: quiz.subject || '',
             color: quiz.color || ''
@@ -377,7 +378,7 @@ export default function TakeExamPage() {
           <h1 className="text-2xl font-bold">{exam.title} - Results</h1>
         </div>
 
-        <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+        <div className="p-6 bg-white rounded-lg shadow-md">
           <div className="text-center mb-6">
             <h2 className="text-2xl font-bold mb-2">Exam Completed!</h2>
             <p className="text-gray-500">
@@ -529,7 +530,7 @@ export default function TakeExamPage() {
           <h1 className="text-2xl font-bold">{exam.title}</h1>
         </div>
 
-        <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800 text-center">
+        <div className="p-6 bg-white rounded-lg shadow-md text-center">
           <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
           <h2 className="text-xl font-semibold mb-2">No questions available</h2>
           <p className="text-gray-500 mb-4">This exam doesn't contain any questions. Please edit the exam to include quizzes with questions.</p>
@@ -553,18 +554,22 @@ export default function TakeExamPage() {
         <h1 className="text-2xl font-bold">{exam.title}</h1>
       </div>
 
-      <div className="p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
+      <div className="p-6 bg-white rounded-lg shadow-md">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">{exam.title}</h2>
+        </div>
+
         <div className="mb-6">
-          <h2 className="text-xl font-semibold mb-2">Exam Instructions</h2>
-          <p className="text-gray-600 dark:text-gray-300">
+          <h2 className="text-xl font-semibold mb-2 text-gray-900">Exam Instructions</h2>
+          <p className="text-gray-700">
             This exam contains {allQuestions.length} questions from {quizzes.length} {quizzes.length === 1 ? 'quiz' : 'quizzes'}.
             Answer all questions and click "Submit Exam" at the bottom when you're finished.
             You will see your results after submission.
           </p>
           {exam.description && (
-            <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-md">
-              <h3 className="text-sm font-medium mb-1">Exam Description:</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">{exam.description}</p>
+            <div className="mt-4 p-4 bg-gray-50 rounded-md">
+              <h3 className="text-sm font-medium mb-1 text-gray-800">Exam Description:</h3>
+              <p className="text-sm text-gray-700">{exam.description}</p>
             </div>
           )}
         </div>
@@ -575,8 +580,13 @@ export default function TakeExamPage() {
           <div className="space-y-8">
             {allQuestions.map((question, index) => (
               <div key={question.id} className="p-4 border rounded-lg">
-                <h3 className="text-lg font-medium mb-2">Question {index + 1}</h3>
-                <p className="mb-4">{question.text}</p>
+                <h3 className="text-lg font-medium mb-2 text-gray-900">Question {index + 1}</h3>
+                <p className="mb-4 text-gray-800">
+                  {question.type === 'cloze' 
+                    ? (question as any).clozeText?.replace(/\{\{c1::(.*?)\}\}/g, '_______________')
+                    : question.text
+                  }
+                </p>
                 
                 {question.type === 'multiple_choice' && question.options && (
                   <RadioGroup 
@@ -587,7 +597,7 @@ export default function TakeExamPage() {
                     {question.options.map((option, optionIndex) => (
                       <div key={optionIndex} className="flex items-center space-x-2">
                         <RadioGroupItem value={option} id={`q${index}-option-${optionIndex}`} />
-                        <Label htmlFor={`q${index}-option-${optionIndex}`} className="cursor-pointer">
+                        <Label htmlFor={`q${index}-option-${optionIndex}`} className="cursor-pointer text-gray-800">
                           {option}
                         </Label>
                       </div>
@@ -600,9 +610,24 @@ export default function TakeExamPage() {
                     placeholder="Enter your answer here..."
                     value={userAnswers[question.id] || ''}
                     onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                    className="w-full"
+                    className="w-full text-gray-900"
                     rows={3}
                   />
+                )}
+                
+                {question.type === 'cloze' && (
+                  <div>
+                    <Label htmlFor={`cloze-answer-${index}`} className="text-sm font-medium text-gray-700 mb-2 block">
+                      Fill in the blank:
+                    </Label>
+                    <Input
+                      id={`cloze-answer-${index}`}
+                      placeholder="Enter your answer..."
+                      value={userAnswers[question.id] || ''}
+                      onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                      className="text-lg w-full text-gray-900"
+                    />
+                  </div>
                 )}
               </div>
             ))}
@@ -628,6 +653,8 @@ export default function TakeExamPage() {
           </div>
         </form>
       </div>
+
+
     </div>
   );
 } 

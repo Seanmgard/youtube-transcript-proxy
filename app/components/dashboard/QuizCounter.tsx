@@ -17,7 +17,7 @@ export function QuizCounter() {
   const { user } = useAuth();
   const { toast } = useToast();
   const isPremium = isOnPlan('premium');
-  const quizLimit = isPremium ? Infinity : 10;
+  const quizLimit = isPremium ? Infinity : 5;
   const hasAttemptedFetch = useRef(false);
 
   const fetchQuizCount = async () => {

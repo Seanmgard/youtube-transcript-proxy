@@ -28,7 +28,7 @@ const faqs = [
   {
     question: 'Is there a limit to how many quizzes I can create?',
     answer:
-      'Free accounts can create up to 10 quizzes per month. Pro accounts have unlimited quiz creation. Check our pricing page for more details on plan features.',
+      'Free accounts can create up to 5 quizzes per month with up to 10 questions each. Premium accounts have unlimited quiz creation with up to 50 questions per quiz. Check our pricing page for more details on plan features.',
   },
   {
     question: 'How can I export my quizzes?',

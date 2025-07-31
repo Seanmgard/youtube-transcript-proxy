@@ -14,21 +14,40 @@ export interface Question {
   id: string;
   quizId: string;
   text: string;
-  type: 'multiple_choice' | 'open_ended';
+  type: 'multiple_choice' | 'open_ended' | 'cloze';
   options?: string[];
   correctAnswer: string;
+  clozeText?: string; // For cloze deletion: text with {{c1::answer}} format
+  originalText?: string; // For cloze deletion: original text without cloze markers
+  // Image functionality for flashcards (up to 2 images per side)
+  frontImages?: Array<{
+    url: string;
+    alt?: string;
+    size?: 'small' | 'medium' | 'large';
+  }>;
+  backImages?: Array<{
+    url: string;
+    alt?: string;
+    size?: 'small' | 'medium' | 'large';
+  }>;
 }
 
 export interface QuizSettings {
   numberOfQuestions: number;
   difficulty: 'easy' | 'medium' | 'hard';
-  questionType: 'multiple_choice' | 'open_ended' | 'mixed';
-  sourceType?: 'file' | 'youtube';
+  questionType: 'multiple_choice' | 'open_ended' | 'cloze';
+  sourceType: 'file' | 'youtube';
+  summary?: SummarySettings;  // Optional summary settings
   youtubeUrl?: string;
   isLanguageLearning?: boolean;
   sourceLanguage?: string;
   targetLanguage?: string;
   extractionType?: 'words' | 'sentences';
+}
+
+export interface SummarySettings {
+  enabled: boolean;
+  wordCount?: number;  // Optional target word count, will be scaled based on document size
 }
 
 export interface UserProfile {

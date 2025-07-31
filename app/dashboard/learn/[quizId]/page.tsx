@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback, KeyboardEvent } from 'react';
-import { Loader2, ArrowLeft, ThumbsUp, ThumbsDown, RotateCcw, ChevronLeft, ChevronRight, Check, X, CheckCircle, XCircle, AlertCircle, FileText, Send, Eye, EyeOff, Settings, Lightbulb, Brain, Zap, Trophy, Target } from 'lucide-react';
+import { Loader2, ArrowLeft, ThumbsUp, ThumbsDown, RotateCcw, ChevronLeft, ChevronRight, Check, X, CheckCircle, XCircle, AlertCircle, FileText, Send, Eye, EyeOff, Settings, Lightbulb, Brain, Zap, Trophy, Target, Edit, ZoomIn } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Quiz, Question, LearningProgress, QuestionStat } from '@/lib/types';
 import { useToast } from '@/app/components/ui/use-toast';
 import { Progress } from "@/app/components/ui/progress";
@@ -22,6 +23,9 @@ import {
 import { Input } from '@/app/components/ui/input'
 import { Label } from '@/app/components/ui/label'
 import { AnkiExportDialog } from '@/app/components/AnkiExportDialog'
+import ClozeEditor from '@/app/components/ClozeEditor';
+import { QuestionEditor } from '@/app/components/QuestionEditor';
+import { ImageZoomModal } from '@/app/components/ImageZoomModal';
 
 export default function LearnQuizPage() {
   // Use the useParams hook to get route parameters in a client component
@@ -48,6 +52,14 @@ export default function LearnQuizPage() {
   const [ankiDeckName, setAnkiDeckName] = useState('');
   const [isAnkiDialogOpen, setIsAnkiDialogOpen] = useState(false);
   const [sendingToAnki, setSendingToAnki] = useState(false);
+  const [editingCloze, setEditingCloze] = useState(false);
+  const [isQuestionEditorOpen, setIsQuestionEditorOpen] = useState(false);
+  const [editingQuestionIndex, setEditingQuestionIndex] = useState<number | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<{
+    url: string;
+    alt: string;
+    title: string;
+  } | null>(null);
   
   // Combine loading states
   const isLoading = contentLoading || supabaseLoading;
@@ -143,12 +155,15 @@ export default function LearnQuizPage() {
             text: q.text || q.question || '',
             correctAnswer: q.correctAnswer || q.answer || '',
             type: q.type || 'open_ended',
-            options: q.options || [] // Ensure options field exists
+            options: q.options || [], // Ensure options field exists
+            // Preserve cloze deletion specific fields
+            clozeText: q.clozeText || q.cloze_text || '',
+            originalText: q.originalText || q.original_text || q.text || q.question || ''
           })),
           settings: quizData.settings || {
             numberOfQuestions: quizData.questions?.length || 0,
             difficulty: 'medium',
-            questionType: 'mixed'
+            questionType: 'multiple_choice'
           }
         };
         
@@ -434,11 +449,11 @@ export default function LearnQuizPage() {
 
   // Add keyboard event handler for space bar
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement> | KeyboardEvent<Document>) => {
-    if (e.code === 'Space' || e.key === ' ') {
+    if ((e.code === 'Space' || e.key === ' ') && !editingCloze) {
       e.preventDefault();
       handleFlip();
     }
-  }, [handleFlip]);
+  }, [handleFlip, editingCloze]);
 
   // Add global keyboard event listener
   useEffect(() => {
@@ -450,6 +465,13 @@ export default function LearnQuizPage() {
       document.removeEventListener('keydown', handleKeyDown as any);
     };
   }, [handleKeyDown]);
+
+  // Ensure card returns to front when editing ends
+  useEffect(() => {
+    if (!editingCloze) {
+      setFlipped(false);
+    }
+  }, [editingCloze]);
 
   // Add useEffect for mobile detection
   useEffect(() => {
@@ -527,6 +549,122 @@ export default function LearnQuizPage() {
   const closeAnkiDialog = () => {
     console.log('Closing Anki dialog');
     setIsAnkiDialogOpen(false);
+  };
+
+  // Question Editor functions
+  const openQuestionEditor = () => {
+    setEditingQuestionIndex(currentQuestionIndex);
+    setIsQuestionEditorOpen(true);
+  };
+
+  const closeQuestionEditor = () => {
+    setIsQuestionEditorOpen(false);
+    setEditingQuestionIndex(null);
+  };
+
+  const handleQuestionSave = async (updatedQuestion: Question) => {
+    if (!quiz || editingQuestionIndex === null) return;
+
+    try {
+      // Update the question in the current quiz
+      const updatedQuestions = [...quiz.questions];
+      updatedQuestions[editingQuestionIndex] = updatedQuestion;
+      
+      const updatedQuiz = {
+        ...quiz,
+        questions: updatedQuestions
+      };
+
+      // Update it in the database
+      const response = await fetch('/api/update-quiz', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: quiz.id,
+          questionIndex: editingQuestionIndex,
+          updatedQuestion
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save question to database');
+      }
+
+      setQuiz(updatedQuiz);
+      closeQuestionEditor();
+      
+      toast({
+        title: "Question updated",
+        description: "Your flashcard has been successfully updated with images!",
+        className: "border-green-200 bg-green-50 text-green-900",
+      });
+    } catch (error) {
+      console.error('Error saving question:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save question. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleClozeUpdate = async (updatedQuestion: any) => {
+    if (!quiz || !supabase) return;
+    
+    try {
+      const updatedQuestions = [...quiz.questions];
+      updatedQuestions[currentQuestionIndex] = updatedQuestion;
+      
+      // Update local state immediately for better UX
+      setQuiz({
+        ...quiz,
+        questions: updatedQuestions
+      });
+      
+      // Save to database
+      const response = await fetch('/api/update-quiz', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          quizId: quiz.id,
+          questions: updatedQuestions
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save changes');
+      }
+
+      toast({
+        title: "✅ Cloze Updated",
+        description: "Your cloze deletion has been saved successfully.",
+        className: "border-green-200 bg-green-50 text-green-900",
+        duration: 3000,
+      });
+      
+      // Immediately exit editing mode and return to front of card
+      setEditingCloze(false);
+      setFlipped(false);
+      
+      // Force a small delay to ensure state changes are applied
+      setTimeout(() => {
+        setFlipped(false);
+      }, 100);
+      
+    } catch (error) {
+      console.error('Error saving cloze changes:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save changes. Please try again.",
+        variant: "destructive",
+      });
+      
+      // Don't close the editor if save failed
+    }
   };
 
   if (isLoading) {
@@ -657,17 +795,17 @@ export default function LearnQuizPage() {
         {/* Enhanced Flashcard */}
         <div className="relative">
           <div
-            className={`relative w-full rounded-xl md:rounded-3xl bg-gradient-to-br from-white to-gray-50 shadow-2xl border border-gray-100 perspective-1000 ${flipped ? 'rotate-y-180' : ''} transform-style-preserve-3d transition-all duration-700 cursor-pointer hover:shadow-3xl active:scale-[0.98] touch-manipulation`}
+            className={`relative w-full rounded-xl md:rounded-3xl bg-gradient-to-br from-white to-gray-50 shadow-2xl border border-gray-100 perspective-1000 ${flipped ? 'rotate-y-180' : ''} transform-style-preserve-3d transition-all duration-700 ${!editingCloze ? 'cursor-pointer hover:shadow-3xl active:scale-[0.98]' : 'cursor-default'} touch-manipulation`}
             style={{ 
               minHeight: isMobileOrTablet ? (showOptions && currentQuestion?.type === 'multiple_choice' ? '620px' : '450px') : '400px', 
               height: isMobileOrTablet ? 'auto' : '450px',
               maxHeight: isMobileOrTablet ? 'none' : '450px' 
             }}
-          onClick={handleFlip}
-          tabIndex={0}
-          role="button"
-          aria-pressed={flipped}
-          aria-label="Flashcard, press space or click to flip"
+          onClick={!editingCloze ? handleFlip : undefined}
+          tabIndex={!editingCloze ? 0 : -1}
+          role={!editingCloze ? "button" : undefined}
+          aria-pressed={!editingCloze ? flipped : undefined}
+          aria-label={!editingCloze ? "Flashcard, press space or click to flip" : undefined}
         >
           {/* Front of card (Question) */}
             <div className={`absolute w-full h-full backface-hidden ${!flipped ? 'visible' : 'invisible'} ${isMobileOrTablet ? 'overflow-hidden' : 'overflow-auto'} rounded-xl md:rounded-3xl`}>
@@ -682,82 +820,206 @@ export default function LearnQuizPage() {
                       #{currentQuestionIndex + 1}
                     </span>
                   </div>
-                  <div className="text-xs text-gray-500 bg-gray-100 px-2 md:px-2.5 py-1 rounded-full">
-                    {currentQuestion?.type === 'multiple_choice' ? 'Multiple Choice' : 'Open Ended'}
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs text-gray-500 bg-gray-100 px-2 md:px-2.5 py-1 rounded-full">
+                      {currentQuestion?.type === 'multiple_choice' ? 'Multiple Choice' : 
+                       currentQuestion?.type === 'cloze' ? 'Cloze Deletion' : 'Open Ended'}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openQuestionEditor();
+                      }}
+                      className="text-xs h-6 px-2"
+                    >
+                      <Edit className="h-3 w-3 mr-1" />
+                      Edit
+                    </Button>
+                    {currentQuestion?.type === 'cloze' && !editingCloze && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingCloze(true);
+                        }}
+                        className="text-xs h-6 px-2"
+                      >
+                        <Edit className="h-3 w-3 mr-1" />
+                        Cloze
+                      </Button>
+                    )}
                   </div>
                 </div>
+                
+                {/* Cloze Editor (when editing) */}
+                {editingCloze && currentQuestion?.type === 'cloze' && (
+                  <div className="mb-4">
+                    <ClozeEditor
+                      key={`cloze-editor-${currentQuestionIndex}-${editingCloze}`}
+                      question={currentQuestion}
+                      quizId={quiz?.id}
+                      allQuestions={quiz?.questions}
+                      onUpdate={handleClozeUpdate}
+                      autoEdit={true}
+                      onCancel={() => {
+                        setEditingCloze(false);
+                        setFlipped(false);
+                      }}
+                    />
+                  </div>
+                )}
                 
                 {/* Question Text */}
-                <div className="flex-grow flex flex-col justify-start">
-                  <h2 className="text-lg md:text-lg font-semibold text-gray-900 leading-relaxed mb-4 md:mb-4 text-center px-1 md:px-2">
-                    {currentQuestion?.text}
-                  </h2>
-                  
-                  {/* Multiple Choice Options (if enabled) */}
-                  {showOptions && currentQuestion?.type === 'multiple_choice' && currentQuestion?.options && (
-                    <div className="space-y-3 mt-2">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-gradient-to-r from-green-400 to-blue-500"></div>
-                        <span className="text-xs md:text-xs font-medium text-gray-600">Choose the best answer:</span>
-                      </div>
-                      <div className="grid gap-2.5 md:gap-2">
-                        {currentQuestion.options.map((option, index) => {
-                          const isSelected = selectedAnswer === option;
-                          const isCorrectAnswer = isSelected && isCorrect === true;
-                          const isWrongAnswer = isSelected && isCorrect === false;
-                          
-                          return (
-                            <div
-                              key={index}
-                              onClick={() => handleOptionClick(option, index)}
-                              className={`flex items-start gap-3 p-3 md:p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
-                                isCorrectAnswer
-                                  ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 shadow-md'
-                                  : isWrongAnswer
-                                  ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-300 shadow-md'
-                                  : 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200 hover:from-blue-50 hover:to-indigo-50 hover:border-blue-200'
-                              }`}
-                            >
-                              <div className={`w-6 h-6 md:w-6 md:h-6 rounded-full border-2 flex items-center justify-center font-semibold text-xs flex-shrink-0 mt-0.5 md:mt-0 ${
-                                isCorrectAnswer
-                                  ? 'bg-green-500 border-green-500 text-white'
-                                  : isWrongAnswer
-                                  ? 'bg-red-500 border-red-500 text-white'
-                                  : 'bg-white border-gray-300 text-gray-600'
-                              }`}>
-                                {isCorrectAnswer ? (
-                                  <Check className="h-3 w-3" />
-                                ) : isWrongAnswer ? (
-                                  <X className="h-3 w-3" />
-                                ) : (
-                                  String.fromCharCode(65 + index)
-                                )}
+                {!editingCloze && (
+                  <div className="flex-grow flex flex-col justify-start">
+                    <h2 className="text-lg md:text-lg font-semibold text-gray-900 leading-relaxed mb-4 md:mb-4 text-center px-1 md:px-2">
+                      {currentQuestion?.type === 'cloze' 
+                        ? (currentQuestion as any).clozeText?.replace(/\{\{c1::(.*?)\}\}/g, '_______________') || currentQuestion?.text
+                        : currentQuestion?.text
+                      }
+                    </h2>
+                    
+                    {/* Front Images */}
+                    {((currentQuestion?.frontImages && currentQuestion.frontImages.length > 0) || 
+                      (currentQuestion as any)?.frontImage) && (
+                      <div className="mb-6 flex justify-center">
+                        <div className="flex flex-wrap gap-4 justify-center max-w-4xl w-full">
+                          {/* Handle new multi-image format */}
+                          {currentQuestion?.frontImages?.map((image, index) => (
+                            <div key={index} className="relative group">
+                              <Image
+                                src={image.url}
+                                alt={image.alt || `Question image ${index + 1}`}
+                                width={currentQuestion.frontImages?.length === 1 ? 500 : 350}
+                                height={currentQuestion.frontImages?.length === 1 ? 350 : 250}
+                                className={`rounded-lg shadow-md object-contain transition-all duration-200 hover:shadow-lg ${
+                                  image.size === 'small' ? 'max-h-48' :
+                                  image.size === 'large' ? 'max-h-96' :
+                                  currentQuestion.frontImages?.length === 1 ? 'max-h-80' : 'max-h-64'
+                                }`}
+                              />
+                              {/* Top right zoom icon */}
+                              <div 
+                                className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-full p-1.5 shadow-md md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-opacity duration-200 cursor-pointer hover:bg-white z-10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setZoomedImage({
+                                    url: image.url,
+                                    alt: image.alt || `Question image ${index + 1}`,
+                                    title: `Question Image ${currentQuestion.frontImages && currentQuestion.frontImages.length > 1 ? index + 1 : ''}`
+                                  });
+                                }}
+                              >
+                                <ZoomIn className="h-3 w-3 text-gray-600" />
                               </div>
-                              <span className={`text-sm md:text-sm flex-1 leading-relaxed ${
-                                isCorrectAnswer
-                                  ? 'text-green-800 font-medium'
-                                  : isWrongAnswer
-                                  ? 'text-red-800 font-medium'
-                                  : 'text-gray-700'
-                              }`}>
-                      {option}
-                              </span>
                             </div>
-                          );
-                        })}
+                          ))}
+                          
+                                                                                {/* Handle legacy single image format */}
+                          {(currentQuestion as any)?.frontImage && !currentQuestion?.frontImages && (
+                            <div className="relative group">
+                              <Image
+                                src={(currentQuestion as any).frontImage.url}
+                                alt={(currentQuestion as any).frontImage.alt || 'Question image'}
+                                width={500}
+                                height={350}
+                                className={`rounded-lg shadow-md object-contain transition-all duration-200 hover:shadow-lg ${
+                                  (currentQuestion as any).frontImage.size === 'small' ? 'max-h-48' :
+                                  (currentQuestion as any).frontImage.size === 'large' ? 'max-h-96' :
+                                  'max-h-80'
+                                }`}
+                              />
+                              {/* Top right zoom icon */}
+                              <div 
+                                className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-full p-1.5 shadow-md md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-opacity duration-200 cursor-pointer hover:bg-white z-10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setZoomedImage({
+                                    url: (currentQuestion as any).frontImage.url,
+                                    alt: (currentQuestion as any).frontImage.alt || 'Question image',
+                                    title: 'Question Image'
+                                  });
+                                }}
+                              >
+                                <ZoomIn className="h-3 w-3 text-gray-600" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                    
+                    {/* Multiple Choice Options (if enabled) */}
+                    {showOptions && currentQuestion?.type === 'multiple_choice' && currentQuestion?.options && (
+                      <div className="space-y-3 mt-2">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-gradient-to-r from-green-400 to-blue-500"></div>
+                          <span className="text-xs md:text-xs font-medium text-gray-600">Choose the best answer:</span>
+                        </div>
+                        <div className="grid gap-2.5 md:gap-2">
+                          {currentQuestion.options.map((option, index) => {
+                            const isSelected = selectedAnswer === option;
+                            const isCorrectAnswer = isSelected && isCorrect === true;
+                            const isWrongAnswer = isSelected && isCorrect === false;
+                            
+                            return (
+                              <div
+                                key={index}
+                                onClick={() => handleOptionClick(option, index)}
+                                className={`flex items-start gap-3 p-3 md:p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
+                                  isCorrectAnswer
+                                    ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 shadow-md'
+                                    : isWrongAnswer
+                                    ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-300 shadow-md'
+                                    : 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200 hover:from-blue-50 hover:to-indigo-50 hover:border-blue-200'
+                                }`}
+                              >
+                                <div className={`w-6 h-6 md:w-6 md:h-6 rounded-full border-2 flex items-center justify-center font-semibold text-xs flex-shrink-0 mt-0.5 md:mt-0 ${
+                                  isCorrectAnswer
+                                    ? 'bg-green-500 border-green-500 text-white'
+                                    : isWrongAnswer
+                                    ? 'bg-red-500 border-red-500 text-white'
+                                    : 'bg-white border-gray-300 text-gray-600'
+                                }`}>
+                                  {isCorrectAnswer ? (
+                                    <Check className="h-3 w-3" />
+                                  ) : isWrongAnswer ? (
+                                    <X className="h-3 w-3" />
+                                  ) : (
+                                    String.fromCharCode(65 + index)
+                                  )}
+                                </div>
+                                <span className={`text-sm md:text-sm flex-1 leading-relaxed ${
+                                  isCorrectAnswer
+                                    ? 'text-green-800 font-medium'
+                                    : isWrongAnswer
+                                    ? 'text-red-800 font-medium'
+                                    : 'text-gray-700'
+                                }`}>
+                      {option}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 {/* Flip Instruction */}
-                <div className="text-center mt-4 md:mt-4 flex-shrink-0">
-                  <div className="inline-flex items-center gap-1.5 md:gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-3 md:px-3 py-1.5 rounded-full text-xs font-medium">
-                    <Zap className="h-3 w-3 md:h-3.5 md:w-3.5" />
-                    <span className="hidden sm:inline">Click or press Space to reveal answer</span>
-                    <span className="sm:hidden">Tap to reveal answer</span>
+                {!editingCloze && (
+                  <div className="text-center mt-4 md:mt-4 flex-shrink-0">
+                    <div className="inline-flex items-center gap-1.5 md:gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-3 md:px-3 py-1.5 rounded-full text-xs font-medium">
+                      <Zap className="h-3 w-3 md:h-3.5 md:w-3.5" />
+                      <span className="hidden sm:inline">Click or press Space to reveal answer</span>
+                      <span className="sm:hidden">Tap to reveal answer</span>
+                    </div>
                   </div>
-                </div>
+                )}
             </div>
           </div>
           
@@ -795,19 +1057,31 @@ export default function LearnQuizPage() {
                       {isCorrect === true ? 'Correct!' : isCorrect === false ? 'Incorrect' : 'Answer'}
                     </span>
                   </div>
-                  <div className={`text-xs font-medium px-2 md:px-2.5 py-1 rounded-full ${
-                    isCorrect === true 
-                      ? 'text-green-700 bg-green-100' 
-                      : isCorrect === false
-                      ? 'text-red-700 bg-red-100'
-                      : 'text-green-700 bg-green-100'
-                  }`}>
-                    {isCorrect === true ? 'Great!' : isCorrect === false ? 'Try Again' : 'Solution'}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={openQuestionEditor}
+                      className="flex items-center gap-1 text-xs h-7 px-2 bg-white/80 hover:bg-white border-gray-200 hover:border-gray-300"
+                    >
+                      <Edit className="h-3 w-3" />
+                      <span className="hidden sm:inline">Edit</span>
+                    </Button>
+                    <div className={`text-xs font-medium px-2 md:px-2.5 py-1 rounded-full ${
+                      isCorrect === true 
+                        ? 'text-green-700 bg-green-100' 
+                        : isCorrect === false
+                        ? 'text-red-700 bg-red-100'
+                        : 'text-green-700 bg-green-100'
+                    }`}>
+                      {isCorrect === true ? 'Great!' : isCorrect === false ? 'Try Again' : 'Solution'}
+                    </div>
                   </div>
                 </div>
                 
                 {/* Answer Content */}
-            <div className="flex-grow flex items-center justify-center">
+            <div className="flex-grow flex flex-col items-center justify-center">
+              
               {currentQuestion?.type === 'multiple_choice' && currentQuestion?.options ? (
                 (() => {
                   // Try to find the correct answer using multiple matching strategies
@@ -868,7 +1142,59 @@ export default function LearnQuizPage() {
                   );
                 })()
               ) : (
-                    <div className="text-center max-w-md">
+                <div className="text-center max-w-md">
+                  {currentQuestion?.type === 'cloze' ? (
+                    <>
+                      <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+                        <div className="text-sm text-gray-600 mb-2 font-medium">Complete sentence:</div>
+                        <div className="text-base text-gray-900 leading-relaxed">
+                          {(currentQuestion as any).originalText || currentQuestion?.text}
+                        </div>
+                      </div>
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white mx-auto mb-4 shadow-lg ${
+                        isCorrect === true 
+                          ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
+                          : isCorrect === false
+                          ? 'bg-gradient-to-r from-red-500 to-rose-600'
+                          : 'bg-gradient-to-r from-green-500 to-emerald-600'
+                      }`}>
+                        {isCorrect === true ? (
+                          <Check className="h-7 w-7" />
+                        ) : isCorrect === false ? (
+                          <X className="h-7 w-7" />
+                        ) : (
+                          <Check className="h-7 w-7" />
+                        )}
+                      </div>
+                      <div className={`p-4 rounded-lg border shadow-sm ${
+                        isCorrect === true 
+                          ? 'bg-green-50 border-green-200' 
+                          : isCorrect === false
+                          ? 'bg-red-50 border-red-200'
+                          : 'bg-green-50 border-green-200'
+                      }`}>
+                        <div className={`text-sm font-medium mb-1 ${
+                          isCorrect === true 
+                            ? 'text-green-700' 
+                            : isCorrect === false
+                            ? 'text-red-700'
+                            : 'text-green-700'
+                        }`}>
+                          Answer:
+                        </div>
+                        <p className={`text-lg font-semibold ${
+                          isCorrect === true 
+                            ? 'text-green-900' 
+                            : isCorrect === false
+                            ? 'text-red-900'
+                            : 'text-green-900'
+                        }`}>
+                          {currentQuestion?.correctAnswer}
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
                       <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white mx-auto mb-3 shadow-lg ${
                         isCorrect === true 
                           ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
@@ -887,7 +1213,79 @@ export default function LearnQuizPage() {
                       <p className="text-base font-semibold text-gray-900 leading-relaxed">
                         {currentQuestion?.correctAnswer}
                       </p>
-                    </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Back Images - displayed after the answer */}
+              {((currentQuestion?.backImages && currentQuestion.backImages.length > 0) || 
+                (currentQuestion as any)?.backImage) && (
+                <div className="mt-6 flex justify-center">
+                  <div className="flex flex-wrap gap-4 justify-center max-w-4xl w-full">
+                    {/* Handle new multi-image format */}
+                    {currentQuestion?.backImages?.map((image, index) => (
+                                             <div key={index} className="relative group">
+                                                 <Image
+                           src={image.url}
+                           alt={image.alt || `Answer image ${index + 1}`}
+                           width={currentQuestion.backImages?.length === 1 ? 500 : 350}
+                           height={currentQuestion.backImages?.length === 1 ? 350 : 250}
+                           className={`rounded-lg shadow-md object-contain transition-all duration-200 hover:shadow-lg ${
+                             image.size === 'small' ? 'max-h-48' :
+                             image.size === 'large' ? 'max-h-96' :
+                             currentQuestion.backImages?.length === 1 ? 'max-h-80' : 'max-h-64'
+                           }`}
+                         />
+                        {/* Top right zoom icon */}
+                        <div 
+                          className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-full p-1.5 shadow-md md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-opacity duration-200 cursor-pointer hover:bg-white z-10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setZoomedImage({
+                              url: image.url,
+                              alt: image.alt || `Answer image ${index + 1}`,
+                              title: `Answer Image ${currentQuestion.backImages && currentQuestion.backImages.length > 1 ? index + 1 : ''}`
+                            });
+                          }}
+                        >
+                          <ZoomIn className="h-3 w-3 text-gray-600" />
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {/* Handle legacy single image format */}
+                    {(currentQuestion as any)?.backImage && !currentQuestion?.backImages && (
+                      <div className="relative group">
+                                                 <Image
+                           src={(currentQuestion as any).backImage.url}
+                           alt={(currentQuestion as any).backImage.alt || 'Answer image'}
+                           width={500}
+                           height={350}
+                           className={`rounded-lg shadow-md object-contain transition-all duration-200 hover:shadow-lg ${
+                             (currentQuestion as any).backImage.size === 'small' ? 'max-h-48' :
+                             (currentQuestion as any).backImage.size === 'large' ? 'max-h-96' :
+                             'max-h-80'
+                           }`}
+                         />
+                        {/* Top right zoom icon */}
+                        <div 
+                          className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-full p-1.5 shadow-md md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-opacity duration-200 cursor-pointer hover:bg-white z-10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setZoomedImage({
+                              url: (currentQuestion as any).backImage.url,
+                              alt: (currentQuestion as any).backImage.alt || 'Answer image',
+                              title: 'Answer Image'
+                            });
+                          }}
+                        >
+                          <ZoomIn className="h-3 w-3 text-gray-600" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
             
@@ -1089,6 +1487,27 @@ export default function LearnQuizPage() {
           isOpen={isAnkiDialogOpen}
           onClose={closeAnkiDialog}
           quizId={quiz.id}
+        />
+      )}
+
+      {/* Question Editor Dialog */}
+      {editingQuestionIndex !== null && quiz?.questions[editingQuestionIndex] && (
+        <QuestionEditor
+          question={quiz.questions[editingQuestionIndex]}
+          isOpen={isQuestionEditorOpen}
+          onClose={closeQuestionEditor}
+          onSave={handleQuestionSave}
+        />
+      )}
+
+      {/* Image Zoom Modal */}
+      {zoomedImage && (
+        <ImageZoomModal
+          isOpen={!!zoomedImage}
+          onClose={() => setZoomedImage(null)}
+          imageUrl={zoomedImage.url}
+          imageAlt={zoomedImage.alt}
+          imageTitle={zoomedImage.title}
         />
       )}
       </div>

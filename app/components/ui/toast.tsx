@@ -29,10 +29,10 @@ const toastVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-gray-200 text-gray-900 dark:border-gray-700 dark:text-gray-100 [background-color:white] dark:[background-color:rgb(31,41,55)] [--tw-bg-opacity:1] [opacity:1]",
+        default: "border-gray-200 text-gray-900 [background-color:white] [--tw-bg-opacity:1] [opacity:1]",
         destructive:
-          "border-red-600 text-white dark:border-red-900 dark:text-red-50 [background-color:rgb(220,38,38)] dark:[background-color:rgb(127,29,29)] [--tw-bg-opacity:1] [opacity:1]",
-        success: "border-green-600 text-white dark:border-green-900 dark:text-green-50 [background-color:rgb(22,163,74)] dark:[background-color:rgb(20,83,45)] [--tw-bg-opacity:1] [opacity:1]",
+          "border-red-600 text-white [background-color:rgb(220,38,38)] [--tw-bg-opacity:1] [opacity:1]",
+        success: "border-green-600 text-white [background-color:rgb(22,163,74)] [--tw-bg-opacity:1] [opacity:1]",
       },
     },
     defaultVariants: {
@@ -113,7 +113,7 @@ const ToastDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Description
     ref={ref}
-    className={cn("text-sm text-gray-600 dark:text-gray-300", className)}
+    className={cn("text-sm text-gray-700", className)}
     {...props}
   />
 ))

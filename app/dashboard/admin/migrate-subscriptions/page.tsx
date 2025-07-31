@@ -56,16 +56,16 @@ export default function MigrateSubscriptionsPage() {
     <div className="space-y-6 max-w-3xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold mb-2">Subscription Migration</h1>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
+        <p className="text-gray-600 mb-6">
           This tool will create free subscription records for all existing users who don't have one.
         </p>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md dark:bg-gray-800 p-6">
+      <div className="bg-white rounded-lg shadow-md p-6">
         <div className="space-y-4">
           <div className="flex flex-col space-y-2">
             <h2 className="text-xl font-semibold">Migrate User Subscriptions</h2>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-gray-700">
               Click the button below to create free subscription records for all existing users who don't have one.
               This is useful for migrating existing accounts to the new subscription system.
             </p>
@@ -74,8 +74,8 @@ export default function MigrateSubscriptionsPage() {
           {result && (
             <div className={`p-4 rounded-lg border ${
               result.success 
-                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
-                : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                ? 'bg-green-50 border-green-200' 
+                : 'bg-red-50 border-red-200'
             }`}>
               <div className="flex">
                 {result.success ? (
@@ -86,8 +86,8 @@ export default function MigrateSubscriptionsPage() {
                 <div>
                   <p className={`text-sm ${
                     result.success 
-                      ? 'text-green-800 dark:text-green-200' 
-                      : 'text-red-800 dark:text-red-200'
+                      ? 'text-green-800' 
+                      : 'text-red-800'
                   }`}>
                     {result.message}
                   </p>

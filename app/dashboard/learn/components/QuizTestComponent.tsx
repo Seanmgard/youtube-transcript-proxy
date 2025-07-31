@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { 
   Clock, 
@@ -335,6 +336,28 @@ export function QuizTestComponent({ quiz, onComplete, onBack, className }: Props
                       )}
                     </div>
                   )}
+
+                  {question.type === 'cloze' && (
+                    <div className="space-y-3 text-sm">
+                      <div className="p-3 bg-gray-50 border rounded-lg">
+                        <p className="text-gray-800 leading-relaxed">
+                          {(question as any).originalText}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="font-medium">Your answer: </span>
+                        <span className={result.is_correct ? 'text-green-600' : 'text-red-600'}>
+                          {result.user_answer || '(No answer provided)'}
+                        </span>
+                      </div>
+                      {!result.is_correct && (
+                        <div>
+                          <span className="font-medium">Correct answer: </span>
+                          <span className="text-green-600">{result.correct_answer}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -392,7 +415,12 @@ export function QuizTestComponent({ quiz, onComplete, onBack, className }: Props
       {/* Current Question */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">{currentQuestion.text}</CardTitle>
+          <CardTitle className="text-lg">
+            {currentQuestion.type === 'cloze' 
+              ? (currentQuestion as any).clozeText?.replace(/\{\{c1::(.*?)\}\}/g, '_______________')
+              : currentQuestion.text
+            }
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {currentQuestion.type === 'multiple_choice' && currentQuestion.options && (
@@ -418,6 +446,21 @@ export function QuizTestComponent({ quiz, onComplete, onBack, className }: Props
               onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
               rows={4}
             />
+          )}
+
+                    {currentQuestion.type === 'cloze' && (
+            <div>
+              <Label htmlFor="cloze-answer" className="text-sm font-medium text-gray-700 mb-2 block">
+                Fill in the blank:
+              </Label>
+              <Input
+                id="cloze-answer"
+                placeholder="Enter your answer..."
+                value={userAnswers[currentQuestion.id] || ''}
+                onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
+                className="text-lg"
+              />
+            </div>
           )}
         </CardContent>
       </Card>

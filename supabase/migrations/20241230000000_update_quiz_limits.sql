@@ -1,14 +1,10 @@
--- Add deleted_at column to quizzes table
-ALTER TABLE IF EXISTS public.quizzes 
-ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
-
--- Create a function to check if a user has reached their monthly quiz limit
+-- Update quiz limit for free users from 10 to 5 quizzes per month
 CREATE OR REPLACE FUNCTION public.check_quiz_limit()
 RETURNS TRIGGER AS $$
 DECLARE
   user_plan_type TEXT;
   monthly_quiz_count INTEGER;
-  quiz_limit INTEGER := 5; -- Free user limit
+  quiz_limit INTEGER := 5; -- Free user limit (updated from 10 to 5)
 BEGIN
   -- Get the user's subscription plan type
   SELECT plan_type INTO user_plan_type
@@ -42,11 +38,4 @@ BEGIN
   
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Create a trigger to check the quiz limit before inserting a new quiz
-DROP TRIGGER IF EXISTS check_quiz_limit_trigger ON public.quizzes;
-CREATE TRIGGER check_quiz_limit_trigger
-  BEFORE INSERT ON public.quizzes
-  FOR EACH ROW
-  EXECUTE FUNCTION public.check_quiz_limit(); 
+$$ LANGUAGE plpgsql SECURITY DEFINER; 

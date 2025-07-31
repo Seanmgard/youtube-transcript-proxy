@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { CheckCircle, XCircle, ArrowLeft, RotateCcw, Trophy, Target, Clock } from 'lucide-react';
 import { useSupabase } from '@/utils/supabase/client';
@@ -238,6 +239,28 @@ export function LongFormatTestComponent({ questions, title, onBack, onComplete }
                       )}
                     </div>
                   )}
+
+                  {question.type === 'cloze' && (
+                    <div className="space-y-3 text-sm">
+                      <div className="p-3 bg-gray-50 border rounded-lg">
+                        <p className="text-gray-800 leading-relaxed">
+                          {(question as any).originalText}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="font-medium">Your answer: </span>
+                        <span className={result.is_correct ? 'text-green-600' : 'text-red-600'}>
+                          {result.user_answer || '(No answer provided)'}
+                        </span>
+                      </div>
+                      {!result.is_correct && (
+                        <div>
+                          <span className="font-medium">Correct answer: </span>
+                          <span className="text-green-600">{result.correct_answer}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -270,7 +293,12 @@ export function LongFormatTestComponent({ questions, title, onBack, onComplete }
           {questions.map((question, idx) => (
             <Card key={question.id} className="">
               <CardHeader>
-                <CardTitle className="text-lg">{idx + 1}. {question.text}</CardTitle>
+                <CardTitle className="text-lg">
+                  {idx + 1}. {question.type === 'cloze' 
+                    ? (question as any).clozeText?.replace(/\{\{c1::(.*?)\}\}/g, '_______________')
+                    : question.text
+                  }
+                </CardTitle>
                 {question.quizTitle && <CardDescription className="text-xs">From: {question.quizTitle}</CardDescription>}
               </CardHeader>
               <CardContent className="space-y-4">
@@ -296,6 +324,21 @@ export function LongFormatTestComponent({ questions, title, onBack, onComplete }
                     onChange={e => handleAnswerChange(question.id, e.target.value)}
                     rows={3}
                   />
+                )}
+
+                {question.type === 'cloze' && (
+                  <div>
+                    <Label htmlFor={`cloze-answer-${question.id}`} className="text-sm font-medium text-gray-700 mb-2 block">
+                      Fill in the blank:
+                    </Label>
+                    <Input
+                      id={`cloze-answer-${question.id}`}
+                      placeholder="Enter your answer..."
+                      value={userAnswers[question.id] || ''}
+                      onChange={e => handleAnswerChange(question.id, e.target.value)}
+                      className="text-lg"
+                    />
+                  </div>
                 )}
               </CardContent>
             </Card>

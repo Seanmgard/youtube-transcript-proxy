@@ -130,12 +130,34 @@ async function generateDocFormat(quiz: any) {
     for (let i = 0; i < quiz.questions.length; i++) {
       const question = quiz.questions[i];
       
-      // Add question text
-      questionParagraphs.push(
-        new Paragraph({
-          text: `${i + 1}. ${question.text}`,
-        })
-      );
+              // Add question text
+        questionParagraphs.push(
+          new Paragraph({
+            text: `${i + 1}. ${question.text}`,
+          })
+        );
+        
+        // Add front images note if available
+        if (question.frontImages?.length || question.frontImage) {
+          // Handle new multi-image format
+          if (question.frontImages) {
+            question.frontImages.forEach((image: any, index: number) => {
+              questionParagraphs.push(
+                new Paragraph({
+                  text: `   [Question Image ${index + 1}: ${image.alt || 'Question image'} - ${image.url}]`,
+                })
+              );
+            });
+          }
+          // Handle legacy single image format
+          else if (question.frontImage) {
+            questionParagraphs.push(
+              new Paragraph({
+                text: `   [Question Image: ${question.frontImage.alt || 'Question image'} - ${question.frontImage.url}]`,
+              })
+            );
+          }
+        }
       
       // Add options for multiple choice
       if (question.type === 'multiple_choice' && question.options) {
@@ -192,6 +214,28 @@ async function generateDocFormat(quiz: any) {
           text: `${i + 1}. ${answerText}`,
         })
       );
+      
+      // Add back images note if available
+      if (question.backImages?.length || question.backImage) {
+        // Handle new multi-image format
+        if (question.backImages) {
+          question.backImages.forEach((image: any, index: number) => {
+            answerKeyParagraphs.push(
+              new Paragraph({
+                text: `   [Answer Image ${index + 1}: ${image.alt || 'Answer image'} - ${image.url}]`,
+              })
+            );
+          });
+        }
+        // Handle legacy single image format
+        else if (question.backImage) {
+          answerKeyParagraphs.push(
+            new Paragraph({
+              text: `   [Answer Image: ${question.backImage.alt || 'Answer image'} - ${question.backImage.url}]`,
+            })
+          );
+        }
+      }
     }
     
     // Create a simple document with minimal formatting
@@ -248,46 +292,130 @@ async function generateDocFormat(quiz: any) {
 }
 
 function generateCsvFormat(quiz: any) {
-  // Format for Quizlet: Term,Definition
-  // For multiple choice, we'll include the options in the term
+  // Optimized format for Quizlet: Clean Term,Definition pairs for effective flashcard study
   let content = 'Term,Definition\n';
 
   quiz.questions.forEach((q: any) => {
     // Properly escape for CSV format
     // Double quotes need to be escaped with another double quote
-    let term = q.text.replace(/"/g, '""');
+    let term = '';
     let definition = q.correctAnswer.replace(/"/g, '""');
 
-    if (q.type === 'multiple_choice') {
-      // Include options in the term for multiple choice questions
-      term += '\n' + q.options.map((opt: string, i: number) => 
-        `${String.fromCharCode(97 + i)}) ${opt.replace(/"/g, '""')}`
-      ).join('\n');
+    switch (q.type) {
+      case 'multiple_choice':
+        // For multiple choice: Just use the question text as term, correct answer as definition
+        // This promotes active recall without giving away options
+        term = q.text.replace(/"/g, '""');
+        break;
+        
+      case 'cloze':
+        // For cloze deletion: Show text with blanks as term, missing word(s) as definition
+        if (q.clozeText) {
+          // Convert {{c1::answer}} format to blanks for Quizlet
+          term = q.clozeText.replace(/\{\{c1::(.*?)\}\}/g, '_____').replace(/"/g, '""');
+        } else if (q.originalText) {
+          // If we have original text, create a blank version
+          term = q.originalText.replace(new RegExp(q.correctAnswer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '_____').replace(/"/g, '""');
+        } else {
+          // Fallback: use question text
+          term = q.text.replace(/"/g, '""');
+        }
+        break;
+        
+      case 'open_ended':
+      default:
+        // For open-ended questions: Use question text as-is
+        term = q.text.replace(/"/g, '""');
+        break;
+    }
+
+    // Add image URLs if present
+    let imageInfo = '';
+    const images = [];
+    
+    // Handle new multi-image format
+    if (q.frontImages?.length) {
+      q.frontImages.forEach((image: any, index: number) => {
+        images.push(`Front${q.frontImages.length > 1 ? ` ${index + 1}` : ''}: ${image.url}`);
+      });
+    }
+    // Handle legacy single image format
+    else if (q.frontImage) {
+      images.push(`Front: ${q.frontImage.url}`);
+    }
+    
+    // Handle new multi-image format for back
+    if (q.backImages?.length) {
+      q.backImages.forEach((image: any, index: number) => {
+        images.push(`Back${q.backImages.length > 1 ? ` ${index + 1}` : ''}: ${image.url}`);
+      });
+    }
+    // Handle legacy single image format for back
+    else if (q.backImage) {
+      images.push(`Back: ${q.backImage.url}`);
+    }
+    
+    if (images.length > 0) {
+      imageInfo = ` [Images: ${images.join(', ')}]`;
     }
 
     // Wrap in quotes to handle commas and newlines
-    content += `"${term}","${definition}"\n`;
+    content += `"${term}${imageInfo}","${definition}"\n`;
   });
 
   return content;
 }
 
 function generateAnkiFormat(quiz: any) {
-  // Anki format: question;answer
+  // Anki format: question;answer (or cloze text for cloze deletion)
   let content = '';
 
   quiz.questions.forEach((q: any) => {
-    // Escape semicolons in both question and answer
-    let question = q.text.replace(/;/g, '\\;');
-    let answer = q.correctAnswer.replace(/;/g, '\\;');
+    if (q.type === 'cloze') {
+      // For cloze deletion, use the cloze text directly
+      // Anki will import this as a cloze deletion card
+      let clozeText = (q.clozeText || q.text).replace(/;/g, '\\;');
+      
+      // Add image references for Anki
+      if (q.frontImages?.length) {
+        q.frontImages.forEach((image: any) => {
+          clozeText += `<br><br><img src="${image.url}">`;
+        });
+      } else if (q.frontImage) {
+        clozeText += `<br><br><img src="${q.frontImage.url}">`;
+      }
+      
+      content += `${clozeText}\n`;
+    } else {
+      // For other question types, use standard question;answer format
+      let question = q.text.replace(/;/g, '\\;');
+      let answer = q.correctAnswer.replace(/;/g, '\\;');
 
-    if (q.type === 'multiple_choice') {
-      question += '\n' + q.options.map((opt: string, i: number) => 
-        `${String.fromCharCode(97 + i)}) ${opt.replace(/;/g, '\\;')}`
-      ).join('\n');
+      if (q.type === 'multiple_choice') {
+        question += '\n' + q.options.map((opt: string, i: number) => 
+          `${String.fromCharCode(97 + i)}) ${opt.replace(/;/g, '\\;')}`
+        ).join('\n');
+      }
+
+      // Add images to question and answer sides for Anki
+      if (q.frontImages?.length) {
+        q.frontImages.forEach((image: any) => {
+          question += `<br><br><img src="${image.url}">`;
+        });
+      } else if (q.frontImage) {
+        question += `<br><br><img src="${q.frontImage.url}">`;
+      }
+      
+      if (q.backImages?.length) {
+        q.backImages.forEach((image: any) => {
+          answer += `<br><br><img src="${image.url}">`;
+        });
+      } else if (q.backImage) {
+        answer += `<br><br><img src="${q.backImage.url}">`;
+      }
+
+      content += `${question};${answer}\n`;
     }
-
-    content += `${question};${answer}\n`;
   });
 
   return content;

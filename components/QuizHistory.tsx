@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import Link from 'next/link'
 import { AnkiExportDialog } from '@/app/components/AnkiExportDialog'
+import ClozeEditor from '@/app/components/ClozeEditor'
 
 // Add the getContrastColor utility function
 function getContrastColor(hexColor: string): string {
@@ -63,6 +64,8 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
   const [isMobileAnkiWarningOpen, setIsMobileAnkiWarningOpen] = useState(false);
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [editingTitleValue, setEditingTitleValue] = useState('');
+  const [isMobileDownloadOpen, setIsMobileDownloadOpen] = useState(false);
+  const [selectedMobileQuiz, setSelectedMobileQuiz] = useState<Quiz | null>(null);
 
   // Combine loading states
   const isLoading = loading || supabaseLoading;
@@ -126,7 +129,7 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
           settings: quiz.settings || {
             numberOfQuestions: quiz.questions?.length || 0,
             difficulty: 'medium',
-            questionType: 'mixed'
+            questionType: 'multiple_choice'
           },
           subject: quiz.subject || '',
           color: quiz.color || ''
@@ -399,15 +402,9 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
             } : {}}
             onClick={() => {
               if (isMobileOrTablet) {
-                // Mobile: Show download options directly
-                const options = ['Export as DOC', 'Export as CSV', 'Cancel'];
-                const choice = window.prompt(`${quiz.title}\n\n1. Export as DOC\n2. Export as CSV\n3. Cancel\n\nEnter 1, 2, or 3:`);
-                
-                if (choice === '1') {
-                  handleExport(quiz, 'doc');
-                } else if (choice === '2') {
-                  handleExport(quiz, 'csv');
-                }
+                // Mobile: Show mobile-friendly download dialog
+                setSelectedMobileQuiz(quiz);
+                setIsMobileDownloadOpen(true);
               } else {
                 // Desktop: Show full quiz details
                 openQuizDetails(quiz);
@@ -654,9 +651,36 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
                         {index + 1}
                       </span>
                       <p className="text-sm font-medium text-gray-900 leading-relaxed">
-                        {question.text}
+                        {question.type === 'cloze' 
+                          ? (question as any).clozeText?.replace(/\{\{c1::(.*?)\}\}/g, '_______________')
+                          : question.text
+                        }
                       </p>
                     </div>
+                    
+                    {question.type === 'cloze' && (
+                      <ClozeEditor 
+                        question={question} 
+                        quizId={selectedQuiz?.id}
+                        allQuestions={selectedQuiz?.questions}
+                        onUpdate={(updatedQuestion: any) => {
+                          if (!selectedQuiz) return;
+                          const updatedQuestions = [...selectedQuiz.questions];
+                          updatedQuestions[index] = updatedQuestion;
+                          // Update the selectedQuiz
+                          setSelectedQuiz({
+                            ...selectedQuiz,
+                            questions: updatedQuestions
+                          });
+                          // Also update the main quizzes list
+                          setQuizzes(quizzes.map(q => 
+                            q.id === selectedQuiz.id 
+                              ? {...q, questions: updatedQuestions}
+                              : q
+                          ));
+                        }}
+                      />
+                    )}
                     
                     {question.type === 'multiple_choice' && question.options && (
                       <div className="ml-9 space-y-2">
@@ -705,6 +729,24 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
                     )}
                     
                     {question.type === 'open_ended' && question.correctAnswer && (
+                      <div className="ml-9 mt-3">
+                        <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                          <div className="flex items-start">
+                            <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-green-600 text-white rounded-full mr-2 mt-0.5 flex-shrink-0">
+                              ✓
+                            </span>
+                            <div>
+                              <p className="text-xs font-medium text-green-800 mb-1">Answer:</p>
+                              <p className="text-sm text-green-700 leading-relaxed">
+                                {question.correctAnswer}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {question.type === 'cloze' && (
                       <div className="ml-9 mt-3">
                         <div className="bg-green-50 border border-green-200 rounded-md p-3">
                           <div className="flex items-start">
@@ -790,8 +832,6 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
         </Dialog>
       )}
 
-
-
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
@@ -861,7 +901,7 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
               <h4 className="font-medium text-gray-900 mb-2">Alternative options:</h4>
               <ul className="text-sm text-gray-700 space-y-1">
-                <li>• Export as CSV (compatible with Quizlet)</li>
+                <li>• Export as CSV (optimized for Quizlet flashcards)</li>
                 <li>• Export as Word document for manual import</li>
                 <li>• Study directly in QuizLab AI's Learn section</li>
               </ul>
@@ -874,6 +914,79 @@ export default function QuizHistory({ limit }: QuizHistoryProps) {
               className="w-full rounded-lg"
             >
               Got it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mobile Download Options Dialog */}
+      <Dialog open={isMobileDownloadOpen} onOpenChange={(open) => {
+        setIsMobileDownloadOpen(open);
+        if (!open) setSelectedMobileQuiz(null);
+      }}>
+        <DialogContent className="sm:max-w-md mx-auto max-w-[90vw] rounded-2xl bg-white">
+          <DialogHeader className="text-center pb-6">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
+              <FileText className="h-8 w-8 text-white" />
+            </div>
+            <DialogTitle className="text-xl font-semibold text-gray-900 mb-2">
+              {selectedMobileQuiz?.title}
+            </DialogTitle>
+            <DialogDescription className="text-sm text-gray-600">
+              Choose how you'd like to download this quiz
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-3 pb-6">
+            {/* Word Document Option */}
+            <Button
+              onClick={() => {
+                if (selectedMobileQuiz) {
+                  handleExport(selectedMobileQuiz, 'doc');
+                  setIsMobileDownloadOpen(false);
+                }
+              }}
+              className="w-full h-16 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-start px-6 gap-4 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <div className="w-10 h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                <FileText className="h-5 w-5" />
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-lg">Word Document</p>
+                <p className="text-blue-100 text-sm">Perfect for editing and printing</p>
+              </div>
+            </Button>
+
+            {/* CSV Option */}
+            <Button
+              onClick={() => {
+                if (selectedMobileQuiz) {
+                  handleExport(selectedMobileQuiz, 'csv');
+                  setIsMobileDownloadOpen(false);
+                }
+              }}
+              className="w-full h-16 rounded-xl bg-green-600 hover:bg-green-700 text-white flex items-center justify-start px-6 gap-4 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <div className="w-10 h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                <BarChart3 className="h-5 w-5" />
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-lg">CSV File</p>
+                <p className="text-green-100 text-sm">Optimized for Quizlet flashcards</p>
+              </div>
+            </Button>
+          </div>
+
+          <DialogFooter className="pt-4 border-t border-gray-100">
+            <Button 
+              onClick={() => {
+                setIsMobileDownloadOpen(false);
+                setSelectedMobileQuiz(null);
+              }}
+              variant="outline"
+              className="w-full h-12 rounded-xl text-gray-700 border-gray-200 hover:bg-gray-50"
+            >
+              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>

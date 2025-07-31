@@ -95,16 +95,16 @@ export function AnkiExportDialog({ isOpen, onClose, quizId }: AnkiExportDialogPr
               </ul>
             )}
             {isMixedContentError && (
-              <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/30 rounded border border-yellow-200 dark:border-yellow-800">
+              <div className="mt-2 p-2 bg-yellow-50 rounded border border-yellow-200">
                 <div className="flex items-start">
-                  <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2 mt-0.5" />
+                  <AlertTriangle className="h-5 w-5 text-yellow-600 mr-2 mt-0.5" />
                   <div>
-                    <p className="font-medium text-yellow-800 dark:text-yellow-300">Mixed Content Issue</p>
-                    <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                      Your browser is blocking the connection to Anki because you're on a secure (HTTPS) site 
-                      trying to connect to a non-secure (HTTP) local service.
+                    <p className="font-medium text-yellow-800">Mixed Content Issue</p>
+                    <p className="text-sm text-yellow-700">
+                      Your browser is blocking the connection to Anki because you're accessing QuizLab AI 
+                      over HTTPS and Anki-Connect uses HTTP.
                     </p>
-                    <p className="text-sm mt-1 text-yellow-700 dark:text-yellow-400">
+                    <p className="text-sm mt-1 text-yellow-700">
                       Look for a shield icon in your browser's address bar and click it to allow mixed content.
                     </p>
                   </div>
@@ -159,16 +159,16 @@ export function AnkiExportDialog({ isOpen, onClose, quizId }: AnkiExportDialogPr
           </div>
           
           {isSecureContext && (
-            <div className="text-sm p-3 bg-yellow-50 dark:bg-yellow-900/30 rounded border border-yellow-200 dark:border-yellow-800">
+            <div className="text-sm p-3 bg-yellow-50 rounded border border-yellow-200">
               <div className="flex items-start">
-                <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2 mt-0.5" />
+                <AlertTriangle className="h-5 w-5 text-yellow-600 mr-2 mt-0.5" />
                 <div>
-                  <p className="font-medium text-yellow-800 dark:text-yellow-300">Important Note</p>
-                  <p className="text-yellow-700 dark:text-yellow-400">
+                  <p className="font-medium text-yellow-800">Important Note</p>
+                  <p className="text-yellow-700">
                     You're accessing this site via HTTPS. If you see a connection error, you may need to allow mixed content
                     in your browser to connect to Anki.
                   </p>
-                  <p className="mt-1 text-yellow-700 dark:text-yellow-400">
+                  <p className="mt-1 text-yellow-700">
                     Look for a shield icon in your browser's address bar.
                   </p>
                 </div>
@@ -176,7 +176,7 @@ export function AnkiExportDialog({ isOpen, onClose, quizId }: AnkiExportDialogPr
             </div>
           )}
           
-          <div className="text-sm text-gray-500 dark:text-gray-400">
+          <div className="text-sm text-gray-500">
             <p>Before exporting, please ensure:</p>
             <ul className="list-disc pl-5 mt-1 space-y-1">
               <li>Anki is running on your computer</li>
@@ -184,7 +184,7 @@ export function AnkiExportDialog({ isOpen, onClose, quizId }: AnkiExportDialogPr
               <li>You've configured Anki-Connect to allow connections from quizlabai.com</li>
             </ul>
             <p className="mt-2">
-              <a href="/dashboard/anki-setup" className="text-blue-600 dark:text-blue-400 hover:underline" target="_blank">
+              <a href="/dashboard/anki-setup" className="text-blue-600 hover:underline" target="_blank">
                 View setup instructions
               </a>
             </p>

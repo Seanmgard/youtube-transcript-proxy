@@ -50,10 +50,10 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
-          Manage your application's settings, users, and data.
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8 text-gray-900">Admin Dashboard</h1>
+        <p className="text-gray-700 mb-6">
+          Welcome to the admin dashboard. Here you can manage users, subscriptions, and other system settings.
         </p>
       </div>
 

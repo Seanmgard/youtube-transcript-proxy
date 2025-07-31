@@ -6,7 +6,7 @@ export default function TermsPage() {
     <div className="container mx-auto px-4 py-24 max-w-4xl">
       <h1 className="text-4xl font-bold mb-8">Terms of Service</h1>
       
-      <div className="prose prose-lg dark:prose-invert">
+      <div className="prose prose-lg">
         <p className="text-lg mb-6">
           Last updated: {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
         </p>
