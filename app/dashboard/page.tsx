@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { useSupabase } from '@/utils/supabase/client';
@@ -63,6 +63,20 @@ export default function Dashboard() {
   useEffect(() => {
     setCopyButtonState('idle');
   }, [activeTab, currentQuiz, currentSummary]);
+
+  // Handle page visibility changes to ensure proper state management
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && currentSummary) {
+        // Page became visible and we have a summary - ensure streaming states are cleared
+        setIsStreaming(false);
+        setStreamingText('');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [currentSummary]);
   const { supabase, loading: supabaseLoading } = useSupabase();
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<'doc' | 'csv' | 'anki' | 'success' | null>(null);
@@ -73,6 +87,7 @@ export default function Dashboard() {
   const [zoomedImage, setZoomedImage] = useState<{ url: string; alt: string; title: string } | null>(null);
   const router = useRouter();
   const { toast } = useToast();
+  const resultsRef = useRef<HTMLDivElement>(null);
   const { isOnPlan } = useSubscription();
 
   // Load quiz and summary from localStorage on component mount
@@ -84,7 +99,7 @@ export default function Dashboard() {
       try {
         const quizData = JSON.parse(savedQuiz);
         setCurrentQuiz(quizData);
-          setQuizRestored(true);
+        setQuizRestored(true);
       } catch (error) {
         console.error('Error parsing saved quiz:', error);
         localStorage.removeItem('currentQuiz');
@@ -93,6 +108,9 @@ export default function Dashboard() {
     
     if (savedSummary) {
       setCurrentSummary(savedSummary);
+      // Reset streaming states when loading persisted summary
+      setIsStreaming(false);
+      setStreamingText('');
     }
     
     setLoading(false);
@@ -121,6 +139,9 @@ export default function Dashboard() {
 
   const handleSummaryGenerated = (summary: string) => {
     setCurrentSummary(summary);
+    // Reset streaming states when summary generation completes
+    setIsStreaming(false);
+    setStreamingText('');
     // Switch to summary tab when summary is generated
     setActiveTab('summary');
   };
@@ -128,6 +149,20 @@ export default function Dashboard() {
   const handleStreamingUpdate = (text: string) => {
     setStreamingText(text);
       setIsStreaming(true);
+  };
+
+  const handleGenerationStart = () => {
+    // Scroll to the results section with smooth scrolling
+    setTimeout(() => {
+      if (resultsRef.current) {
+        const headerHeight = 80; // Account for any sticky headers
+        const elementTop = resultsRef.current.offsetTop - headerHeight;
+        window.scrollTo({
+          top: elementTop,
+          behavior: 'smooth'
+        });
+      }
+    }, 100); // Small delay to ensure DOM updates
   };
 
   const copyToClipboard = async (content: string, type: 'quiz' | 'summary') => {
@@ -432,18 +467,26 @@ export default function Dashboard() {
           </div>
         </div>
         
-        <div className="space-y-6">
+        <div className="space-y-3">
           {currentQuiz.questions?.map((question: any, index: number) => (
-            <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
+            <div key={index} className="bg-gradient-to-r from-slate-50 to-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-gray-300 transition-all duration-200">
               <div className="flex justify-between items-start mb-3">
-                <h4 className="font-medium text-gray-900 text-sm">Question {index + 1}</h4>
+                <div className="flex items-center space-x-2">
+                  <div className="flex items-center justify-center w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xs font-semibold rounded-md shadow-sm">
+                    {index + 1}
+                  </div>
+                  <h4 className="font-semibold text-gray-800 text-sm">
+                    {question.type === 'multiple_choice' ? 'Multiple Choice' : 
+                     question.type === 'cloze' ? 'Cloze Deletion' : 'Open Ended'}
+                  </h4>
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => openQuestionEditor(index)}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="text-gray-500 hover:text-gray-700 hover:bg-white/70 rounded-lg transition-colors"
                 >
-                  <Edit className="h-3 w-3" />
+                  <Edit className="h-4 w-4" />
                 </Button>
               </div>
               
@@ -473,29 +516,42 @@ export default function Dashboard() {
               )}
               
               <div className="mb-3">
-                <p className="text-sm font-medium text-gray-800 mb-2">{question.text}</p>
+                <div className="bg-white/60 rounded-lg p-3 border border-gray-100 mb-3">
+                  <p className="text-sm font-medium text-gray-900 leading-relaxed">
+                    {question.type === 'cloze' && question.clozeText 
+                      ? question.clozeText.replace(/\{\{c1::(.*?)\}\}/g, '_______________')
+                      : question.text
+                    }
+                  </p>
+                </div>
               
               {question.type === 'multiple_choice' && question.options && (
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-gray-700 mb-1">Answer Options:</p>
                     {question.options.map((option: string, optionIndex: number) => (
-                      <div key={optionIndex} className="text-sm text-gray-600 pl-4">
-                        {String.fromCharCode(65 + optionIndex)}) {option}
-                    </div>
-                  ))}
-                </div>
+                      <div key={optionIndex} className="flex items-start space-x-2 p-2 bg-white/40 rounded-md border border-gray-100 hover:bg-white/60 transition-colors">
+                        <div className="flex items-center justify-center w-5 h-5 bg-gradient-to-br from-gray-200 to-gray-300 text-gray-700 text-xs font-semibold rounded-full flex-shrink-0 mt-0.5">
+                          {String.fromCharCode(65 + optionIndex)}
+                        </div>
+                        <span className="text-xs text-gray-800 leading-relaxed">{option}</span>
+                      </div>
+                    ))}
+                  </div>
               )}
 
                 {question.type === 'cloze' && (
-                  <div className="bg-yellow-50 p-3 rounded border">
-                    <ClozeEditor
-                      question={question.text}
-                      onUpdate={(updatedQuestion) => {
-                        const updatedQuestions = [...currentQuiz.questions];
-                        updatedQuestions[index] = { ...question, text: updatedQuestion };
-                        setCurrentQuiz({ ...currentQuiz, questions: updatedQuestions });
-                      }}
-                    />
-                      </div>
+                  <div className="flex items-center justify-between bg-gradient-to-r from-amber-50 to-yellow-50 p-2 rounded-md border border-amber-200">
+                    <span className="text-xs text-amber-700 font-medium">Fill-in-the-blank question</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openQuestionEditor(index)}
+                      className="text-xs text-amber-700 hover:text-amber-900 border-amber-300 hover:bg-amber-100 rounded px-3 py-1"
+                    >
+                      <Edit className="h-3 w-3 mr-1" />
+                      Edit Question
+                    </Button>
+                  </div>
                 )}
                     </div>
 
@@ -524,47 +580,56 @@ export default function Dashboard() {
                 </div>
               )}
 
-              <div className="mt-2 ml-4">
-                <span className="text-sm font-medium text-gray-600">Answer: </span>
-                {question.type === 'multiple_choice' && question.options ? (
-                  (() => {
-                    let correctIndex = -1;
-                    let correctText = question.correctAnswer;
-                    
-                    correctIndex = question.options.findIndex((option: string) => 
-                      option.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase()
-                    );
-                    
-                    if (correctIndex === -1) {
-                      const answerLetter = question.correctAnswer.trim().toUpperCase();
-                      if (answerLetter.match(/^[A-D]$/)) {
-                        correctIndex = answerLetter.charCodeAt(0) - 65;
-                        if (correctIndex >= 0 && correctIndex < question.options.length) {
-                          correctText = question.options[correctIndex];
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                  <span className="text-xs font-semibold text-gray-700">Correct Answer</span>
+                </div>
+                <div className="bg-green-50 border border-green-200 rounded-md p-2">
+                  {question.type === 'multiple_choice' && question.options ? (
+                    (() => {
+                      let correctIndex = -1;
+                      let correctText = question.correctAnswer;
+                      
+                      correctIndex = question.options.findIndex((option: string) => 
+                        option.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase()
+                      );
+                      
+                      if (correctIndex === -1) {
+                        const answerLetter = question.correctAnswer.trim().toUpperCase();
+                        if (answerLetter.match(/^[A-D]$/)) {
+                          correctIndex = answerLetter.charCodeAt(0) - 65;
+                          if (correctIndex >= 0 && correctIndex < question.options.length) {
+                            correctText = question.options[correctIndex];
+                          }
                         }
                       }
-                    }
-                    
-                    if (correctIndex === -1) {
-                      const letterMatch = question.correctAnswer.match(/^([A-D])\)\s*(.+)$/i);
-                      if (letterMatch) {
-                        correctIndex = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
-                        correctText = letterMatch[2];
+                      
+                      if (correctIndex === -1) {
+                        const letterMatch = question.correctAnswer.match(/^([A-D])\)\s*(.+)$/i);
+                        if (letterMatch) {
+                          correctIndex = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
+                          correctText = letterMatch[2];
+                        }
                       }
-                    }
-                    
-                    const answerLetter = correctIndex !== -1 ? String.fromCharCode(65 + correctIndex) : '';
-                    
-                    return (
-                      <span className="text-sm text-gray-900">
-                        {answerLetter && <span className="font-semibold">{answerLetter}) </span>}
-                        {correctText}
-                      </span>
-                    );
-                  })()
-                ) : (
-                  <span className="text-sm text-gray-900">{question.correctAnswer}</span>
-                )}
+                      
+                      const answerLetter = correctIndex !== -1 ? String.fromCharCode(65 + correctIndex) : '';
+                      
+                                              return (
+                          <div className="flex items-center space-x-2">
+                            {answerLetter && (
+                              <div className="flex items-center justify-center w-5 h-5 bg-green-600 text-white text-xs font-semibold rounded-full">
+                                {answerLetter}
+                              </div>
+                            )}
+                            <span className="text-xs font-medium text-green-800">{correctText}</span>
+                          </div>
+                        );
+                    })()
+                                      ) : (
+                      <span className="text-xs font-medium text-green-800">{question.correctAnswer}</span>
+                    )}
+                </div>
               </div>
             </div>
           ))}
@@ -644,7 +709,7 @@ export default function Dashboard() {
               <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 sm:px-6 py-4 border-b border-green-100">
                 <h2 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center">
                   <Upload className="w-5 h-5 mr-2 text-green-600" />
-                Create New Content
+                Create Quiz & Study Guide
                 </h2>
               </div>
               <div className="p-4 sm:p-6">
@@ -653,18 +718,19 @@ export default function Dashboard() {
                 onSummaryGenerated={handleSummaryGenerated}
                   onStreamingUpdate={handleStreamingUpdate}
                   onSettingsChange={(settings) => setSummaryEnabled(settings.summary?.enabled || false)}
+                  onGenerationStart={handleGenerationStart}
                 />
               </div>
             </div>
 
           {/* Content Display Section */}
-            <div className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden">
+            <div ref={resultsRef} className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden">
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 sm:px-6 py-4 border-b border-blue-100">
               <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <Eye className="w-5 h-5 mr-2 text-blue-600" />
-                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Generated Content</h2>
-                    </div>
+                                  <div className="flex items-center">
+                    <Eye className="w-5 h-5 mr-2 text-blue-600" />
+                    <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Your Quiz & Study Guide</h2>
+                      </div>
                     
                 {/* Action Buttons */}
                 <div className="flex items-center space-x-2">

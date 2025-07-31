@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, Upload, Video, Crown } from 'lucide-react';
+import { Loader2, Upload, Video, Crown, HelpCircle } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
 import { QuizSettings } from '@/lib/types';
@@ -19,9 +19,10 @@ interface QuizUploaderProps {
   onSummaryGenerated?: (summary: string) => void;
   onStreamingUpdate: (text: string) => void;
   onSettingsChange?: (settings: QuizSettings) => void;
+  onGenerationStart?: () => void;
 }
 
-export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onStreamingUpdate, onSettingsChange }: QuizUploaderProps) {
+export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onStreamingUpdate, onSettingsChange, onGenerationStart }: QuizUploaderProps) {
   const inputFileRef = useRef<HTMLInputElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -36,7 +37,7 @@ export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onSt
     questionType: 'multiple_choice',
     sourceType: 'file',
     summary: {
-      enabled: true
+      enabled: false
     }
   });
   const { toast } = useToast();
@@ -171,6 +172,9 @@ export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onSt
     setSummaryCompleted(false);
     setCurrentStep('Preparing to upload document...');
     onQuizGenerated({ loading: true });
+    
+    // Trigger scroll to results section
+    onGenerationStart?.();
 
     try {
       // File upload path
@@ -410,30 +414,34 @@ export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onSt
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {/* Question Type */}
             <div className="bg-white rounded-md p-3 border border-gray-200 h-full flex flex-col">
-              <Label className="block mb-2 text-sm font-medium text-gray-900">Question Type</Label>
+              <div className="flex items-center space-x-2 mb-3">
+                <div className="flex items-center justify-center w-5 h-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded border border-blue-100">
+                  <HelpCircle className="w-3 h-3 text-blue-600" />
+                </div>
+                <Label className="text-sm font-semibold text-gray-900">Question Type</Label>
+              </div>
               <RadioGroup
                 value={settings.questionType}
                 onValueChange={(value) => setSettings({ ...settings, questionType: value as 'multiple_choice' | 'open_ended' | 'cloze' })}
-                className="space-y-1 flex-1"
+                className="flex flex-wrap gap-2"
                 disabled={isGenerating}
               >
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1.5 py-1.5 px-2 rounded-md hover:bg-gray-50 transition-colors border border-gray-100">
                   <RadioGroupItem value="multiple_choice" id="multiple_choice" disabled={isGenerating} />
-                  <Label htmlFor="multiple_choice" className="text-xs text-gray-700">Multiple Choice</Label>
+                  <Label htmlFor="multiple_choice" className="text-xs text-gray-700 cursor-pointer whitespace-nowrap">Multiple Choice</Label>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1.5 py-1.5 px-2 rounded-md hover:bg-gray-50 transition-colors border border-gray-100">
                   <RadioGroupItem value="open_ended" id="open_ended" disabled={isGenerating} />
-                  <Label htmlFor="open_ended" className="text-xs text-gray-700">Open Ended</Label>
+                  <Label htmlFor="open_ended" className="text-xs text-gray-700 cursor-pointer whitespace-nowrap">Open Ended</Label>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1.5 py-1.5 px-2 rounded-md hover:bg-gray-50 transition-colors border border-gray-100">
                   <RadioGroupItem value="cloze" id="cloze" disabled={isGenerating} />
-                  <Label htmlFor="cloze" className="text-xs text-gray-700">Cloze Deletion</Label>
+                  <Label htmlFor="cloze" className="text-xs text-gray-700 cursor-pointer whitespace-nowrap">Cloze Deletion</Label>
                 </div>
               </RadioGroup>
             </div>
 
             {/* Summary Settings */}
-            <div className="bg-white rounded-md p-3 border border-gray-200 h-full flex flex-col">
               <SummarySettings
                 settings={settings.summary || { enabled: false }}
                 onSettingsChange={(summarySettings) => {
@@ -442,7 +450,6 @@ export default function QuizUploader({ onQuizGenerated, onSummaryGenerated, onSt
                 isPremium={isPremium}
                 disabled={isGenerating}
               />
-            </div>
           </div>
 
           {/* Number of Questions */}

@@ -214,7 +214,7 @@ function generateFallbackQuestions(count: number): any[] {
   return fallbackQuestions;
 }
 
-async function generateQuestionsWithRetry(openai: OpenAI, threadId: string, assistantId: string, sendJson: Function, targetCount: number, settings: any): Promise<string> {
+async function generateQuestionsWithRetry(openai: OpenAI, threadId: string, assistant: any, sendJson: Function, targetCount: number, settings: any): Promise<string> {
   let allQuestions: any[] = [];
   let aiGeneratedTitle: string | null = null; // Track the AI-generated title
   let attempts = 0;
@@ -341,7 +341,7 @@ Return in JSON format:
 }`
       });
       
-      const stream = openai.beta.threads.runs.stream(threadId, { assistant_id: assistantId });
+      const stream = openai.beta.threads.runs.stream(threadId, { assistant_id: assistant.id });
       
       let bufferAll = '';
       for await (const event of stream) {
@@ -434,7 +434,7 @@ Return JSON with title: "${aiGeneratedTitle || '[Subject Topic]'}", and question
             : `I need exactly ${remaining} more questions to reach ${targetCount} total. Generate ${remaining} additional questions based on different parts of the document.`
         });
         
-        const stream = openai.beta.threads.runs.stream(threadId, { assistant_id: assistantId });
+        const stream = openai.beta.threads.runs.stream(threadId, { assistant_id: assistant.id });
         let bufferAll = '';
         for await (const event of stream) {
           if (event.event === 'thread.message.delta') {
@@ -547,7 +547,6 @@ export async function POST(request: Request) {
     // Check for required environment variables
     const requiredEnvVars = {
       'OPENAI_API_KEY': process.env.OPENAI_API_KEY,
-      'OPENAI_ASSISTANT_ID': process.env.OPENAI_ASSISTANT_ID,
       'BLOB_READ_WRITE_TOKEN': process.env.BLOB_READ_WRITE_TOKEN
     };
 
@@ -559,17 +558,6 @@ export async function POST(request: Request) {
       console.error('Missing environment variables:', missingVars);
       return NextResponse.json({ 
         error: `Missing required environment variables: ${missingVars.join(', ')}. Please configure them in your deployment settings.` 
-      }, { status: 500 });
-    }
-
-    // Validate that the assistant exists
-    try {
-      await openai.beta.assistants.retrieve(process.env.OPENAI_ASSISTANT_ID!);
-      console.log('✅ OpenAI Assistant validated successfully');
-    } catch (assistantError) {
-      console.error('❌ OpenAI Assistant validation failed:', assistantError);
-      return NextResponse.json({ 
-        error: `OpenAI Assistant not found. Please check your OPENAI_ASSISTANT_ID environment variable.` 
       }, { status: 500 });
     }
 
@@ -637,6 +625,7 @@ export async function POST(request: Request) {
         try {
           let thread;
           let fileUpload = null;
+          let assistant: any = null;
           
           if (settings.sourceType === 'youtube' && transcriptText) {
             // Handle YouTube transcript
@@ -936,7 +925,15 @@ Generate exactly ${settings.numberOfQuestions} questions now based on the docume
             });
           }
 
-          const responseText = await generateQuestionsWithRetry(openai, thread.id, process.env.OPENAI_ASSISTANT_ID!, sendJson, settings.numberOfQuestions, settings);
+          // Create temporary assistant with gpt-4.1 for better document processing
+          assistant = await openai.beta.assistants.create({
+            name: "Quiz Generator",
+            instructions: `You are a quiz generator that creates high-quality educational questions from documents. Always use the attached document as your ONLY source of information. Generate questions that test understanding of the specific content provided.`,
+            model: "gpt-4-1106-preview", // This is gpt-4.1
+            tools: [{ type: "file_search" }]
+          });
+
+          const responseText = await generateQuestionsWithRetry(openai, thread.id, assistant, sendJson, settings.numberOfQuestions, settings);
           // Extract filename for meaningful title generation
           const originalFileName = settings.sourceType === 'youtube' ? 'YouTube Video' : 
                                   (blobUrl ? new URL(blobUrl).pathname.split('/').pop() || 'uploaded_file' : 'uploaded_file');
@@ -961,14 +958,22 @@ Generate exactly ${settings.numberOfQuestions} questions now based on the docume
 
           sendJson({ type: 'final', quiz: parsed });
 
-          // Clean up the uploaded file from OpenAI (only if it was uploaded)
+          // Clean up the uploaded file and assistant from OpenAI
           if (fileUpload) {
             try {
               await openai.files.del(fileUpload.id);
-              sendJson({ type: 'info', message: '🧹 Cleanup completed.' });
+              sendJson({ type: 'info', message: '🧹 File cleanup completed.' });
             } catch (cleanupError) {
-              console.error("Cleanup error:", cleanupError);
+              console.error("File cleanup error:", cleanupError);
             }
+          }
+          
+          // Clean up the temporary assistant
+          try {
+            await openai.beta.assistants.del(assistant.id);
+            console.log(`🗑️ Cleaned up assistant: ${assistant.id}`);
+          } catch (cleanupError) {
+            console.error('Failed to cleanup assistant:', cleanupError);
           }
 
           // Send completion signal
